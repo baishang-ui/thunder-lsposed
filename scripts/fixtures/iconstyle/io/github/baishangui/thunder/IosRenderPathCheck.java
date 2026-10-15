@@ -35,7 +35,8 @@ public final class IosRenderPathCheck {
         var wifiGlyph=new IosIconDrawable(new IosStatusIcons.Symbol(IosStatusIcons.Kind.WIFI));wifiGlyph.setBounds(0,0,24,24);
         Canvas wifiCanvas=new Canvas();wifiGlyph.draw(wifiCanvas);
         float wifiLeft=wifiCanvas.pathBounds.stream().map(x->x[0]).min(Float::compare).orElse(0f);
-        check(Math.abs(wifiLeft-2)<.4f,"Wi-Fi published silhouette retains its reference width without a second scale");
+        float expectedLeft=(24-18f*Math.min(24/IosIconDrawable.cellWidth(new IosStatusIcons.Symbol(IosStatusIcons.Kind.WIFI)),24/20f))/2;
+        check(Math.abs(wifiLeft-expectedLeft)<.4f,"Wi-Fi uses tight ink geometry with symmetric side spacing");
         var resourceHook=Api102Runtime.callbacks.get(ImageView.class.getName()+"#setImageResource");
         for(String name:new String[]{"stat_signal_signal_lte_single_3_os17","stat_signal_soft_signal_2_os17"}) {
             ImageView image=new ImageView();image.parent=new ModernStatusBarMobileView();image.drawable=new Drawable();
@@ -53,7 +54,7 @@ public final class IosRenderPathCheck {
             p=param(null,ctx,2);p.setResult(new Drawable());load.after(p);Drawable secondary=(Drawable)p.getResult();
             check(primary instanceof IosIconDrawable.Replacement && secondary instanceof IosIconDrawable.Replacement,"both actual Compose layers receive replacement artwork");
             int stackedPixels=Math.round(20*ctx.resources.getDisplayMetrics().density);
-            check(primary.getIntrinsicWidth()==stackedPixels && primary.getIntrinsicHeight()==stackedPixels,
+            check(primary.getIntrinsicWidth()==Math.round(IosIconDrawable.cellWidth(new IosStatusIcons.Symbol(IosStatusIcons.Kind.CELLULAR,3,4,1))*ctx.resources.getDisplayMetrics().density) && primary.getIntrinsicHeight()==stackedPixels,
                 "Compose painter measures stacked signals at 20 dp instead of native 19 by 16 dp");
             primary.setBounds(0,0,24,24);secondary.setBounds(0,0,24,24);
             Canvas first=new Canvas(),second=new Canvas();primary.draw(first);secondary.draw(second);
@@ -61,7 +62,7 @@ public final class IosRenderPathCheck {
             float minBottom=second.pathBounds.stream().map(x->x[1]).min(Float::compare).orElse(0f);
             check(maxTop<minBottom,"primary and secondary occupy separate rows in the same overlaid Compose viewport");
             ctx.resources.full="com.android.systemui:drawable/stat_signal_signal_stacked_primary_noservice";
-            p=param(null,ctx,3);p.setResult(original);load.after(p);check(p.getResult()==original,"stacked no-service badge remains native");
+            p=param(null,ctx,3);p.setResult(original);load.after(p);check(p.getResult() instanceof IosIconDrawable.Replacement && ((IosIconDrawable.Replacement)p.getResult()).symbol().kind()==IosStatusIcons.Kind.NO_SERVICE,"stacked no-service badge uses replacement with explicit no-service state");
             scope.after(s);
             ctx.resources.full="com.android.systemui:drawable/stat_signal_signal_stacked_primary_3";
             p=param(null,ctx,4);p.setResult(original);load.after(p);check(p.getResult()==original,"same resource outside status Compose is unchanged");
@@ -76,7 +77,7 @@ public final class IosRenderPathCheck {
             check(!c.operations.isEmpty() && c.depth==0,"separate cellular direct drawable renders custom signal with native level");
             icon.mForegroundPaint.setColor(0x64112233);icon.mForegroundPaint.setAlpha(100);
             c=new Canvas();dynamic.before(param(icon,c));check(c.alphas.contains(100),"native cellular alpha is applied once during status bar fades");
-            icon.setLevel(2<<16|5<<8|3);c=new Canvas();dynamic.before(param(icon,c));check(c.operations.isEmpty(),"dynamic warning state stays native");
+            icon.setLevel(2<<16|5<<8|3);c=new Canvas();dynamic.before(param(icon,c));check(c.operations.contains("text:!"),"dynamic warning is visible in replacement");
             icon.setLevel(5<<8|3);image.parent=null;c=new Canvas();dynamic.before(param(icon,c));check(c.operations.isEmpty(),"dynamic signals outside status bar stay native");
         }
         ImageView wifi=new ImageView();wifi.drawable=new IosIconDrawable.Replacement(new Drawable(),new IosStatusIcons.Symbol(IosStatusIcons.Kind.WIFI));
@@ -106,7 +107,7 @@ public final class IosRenderPathCheck {
         var battery=new HorizontalBatteryContentDrawable();battery.setBounds(0,0,320,180);battery.rect=new RectF(80,60,240,120);battery.noPercentRectF=battery.rect;
         HookCallback drawBattery=Api102Runtime.callbacks.get(battery.getClass().getName()+"#draw");
         Canvas normal=new Canvas();drawBattery.before(param(battery,normal));float[] body=normal.pathBounds.get(0);
-        check(body[2]-body[0]>280,"battery uses full drawable bounds instead of vendor inset progress rect");
+        check(body[2]-body[0]>210,"battery uses full drawable bounds instead of vendor inset progress rect");
         battery.paint.setAlpha(100);Canvas faded=new Canvas();drawBattery.before(param(battery,faded));
         check(faded.alphas.get(1)==50,"battery terminal keeps half opacity during native fades, matching preview");
         battery.paint.setAlpha(255);

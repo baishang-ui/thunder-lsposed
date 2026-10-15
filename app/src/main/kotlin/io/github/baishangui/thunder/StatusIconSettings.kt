@@ -36,7 +36,7 @@ import top.yukonga.miuix.kmp.basic.Text
     UiText("iOS 风格预览", 15)
     StatusStrip(dark = false, stacked = settings.statusBarStackSignals)
     StatusStrip(dark = true, stacked = settings.statusBarStackSignals)
-    UiText("时间最大 17 dp，空间不足时自动缩小以完整显示；状态图标 20 dp，横向电池 30 × 16 dp。预览为示意，实际颜色与状态跟随系统。", 12, muted = true)
+    UiText("时间根据可用空间完整显示；图标统一居中，间距跟随图形宽度。预览为示意，实际颜色与状态跟随系统。", 12, muted = true)
     SettingsGroup {
         UiText("电池内数字", 15)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -61,7 +61,12 @@ import top.yukonga.miuix.kmp.basic.Text
             IosStatusIcons.Kind.HOTSPOT to "个人热点", IosStatusIcons.Kind.ROTATION to "旋转锁定",
             IosStatusIcons.Kind.HEADPHONES to "耳机",
             IosStatusIcons.Kind.AIRPLANE to "飞行模式",
-            IosStatusIcons.Kind.LOCATION to "定位"
+            IosStatusIcons.Kind.LOCATION to "定位",
+            IosStatusIcons.Kind.CAST to "投屏", IosStatusIcons.Kind.ETHERNET to "有线网络",
+            IosStatusIcons.Kind.WORK to "工作资料", IosStatusIcons.Kind.DATA_SAVER to "流量节省",
+            IosStatusIcons.Kind.CAMERA to "相机", IosStatusIcons.Kind.MICROPHONE to "麦克风",
+            IosStatusIcons.Kind.RECORDING to "录制", IosStatusIcons.Kind.STEALTH to "隐私保护",
+            IosStatusIcons.Kind.REVERSE_CHARGE to "反向充电", IosStatusIcons.Kind.TTY to "文字电话", IosStatusIcons.Kind.NO_SERVICE to "无服务"
         )
         symbols.chunked(4).forEach { row ->
             Row(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
@@ -76,9 +81,9 @@ import top.yukonga.miuix.kmp.basic.Text
             }
         }
     }
-    UiText("电池内数字随真实电量更新，充电显示闪电标记。支持横向电池；竖向、圆形电池保留系统样式。蓝牙、静音、振动、NFC 与高性能提供配套图标。", 12, muted = true)
+    UiText("电池内数字随真实电量更新，充电显示闪电标记。开启后统一替换横向、竖向、圆形和旧版电池，关闭后恢复原样式。", 12, muted = true)
     UiText("图形参考苹果官方状态栏比例并用平滑曲线重绘；Android 专属状态使用配套图形。实心百分比电池参考 iOS 16。", 12, muted = true)
-    UiText("自动保存并同步。漫游、无服务和网络异常图标保留系统提示；锁屏及下拉区域共用的状态图标也会应用样式。", 12, muted = true)
+    UiText("自动保存并同步。漫游、无服务和网络异常也使用配套图标并保留状态提示；锁屏及下拉区域共用的状态图标也会应用样式。", 12, muted = true)
 }
 
 @Composable private fun StatusStrip(dark: Boolean, stacked: Boolean) {
@@ -87,9 +92,9 @@ import top.yukonga.miuix.kmp.basic.Text
         .padding(horizontal = 20.dp, vertical = 20.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("9:41", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = ink)
         Spacer(Modifier.weight(1f))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             if (stacked) {
-                Box(Modifier.size(20.dp)) {
+                Box(Modifier.size(IosIconDrawable.cellWidth(IosStatusIcons.Symbol(IosStatusIcons.Kind.CELLULAR, 3, 4, 1)).dp, IosIconDrawable.cellHeight().dp)) {
                     StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.CELLULAR, 3, 4, 1), ink, "SIM 1 信号，三格")
                     StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.CELLULAR, 2, 4, 2), ink, "SIM 2 信号，两格")
                 }
@@ -105,7 +110,7 @@ import top.yukonga.miuix.kmp.basic.Text
 
 @Composable private fun StatusGlyph(symbol: IosStatusIcons.Symbol, color: Color, label: String, battery: Boolean = false, charging: Boolean = false, large: Boolean = false) {
     val drawable = remember(symbol) { IosIconDrawable(symbol) }
-    Canvas(Modifier.size(if (large) 74.dp else if (battery) 30.dp else 20.dp, if (large) 38.dp else if (battery) 16.dp else 20.dp).semantics { contentDescription = label }) {
+    Canvas(Modifier.size((IosIconDrawable.cellWidth(symbol) * if (large) 2.4f else 1f).dp, (IosIconDrawable.cellHeight() * if (large) 2.4f else 1f).dp).semantics { contentDescription = label }) {
         drawable.color(android.graphics.Color.argb((color.alpha * 255).toInt(), (color.red * 255).toInt(),
             (color.green * 255).toInt(), (color.blue * 255).toInt()))
         if (battery) drawable.battery(charging, android.graphics.Color.argb(255, (color.red * 255).toInt(), (color.green * 255).toInt(), (color.blue * 255).toInt()))

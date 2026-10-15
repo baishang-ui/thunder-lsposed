@@ -298,21 +298,7 @@ class MainActivity : ComponentActivity() {
         val cloudTime=cloud.getLong("time",0)
         val cloudReport=if(cloudTime>0L && cloud.getLong("elapsed",-1)<=android.os.SystemClock.elapsedRealtime())
             "\n插件独立进程 PID ${cloud.getInt("pid",-1)} · Hook ${cloud.getInt("hook_version",0)} · 配置 ${cloud.getLong("revision",-1)}\n插件报告 ${SimpleDateFormat("MM-dd HH:mm:ss",Locale.CHINA).format(Date(cloudTime))}\n插件命中：${cloud.getString("hits", "")}\n插件参数：${cloud.getString("effective", "")}\n插件异常：${cloud.getString("error", "")}" else ""
-        val system=createDeviceProtectedStorageContext().getSharedPreferences("runtime_system",0)
-        val systemTime=system.getLong("time",0)
-        val systemReport=if(systemTime>0L) {
-            val bootNow=System.currentTimeMillis()-android.os.SystemClock.elapsedRealtime()
-            val reportBoot=systemTime-system.getLong("elapsed",0)
-            if(kotlin.math.abs(bootNow-reportBoot)>60000L) "\n系统框架：当前记录来自上次开机，等待本次报告。"
-            else "\n系统框架 PID ${system.getInt("pid",-1)} · Hook ${system.getInt("hook_version",0)} · 配置 ${system.getLong("revision",-1)}\n应用过渡：${system.getString("hits", "")}\n过渡状态：${system.getString("effective", "")}\n过渡异常：${system.getString("error", "").orEmpty().ifEmpty { "无" }}"
-        } else if(SettingsProvider.preferences(this).getBoolean("status_bar_follow_app",false))
-            "\n系统框架：尚未收到应用过渡报告。作用域已完整且重启后仍无报告时，请查看 LSPosed 日志中的 window-bootstrap 与 window-report；无报告不能单独判断为未加载。" else ""
-        val launcher=createDeviceProtectedStorageContext().getSharedPreferences("runtime_launcher",0)
-        val launcherTime=launcher.getLong("time",0)
-        val launcherCurrent=launcherTime>0L && kotlin.math.abs((System.currentTimeMillis()-android.os.SystemClock.elapsedRealtime())-(launcherTime-launcher.getLong("elapsed",0)))<60000L
-        val launcherReport=if(launcherCurrent) "\n桌面动画 PID ${launcher.getInt("pid",-1)}\n桌面帧：${launcher.getString("hits", "")}\n桌面状态：${launcher.getString("effective", "")}\n桌面异常：${launcher.getString("error", "").orEmpty().ifEmpty { "无" }}"
-            else if(SettingsProvider.preferences(this).getBoolean("status_bar_follow_app",false)) "\n桌面动画：等待本次开机的逐帧 Hook 报告。" else ""
-        val frameworkReport="${RemoteSettings.status}\n${RemoteSettings.scopeStatus}$systemReport$launcherReport"
+        val frameworkReport="${RemoteSettings.status}\n${RemoteSettings.scopeStatus}"
         val r=createDeviceProtectedStorageContext().getSharedPreferences("runtime",0)
         val time=r.getLong("time",0)
         val hookVersion=r.getInt("hook_version",0)

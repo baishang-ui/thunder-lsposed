@@ -10,9 +10,8 @@ import android.os.Binder;
 import android.os.Bundle;
 import android.os.Process;
 
-/** Small, device-protected IPC surface. Only this app, SystemUI, its plugin and system UID may call it. */
+/** Small, device-protected IPC surface. Only this app, SystemUI and its plugin may call it. */
 public final class SettingsProvider extends ContentProvider {
-    private static volatile android.os.IBinder overlayEndpoint;
     public static final String AUTHORITY = BuildConfig.APPLICATION_ID + ".settings";
     public static SharedPreferences preferences(Context context) {
         return context.createDeviceProtectedStorageContext().getSharedPreferences("settings", Context.MODE_PRIVATE);
@@ -28,25 +27,7 @@ public final class SettingsProvider extends ContentProvider {
         boolean plugin = false;
         try { plugin = uid == context.getPackageManager().getPackageUid("com.oplus.systemui.plugins", 0); }
         catch (Exception ignored) { }
-        boolean systemServer = uid == 1000;
-        boolean launcher = false;
-        try { launcher = uid == context.getPackageManager().getPackageUid("com.android.launcher", 0); }
-        catch (Exception ignored) { }
-        if ("overlay-register".equals(method)) {
-            if (!systemServer) throw new SecurityException("System UID required");
-            android.os.IBinder endpoint = extras == null ? null : extras.getBinder("endpoint");
-            if (endpoint == null || !endpoint.isBinderAlive()) throw new IllegalArgumentException("Live endpoint required");
-            overlayEndpoint = endpoint;
-            return Bundle.EMPTY;
-        }
-        if ("overlay-endpoint".equals(method)) {
-            if (!launcher && !own) throw new SecurityException("Launcher UID required");
-            Bundle result = new Bundle();
-            android.os.IBinder endpoint = overlayEndpoint;
-            if (endpoint != null && endpoint.isBinderAlive()) result.putBinder("endpoint", endpoint);
-            return result;
-        }
-        if (!own && !systemUi && !plugin && !systemServer && !(launcher && "report".equals(method)))
+        if (!own && !systemUi && !plugin)
             throw new SecurityException("Module/system interfaces only");
         SharedPreferences prefs = preferences(context);
         if ("settings".equals(method)) {
@@ -59,7 +40,6 @@ public final class SettingsProvider extends ContentProvider {
             result.putBoolean("enabled", prefs.getBoolean("enabled", true));
             result.putBoolean("gesture_bar_hidden", prefs.getBoolean("gesture_bar_hidden", false));
             result.putBoolean("gesture_bar_remove_inset", prefs.getBoolean("gesture_bar_remove_inset", false));
-            result.putBoolean("status_bar_follow_app", prefs.getBoolean("status_bar_follow_app", false));
             result.putBoolean("status_bar_stack_signals", prefs.getBoolean("status_bar_stack_signals", false));
             result.putInt("status_bar_icon_style", prefs.getInt("status_bar_icon_style", 0) == 1 ? 1 : 0);
             result.putInt("status_bar_hidden_icons", prefs.getInt("status_bar_hidden_icons", 0) & StatusBarIcons.ALL);
@@ -111,17 +91,14 @@ public final class SettingsProvider extends ContentProvider {
             result.putLong("revision", prefs.getLong("revision", 0));
             return result;
         }
-        if ("report".equals(method) && extras != null && (systemUi || plugin || systemServer || launcher)) {
-            boolean systemProcess = "system_server".equals(extras.getString("process", ""));
-            if (systemProcess && !systemServer) throw new SecurityException("System UID required for system_server report");
-            boolean launcherProcess = "com.android.launcher".equals(extras.getString("process", ""));
-            if (launcherProcess && !launcher) throw new SecurityException("Launcher UID required");
-            if (launcher && !systemUi && !plugin && !systemServer && !launcherProcess)
-                throw new SecurityException("Launcher report requires its process name");
-            boolean cloudProcess = "com.oplus.systemui.plugins".equals(extras.getString("process", ""));
-            if (!systemProcess && !systemUi && !cloudProcess && !launcherProcess) throw new IllegalArgumentException("Plugin report requires its process name");
+        if ("report".equals(method) && extras != null && (systemUi || plugin)) {
+            String process = extras.getString("process", "");
+            boolean cloudProcess = "com.oplus.systemui.plugins".equals(process);
+            if (cloudProcess && !plugin) throw new SecurityException("Plugin UID required");
+            if (!cloudProcess && !(systemUi && (process.isEmpty() || "com.android.systemui".equals(process))))
+                throw new IllegalArgumentException("Unsupported report process");
             // The caller cannot change user settings or supply arbitrary preference keys.
-            context.createDeviceProtectedStorageContext().getSharedPreferences(systemProcess ? "runtime_system" : launcherProcess ? "runtime_launcher" : cloudProcess ? "runtime_cloud" : "runtime", 0).edit()
+            context.createDeviceProtectedStorageContext().getSharedPreferences(cloudProcess ? "runtime_cloud" : "runtime", 0).edit()
                 .putString("hooks", extras.getString("hooks", ""))
                 .putString("hits", extras.getString("hits", ""))
                 .putString("error", extras.getString("error", ""))

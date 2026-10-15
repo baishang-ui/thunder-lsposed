@@ -1,1 +1,0 @@
-package android.app;public class Instrumentation{public void callApplicationOnCreate(Application app){}}

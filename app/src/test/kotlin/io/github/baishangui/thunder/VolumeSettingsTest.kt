@@ -40,16 +40,28 @@ class VolumeSettingsTest {
         val runtime=HookConfig(Bundle().apply {putInt("volume_width",-1);putInt("volume_height",10000);putInt("volume_button",-100)})
         assertEquals(32,runtime.volumeWidth);assertEquals(400,runtime.volumeHeight);assertEquals(36,runtime.volumeButton)
     }
-    @Test fun popupFollowsEitherEdgeAndClampsToUsableScreen() {
-        val right=VolumePanelGeometry.place(8,40,392,780,330,240,386,480,280,400,8)
-        assertTrue(right.opensLeft());assertEquals(42,right.x());assertEquals(160,right.y())
-        val left=VolumePanelGeometry.place(8,40,392,780,12,240,68,480,280,400,8)
-        assertFalse(left.opensLeft());assertEquals(76,left.x())
-        val bottom=VolumePanelGeometry.place(8,40,392,780,330,700,386,780,280,400,8)
+    @Test fun nativePanelEnclosesSidebarAndClampsToUsableScreen() {
+        val right=VolumePanelGeometry.place(8,40,392,780,330,240,386,480,280,400,20)
+        assertTrue(right.opensLeft());assertEquals(112,right.x());assertEquals(220,right.y())
+        val left=VolumePanelGeometry.place(8,40,392,780,12,240,68,480,280,400,20)
+        assertFalse(left.opensLeft());assertEquals(8,left.x())
+        val bottom=VolumePanelGeometry.place(8,40,392,780,330,700,386,780,280,400,20)
         assertEquals(380,bottom.y())
-        val landscape=VolumePanelGeometry.place(30,10,750,350,680,120,736,300,300,600,8)
+        val landscape=VolumePanelGeometry.place(30,10,750,350,680,120,736,300,300,600,20)
         assertEquals(340,landscape.height());assertEquals(10,landscape.y())
-        val narrow=VolumePanelGeometry.place(8,40,192,400,135,40,190,200,300,600,8)
+        val narrow=VolumePanelGeometry.place(8,40,192,400,135,40,190,200,300,600,20)
         assertEquals(184,narrow.width());assertEquals(360,narrow.height());assertEquals(8,narrow.x());assertEquals(40,narrow.y())
+    }
+    @Test fun nativeAnimationEndpointsUsePhysicalCoordinatesWithoutAccumulatingTransforms() {
+        val bounds=VolumePanelGeometry.Bounds(100,200,320,460,true)
+        val positions=(0..3).map { VolumePanelGeometry.rowX(bounds,it,4,56,20,12) }
+        assertEquals(listOf(130f,198f,266f,334f),positions)
+        positions.forEach { target ->
+            val first=VolumePanelGeometry.translation(target,900f,0f)
+            val interrupted=VolumePanelGeometry.translation(target,850f,-50f)
+            assertEquals(first,interrupted,0f)
+            assertTrue(target>=bounds.x()+20 && target+56<=bounds.x()+bounds.width()-20)
+        }
+        assertEquals(232f,VolumePanelGeometry.rowX(bounds,0,1,56,20,12))
     }
 }

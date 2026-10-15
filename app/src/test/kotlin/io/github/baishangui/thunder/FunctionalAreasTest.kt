@@ -48,7 +48,7 @@ class FunctionalAreasTest {
         val root=JSONObject(Settings(cardArea=Area(tint=true,color=0x4188aacc,cornerEnabled=true,corner=18)).json())
             .put("version",7).removeV13Fields()
         root.getJSONObject("settings").apply {
-            remove("status_bar_icon_style"); remove("status_bar_follow_app"); remove("status_bar_stack_signals")
+            remove("status_bar_icon_style"); remove("status_bar_stack_signals")
             remove("qs_card_blur");remove("qs_card_radius")
             put("notification_card_blur",true);put("notification_card_radius",73)
             put("notification_card_tint",true);put("notification_card_color",0x55443322)
@@ -78,7 +78,7 @@ class FunctionalAreasTest {
 }
 
 internal fun JSONObject.removeV7Fields(): JSONObject = apply {
-    getJSONObject("settings").apply { remove("status_bar_icon_style"); remove("status_bar_follow_app"); remove("status_bar_stack_signals");remove("qs_card_blur");remove("qs_card_radius") }
+    getJSONObject("settings").apply { remove("status_bar_icon_style"); remove("status_bar_stack_signals");remove("qs_card_blur");remove("qs_card_radius") }
     val settings=getJSONObject("settings")
     settings.keys().asSequence().toList().filter {
         it.startsWith("cloud_card_") || it.startsWith("notification_card_") ||

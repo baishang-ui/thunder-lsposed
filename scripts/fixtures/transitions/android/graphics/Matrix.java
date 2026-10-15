@@ -1,1 +1,0 @@
-package android.graphics;public class Matrix {public float[] values={1,0,0,0,1,0,0,0,1};public void setValues(float[] v){values=v.clone();}public void getValues(float[] out){System.arraycopy(values,0,out,0,9);}public Matrix(){}public Matrix(float scale,float x,float y){values=new float[]{scale,0,x,0,scale,y,0,0,1};}}

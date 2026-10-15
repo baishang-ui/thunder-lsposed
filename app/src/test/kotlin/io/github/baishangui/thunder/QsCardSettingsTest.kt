@@ -45,7 +45,7 @@ class QsCardSettingsTest {
             notificationArea=Area(true,121,true,0x55667788,true,36))
         assertEquals(settings,Settings.from(settings.bundle()))
         assertEquals(settings,Settings.parse(settings.json()))
-        assertEquals(13,JSONObject(settings.json()).getInt("version"))
+        assertEquals(14,JSONObject(settings.json()).getInt("version"))
         val runtime=HookConfig(settings.bundle())
         assertSame(runtime.shade,runtime.qs)
         assertEquals(0x55443322,runtime.shade.color)
@@ -64,7 +64,6 @@ class QsCardSettingsTest {
             root.getJSONObject("settings").apply {
                 keys().asSequence().toList().filter { it.startsWith("notification_card_") }.forEach { remove(it) }
                 if (version < 11) remove("status_bar_stack_signals")
-                if (version < 10) remove("status_bar_follow_app")
                 if (version < 9) remove("status_bar_icon_style")
             }
             val migrated = Settings.parse(root.toString())

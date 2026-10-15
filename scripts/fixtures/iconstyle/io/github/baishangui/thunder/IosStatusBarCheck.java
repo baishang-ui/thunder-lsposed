@@ -29,7 +29,7 @@ public final class IosStatusBarCheck {
         Drawable nativeIcon=new Drawable();HookCallback.Param p=param(view,source);p.setResult(nativeIcon);symbols.after(p);
         check(p.getResult() instanceof IosIconDrawable.Replacement,"system slot is wrapped");
         Drawable replacement=(Drawable)p.getResult();replacement.setBounds(0,0,37,21);
-        check(replacement.getIntrinsicWidth()==37 && replacement.getIntrinsicHeight()==21,"native layout metrics preserved");
+        check(replacement.getIntrinsicWidth()==Math.round(IosIconDrawable.cellWidth(new IosStatusIcons.Symbol(IosStatusIcons.Kind.ALARM))*view.res.getDisplayMetrics().density) && replacement.getIntrinsicHeight()==55,"replacement intrinsic metrics match its tight image cell");
         Canvas c=new Canvas();replacement.draw(c);check(!c.operations.isEmpty() && nativeIcon.draws==0 && c.depth==0,"iOS geometry drawn with balanced canvas");
         replacement.setAlpha(100);ColorFilter filter=new ColorFilter();replacement.setColorFilter(filter);replacement.setTintList(ColorStateList.valueOf(0xff112233));
         check(nativeIcon.getAlpha()==100 && nativeIcon.getColorFilter()==filter,"native alpha and filter preserved");
@@ -39,13 +39,13 @@ public final class IosStatusBarCheck {
         config(true,1);
         view.mNotification=new Object();p=param(view,source);p.setResult(nativeIcon);symbols.after(p);check(p.getResult()==nativeIcon,"notification app identity unchanged");
         view.mNotification=null;source.icon.pkg="other";p=param(view,source);p.setResult(nativeIcon);symbols.after(p);check(p.getResult()==nativeIcon,"foreign resource untouched");
-        source.icon.pkg="com.android.systemui";view.mSlot="unknown";p=param(view,source);p.setResult(nativeIcon);symbols.after(p);check(p.getResult()==nativeIcon,"unknown slot untouched");
+        source.icon.pkg="com.android.systemui";view.mSlot="unknown";p=param(view,source);p.setResult(nativeIcon);symbols.after(p);check(p.getResult()==nativeIcon,"unknown slot and unknown resource untouched");
         HookCallback signals=Api102Runtime.callbacks.get(ImageView.class.getName()+"#setImageResource");
         ImageView image=new ImageView();image.drawable=new Drawable();image.parent=new ModernStatusBarWifiView();image.res.full="com.android.systemui:drawable/stat_signal_wifi_signal_2_os17";
         signals.after(param(image,1));check(image.drawable instanceof IosIconDrawable.Replacement,"Wi-Fi status asset wrapped inside signal view");
         image.parent=null;image.drawable=nativeIcon;signals.after(param(image,1));check(image.drawable==nativeIcon,"same asset outside status bar untouched");
         image.parent=new ModernStatusBarMobileView();image.res.full="com.android.systemui:drawable/stat_sys_signal_5_bar_4_fully";signals.after(param(image,2));check(image.drawable instanceof IosIconDrawable.Replacement,"five-level cellular resource wrapped");
-        image.res.full="com.android.systemui:drawable/stat_sys_signal_roaming_signal_4";image.drawable=nativeIcon;signals.after(param(image,3));check(image.drawable==nativeIcon,"roaming warning remains native");
+        image.res.full="com.android.systemui:drawable/stat_sys_signal_roaming_signal_4";image.drawable=nativeIcon;signals.after(param(image,3));check(image.drawable instanceof IosIconDrawable.Replacement && (((IosIconDrawable.Replacement)image.drawable).symbol().flags()&IosStatusIcons.ROAMING)!=0,"roaming indicator retained in replacement");
         image.parent=new com.android.systemui.statusbar.pipeline.shared.ui.view.ModernStatusBarView();image.res.full="com.android.systemui:drawable/stat_sys_alarm";image.drawable=nativeIcon;signals.after(param(image,4));check(image.drawable instanceof IosIconDrawable.Replacement,"modern bindable status slot wrapped");
         int before=replacement.invalidations;IosStatusBarHook.refresh();check(replacement.invalidations>before,"live settings invalidate existing replacement");
         HookCallback battery=Api102Runtime.callbacks.get(HorizontalBatteryContentDrawable.class.getName()+"#draw");
@@ -69,13 +69,13 @@ public final class IosStatusBarCheck {
         }
         ImageView sized=new ImageView();sized.drawable=replacement;
         IosStatusBarMetrics.observe(sized);
-        check(sized.layout.width==55 && sized.layout.height==55,"status icons enlarged with density");
+        check(sized.layout.width==Math.round(IosIconDrawable.cellWidth(((IosIconDrawable.Replacement)replacement).symbol())*sized.res.getDisplayMetrics().density) && sized.layout.height==55,"status icons enlarged with density");
         var clock=new com.android.systemui.statusbar.policy.Clock();var originalFace=clock.getTypeface();
         HookCallback measure=Api102Runtime.callbacks.get(clock.getClass().getName()+"#onMeasure");
         measure.before(param(clock,0,0));check(clock.getTextSize()==46.75f,"status clock enlarged to 17 dp");
         config(true,0);IosStatusBarHook.refresh();
         check(sized.layout.width==37 && sized.layout.height==21 && clock.getTextSize()==14 && clock.getTypeface()==originalFace,"native icon size and clock font restored");
-        config(true,1);IosStatusBarHook.refresh();check(sized.layout.width==55 && clock.getTextSize()==46.75f,"enabling style updates existing views");
+        config(true,1);IosStatusBarHook.refresh();check(sized.layout.width==Math.round(IosIconDrawable.cellWidth(((IosIconDrawable.Replacement)replacement).symbol())*sized.res.getDisplayMetrics().density) && clock.getTextSize()==46.75f,"enabling style updates existing views");
         var outside=new android.widget.TextView();var meter=new com.oplus.systemui.statusbar.pipeline.battery.ui.view.StatBatteryMeterView();
         HookCallback label=Api102Runtime.callbacks.get("com.oplus.systemui.statusbar.pipeline.battery.ui.binder.BatteryViewBinder#bind$updatePercentOutView");
         label.after(param(null,outside,meter,new Object()));check(outside.getVisibility()==android.view.View.GONE,"external percentage suppressed only for horizontal iOS battery");

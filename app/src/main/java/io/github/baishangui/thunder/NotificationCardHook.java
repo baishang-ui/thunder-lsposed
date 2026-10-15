@@ -26,8 +26,9 @@ final class NotificationCardHook {
         return "banner".equals(Reflect.getAdditionalInstanceField(view,"thunder.role"))?c.banner:c.notificationCard;
     }
     static void overrideCorners(HookCallback.Param p,Object blur,HookConfig.Area area) {
-        if(!area.cornerEnabled)return;
-        float radius=area.corner*Resources.getSystem().getDisplayMetrics().density;
+        Float volumeRadius=VolumeHook.cornerRadius(blur,area);
+        if(!area.cornerEnabled&&volumeRadius==null)return;
+        float radius=volumeRadius!=null?volumeRadius:area.corner*Resources.getSystem().getDisplayMetrics().density;
         radius=QsCornerHook.radiusForBlur(blur,radius);
         Object role=Reflect.getAdditionalInstanceField(blur,"thunder.role");
         Object nativePath=Reflect.getObjectField(blur,"pathProvider");
@@ -43,7 +44,8 @@ final class NotificationCardHook {
         }
         temporary(p,blur,"cornerRadius",radius);
         float weight=qs?QsCornerHook.blurWeight(shape):0f;
-        temporary(p,blur,"pathProvider",shape);
+        // Native volume geometry owns its deforming smooth shape and press outline.
+        if(volumeRadius==null)temporary(p,blur,"pathProvider",shape);
         if(qs) {
             temporary(p,blur,"radiusWeight",weight);
             temporary(p,blur,"enableMotionSmoothCorner",true);

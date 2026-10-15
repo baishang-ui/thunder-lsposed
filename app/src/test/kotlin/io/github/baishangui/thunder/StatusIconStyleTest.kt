@@ -17,7 +17,7 @@ class StatusIconStyleTest {
     @Test fun oldConfigKeepsNativeStyleAndExistingVisibility() {
         val s = Settings(hiddenStatusIcons = StatusBarIcons.ALL, panel = Area(tint = true))
         val old = JSONObject(s.json()).put("version", 8).removeV13Fields().removeNotificationFields()
-        old.getJSONObject("settings").apply { remove("status_bar_icon_style"); remove("status_bar_follow_app"); remove("status_bar_stack_signals") }
+        old.getJSONObject("settings").apply { remove("status_bar_icon_style"); remove("status_bar_stack_signals") }
         assertEquals(s, Settings.parse(old.toString()))
     }
     @Test fun stackChoiceRoundTripsAndOldVersionsDefaultToSeparate() {
@@ -55,9 +55,18 @@ class StatusIconStyleTest {
         }
         assertEquals(5, IosStatusIcons.signal(p + "stat_sys_signal_soft_5_bar_signal_5", false)!!.maximum())
         assertEquals(2, IosStatusIcons.signal(p + "stat_signal_lte_signal_stacked_secondary_2", false)!!.level())
-        listOf("stat_sys_signal_roaming_signal_3", "stat_sys_signal_null", "ic_wifi_3_error",
-            "stat_signal_wifi_7", "stat_signal_wifi_signal_5_os17", "stat_sys_signal_5", "stat_signal_soft_signal_stacked_primary_noservice"
-        ).forEach { assertNull(IosStatusIcons.signal(p + it, false)); assertNull(IosStatusIcons.signal(p + it, true)) }
+        val roaming = IosStatusIcons.signal(p + "stat_sys_signal_roaming_signal_3", false)!!
+        assertEquals(3, roaming.level())
+        assertEquals(IosStatusIcons.ROAMING, roaming.flags())
+        assertEquals(IosStatusIcons.Kind.NO_SERVICE, IosStatusIcons.signal(p + "stat_sys_signal_null", false)!!.kind())
+        assertEquals(IosStatusIcons.WARNING, IosStatusIcons.signal(p + "ic_wifi_3_error", true)!!.flags())
+        assertEquals("7", IosStatusIcons.signal(p + "stat_signal_wifi_7", true)!!.label())
+        val noService = IosStatusIcons.signal(p + "stat_signal_soft_signal_stacked_primary_noservice", false)!!
+        assertEquals(IosStatusIcons.Kind.NO_SERVICE, noService.kind())
+        assertEquals(1, noService.row())
+        listOf("stat_signal_wifi_signal_5_os17", "stat_sys_signal_5").forEach {
+            assertNull(IosStatusIcons.signal(p + it, false)); assertNull(IosStatusIcons.signal(p + it, true))
+        }
         assertNull(IosStatusIcons.signal("other:drawable/stat_signal_wifi_signal_4_os17", true))
         assertNull(IosStatusIcons.signal(p + "stat_signal_wifi_signal_4_os17", false))
     }
