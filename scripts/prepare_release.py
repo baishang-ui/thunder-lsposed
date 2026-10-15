@@ -20,8 +20,12 @@ assert isinstance(element['versionCode'], int) and element['versionCode'] > 0
 apk = metadata_path.parent / element['outputFile']
 assert apk.is_file(), 'Built APK is missing'
 with zipfile.ZipFile(apk) as archive:
-    scope = archive.read('META-INF/xposed/scope.list').decode().splitlines()
-    assert set(scope) == {'com.android.systemui', 'com.oplus.systemui.plugins'}, 'APK is missing a required SystemUI scope'
+    scope = set(archive.read('META-INF/xposed/scope.list').decode().splitlines())
+    expected_scope = {'com.android.systemui', 'com.oplus.systemui.plugins', 'system', 'com.android.launcher'}
+    assert scope == expected_scope, (
+        f'Unexpected APK scopes: missing={sorted(expected_scope - scope)}, '
+        f'unexpected={sorted(scope - expected_scope)}'
+    )
     entry = archive.read('META-INF/xposed/java_init.list').decode().strip()
     assert entry == 'io.github.baishangui.thunder.HookEntry', 'Unexpected module entry'
 values = {'version': version, 'version_code': str(element['versionCode']),
