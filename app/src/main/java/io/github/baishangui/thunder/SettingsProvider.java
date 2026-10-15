@@ -10,7 +10,7 @@ import android.os.Binder;
 import android.os.Bundle;
 import android.os.Process;
 
-/** Small, device-protected IPC surface. Only this app and SystemUI may call it. */
+/** Small, device-protected IPC surface. Only this app, SystemUI and its plugin may call it. */
 public final class SettingsProvider extends ContentProvider {
     public static final String AUTHORITY = BuildConfig.APPLICATION_ID + ".settings";
     public static SharedPreferences preferences(Context context) {
@@ -24,7 +24,10 @@ public final class SettingsProvider extends ContentProvider {
         boolean systemUi = false;
         try { systemUi = uid == context.getPackageManager().getPackageUid("com.android.systemui", 0); }
         catch (Exception ignored) { }
-        if (!own && !systemUi) throw new SecurityException("SystemUI only");
+        boolean plugin = false;
+        try { plugin = uid == context.getPackageManager().getPackageUid("com.oplus.systemui.plugins", 0); }
+        catch (Exception ignored) { }
+        if (!own && !systemUi && !plugin) throw new SecurityException("SystemUI/plugin only");
         SharedPreferences prefs = preferences(context);
         if ("settings".equals(method)) {
             Bundle result = new Bundle();
@@ -49,9 +52,11 @@ public final class SettingsProvider extends ContentProvider {
             result.putLong("revision", prefs.getLong("revision", 0));
             return result;
         }
-        if ("report".equals(method) && systemUi && extras != null) {
+        if ("report".equals(method) && extras != null && (systemUi || plugin)) {
+            boolean cloudProcess = "com.oplus.systemui.plugins".equals(extras.getString("process", ""));
+            if (!systemUi && !cloudProcess) throw new IllegalArgumentException("Plugin report requires its process name");
             // The caller cannot change user settings or supply arbitrary preference keys.
-            context.createDeviceProtectedStorageContext().getSharedPreferences("runtime", 0).edit()
+            context.createDeviceProtectedStorageContext().getSharedPreferences(cloudProcess ? "runtime_cloud" : "runtime", 0).edit()
                 .putString("hooks", extras.getString("hooks", ""))
                 .putString("hits", extras.getString("hits", ""))
                 .putString("error", extras.getString("error", ""))

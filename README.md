@@ -2,7 +2,7 @@
 
 适用于 ColorOS 17 的独立 LSPosed 模块，调整 SystemUI 的下拉背景、通知横幅、通知边距与流体云外观。设置自动保存，改动的组件旁可回退。
 
-当前版本 **4.3 / versionCode 8**，应用包名及源码命名空间统一为 `io.github.baishangui.thunder`，配置格式为 `thunder.settings`。
+当前版本 **4.4 / versionCode 9**，应用包名及源码命名空间统一为 `io.github.baishangui.thunder`，配置格式为 `thunder.settings`。
 
 ## 环境要求
 
@@ -11,6 +11,13 @@
 - “重启系统界面”按钮需要 Root 授权；效果通过 SystemUI 进程中的 Hook 实现。
 
 目前没有连接真机验证注入、视觉效果或性能；其他 ColorOS 版本的内部接口可能不同。流体云的原生背景模糊依赖设备固件提供的 ViewRootManager 后端。
+
+## 4.4 修复
+
+- 推荐作用域补上系统界面插件；主页显示框架实际启用的两个作用域。
+- 插件在独立进程或作为 SystemUI 的后续包加载时均注册流体云 Hook；独立插件进程不安装下拉背景等主进程 Hook。
+- 兼容固件插件工厂的缓存 ClassLoader 路径，不再只监听新建加载器。
+- 插件 UID 可读取配置，独立进程报告单独保存，避免干扰 SystemUI 重启确认。报告显示流体云注册接口、命中及参数。
 
 ## 功能
 
@@ -29,8 +36,8 @@
 ## 安装使用
 
 1. 从 GitHub Releases 安装签名后的 thunder APK。新包名会作为独立应用安装；首次安装需重新启用模块并设置作用域。卸载旧包前先在 LSPosed 中停用，避免两个模块同时修改 SystemUI。后续版本可使用同一包名和签名覆盖升级。
-2. 在 LSPosed 中启用模块，作用域选择 **系统界面 / com.android.systemui**。
-3. 首次安装或从旧式入口升级至 API 102 入口时，先打开应用，再重启手机。
+2. 在 LSPosed 中启用模块，作用域同时勾选 **系统界面 / com.android.systemui** 和 **系统界面插件 / com.oplus.systemui.plugins**。从 4.3 升级也需检查并手动勾选新增作用域，升级 APK 不会自动启用它。主页会读取框架实际作用域，提示缺少哪一项。
+3. 首次安装、更新作用域或从旧式入口升级至 API 102 入口时，先打开应用同步配置，再重启手机。
 4. 在“调节”页开启需要的功能。交互会自动保存并同步，不再需要手动点击保存。
 5. 点击右上角“重启”并确认，授予 Root 权限。状态栏和通知界面会短暂消失。
 6. 执行下拉或触发通知横幅后，在主页刷新状态、查看或复制运行报告。
@@ -62,7 +69,7 @@ Windows 使用 `gradlew.bat`。本地构建输出为 `app/build/outputs/apk/rele
 发布步骤：
 
 1. 更新 `app/build.gradle.kts` 中的 `versionName` 与递增的 `versionCode`，提交并推送。
-2. 创建与 `versionName` 一致的版本标签，例如 `git tag v4.3`，再执行 `git push origin v4.3`。
+2. 创建与 `versionName` 一致的版本标签，例如 `git tag v4.4`，再执行 `git push origin v4.4`。
 3. 工作流核对包名、APK 版本与标签，全部检查通过后使用正式密钥签名、验证签名及 16 KB 对齐，并发布 [GitHub Release](../../releases)，包含 APK 和 SHA-256 校验文件。
 
 也可以在已有标签上手动运行工作流。带 `-` 的版本标记为预发布；已发布的版本不覆盖，应递增版本后发布。发布失败留下的草稿可以通过重新运行工作流继续上传并发布。

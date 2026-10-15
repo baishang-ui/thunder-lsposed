@@ -43,7 +43,7 @@ import top.yukonga.miuix.kmp.theme.lightColorScheme
 
 class MainActivity : ComponentActivity() {
     private var resumeTick by mutableIntStateOf(0)
-    override fun onResume() { super.onResume(); resumeTick++ }
+    override fun onResume() { super.onResume(); resumeTick++; RemoteSettings.refreshScope() }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState); enableEdgeToEdge()
         val prefs = SettingsProvider.preferences(this)
@@ -126,7 +126,7 @@ class MainActivity : ComponentActivity() {
                             verticalArrangement=Arrangement.spacedBy(18.dp)) {
                             when(page) {
                                 0 -> {
-                                    val status=remember(resumeTick,refresh,RemoteSettings.status) { runtimeStatus() }
+                                    val status=remember(resumeTick,refresh,RemoteSettings.status,RemoteSettings.scopeStatus) { runtimeStatus() }
                                     UiText("系统外观",13,muted=true)
                                     SettingsGroup {
                                         Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(9.dp)) {
@@ -146,8 +146,12 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                         Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                                            LiquidAction("刷新状态",Modifier.weight(1f),enabled=!busy) { refresh++ }
+                                            LiquidAction("刷新状态",Modifier.weight(1f),enabled=!busy) { RemoteSettings.refreshScope(); refresh++ }
                                         }
+                                    }
+                                    SettingsGroup {
+                                        UiText("LSPosed 作用域",17,bold=true)
+                                        UiText(RemoteSettings.scopeStatus,13,muted=true)
                                     }
                                     SettingsGroup {
                                         UiText("当前配置",17,bold=true)
@@ -157,7 +161,7 @@ class MainActivity : ComponentActivity() {
                                         Summary("流体云",if(draft.cloud) "已启用" else "系统默认")
                                         LiquidAction("前往调节",Modifier.fillMaxWidth(),selected=true) { page=1 }
                                     }
-                                    UiText("首次使用：在 LSPosed 启用模块，作用域选择系统界面，重启手机。",12,muted=true)
+                                    UiText("首次使用：在 LSPosed 启用模块，作用域同时勾选系统界面和系统界面插件，重启手机。",12,muted=true)
                                 }
                                 1 -> {
                                     ChoiceTabs(listOf("下拉背景","通知横幅","布局与流体云"),section,undoable=false) { section=it }
@@ -287,17 +291,22 @@ class MainActivity : ComponentActivity() {
         }
     }
     private fun runtimeStatus(): Pair<String,String> {
+        val cloud=createDeviceProtectedStorageContext().getSharedPreferences("runtime_cloud",0)
+        val cloudTime=cloud.getLong("time",0)
+        val cloudReport=if(cloudTime>0L && cloud.getLong("elapsed",-1)<=android.os.SystemClock.elapsedRealtime())
+            "\n插件独立进程 PID ${cloud.getInt("pid",-1)} · Hook ${cloud.getInt("hook_version",0)} · 配置 ${cloud.getLong("revision",-1)}\n插件报告 ${SimpleDateFormat("MM-dd HH:mm:ss",Locale.CHINA).format(Date(cloudTime))}\n插件命中：${cloud.getString("hits", "")}\n插件参数：${cloud.getString("effective", "")}\n插件异常：${cloud.getString("error", "")}" else ""
+        val frameworkReport="${RemoteSettings.status}\n${RemoteSettings.scopeStatus}"
         val r=createDeviceProtectedStorageContext().getSharedPreferences("runtime",0)
         val time=r.getLong("time",0)
         val hookVersion=r.getInt("hook_version",0)
         val reportElapsed=r.getLong("elapsed",-1)
         if(reportElapsed>android.os.SystemClock.elapsedRealtime()) return "等待本次开机报告" to "当前记录来自上次开机，请重启系统界面并刷新。"
-        if(time==0L) return "等待系统界面报告" to "${RemoteSettings.status}\n启用 LSPosed 模块并重启后，下拉通知或触发横幅，再刷新查看。"
+        if(time==0L) return "等待系统界面报告" to "$frameworkReport$cloudReport\n启用 LSPosed 模块并重启后，下拉通知或触发横幅，再刷新查看。"
         val error=r.getString("error","").orEmpty()
         val pending=r.getLong("revision",-1)!=SettingsProvider.preferences(this).getLong("revision",0)
         val title=when { hookVersion!=BuildConfig.VERSION_CODE->"等待本版 Hook 启动"; error.isNotEmpty()->"部分接口需要检查";pending->"等待重启应用设置";else->"已收到系统界面报告" }
         val hits=r.getString("hits","").orEmpty().ifEmpty { "尚未触发" }
-        return title to "${RemoteSettings.status}\nSystemUI PID ${r.getInt("pid",-1)} · Hook $hookVersion · 配置 ${r.getLong("revision",-1)}\n最近报告 ${SimpleDateFormat("MM-dd HH:mm:ss",Locale.CHINA).format(Date(time))}\n命中：$hits\n实际参数：${r.getString("effective", "尚未触发绘制")}"+(if(error.isNotEmpty()) "\n异常：$error" else "")
+        return title to "$frameworkReport\nSystemUI PID ${r.getInt("pid",-1)} · Hook $hookVersion · 配置 ${r.getLong("revision",-1)}\n最近报告 ${SimpleDateFormat("MM-dd HH:mm:ss",Locale.CHINA).format(Date(time))}\n命中：$hits\n实际参数：${r.getString("effective", "尚未触发绘制")}"+(if(error.isNotEmpty()) "\n异常：$error" else "")+cloudReport
     }
 
 }

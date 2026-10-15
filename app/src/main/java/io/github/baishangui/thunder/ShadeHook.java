@@ -30,7 +30,8 @@ public final class ShadeHook {
     private static Handler worker, main;
     private static volatile boolean qsVisible;
     private static final Map<Object, Boolean> proxies = Collections.synchronizedMap(new WeakHashMap<>());
-    private static boolean installed;
+    private static boolean installed, initialized;
+    private static String reportProcess = "com.android.systemui";
     private static final Set<String> hooks = ConcurrentHashMap.newKeySet();
     private static final Set<String> hits = ConcurrentHashMap.newKeySet();
     private static final Set<String> failures = ConcurrentHashMap.newKeySet();
@@ -45,34 +46,7 @@ public final class ShadeHook {
                 || !"com.android.systemui".equals(processName) || installed) return;
         if (android.os.Build.VERSION.SDK_INT != 37) return;
         installed = true;
-        HandlerThread thread = new HandlerThread("Thunder-settings");
-        thread.start(); worker = new Handler(thread.getLooper()); main = new Handler(Looper.getMainLooper());
-        // Framework-owned storage is available before the target Application exists.
-        // This avoids the old provider startup race and stale dimension caches.
-        install("remote-settings", () -> {
-            SharedPreferences prefs=Api102Runtime.remotePreferences();
-            Bundle data=new Bundle();
-            for(Map.Entry<String,?> entry:prefs.getAll().entrySet()) {
-                Object value=entry.getValue(); String key=entry.getKey();
-                if(value instanceof Boolean)data.putBoolean(key,(Boolean)value);
-                else if(value instanceof Integer)data.putInt(key,(Integer)value);
-                else if(value instanceof Long)data.putLong(key,(Long)value);
-            }
-            if(!data.containsKey("revision"))throw new IllegalStateException("Open module app to sync API 102 settings");
-            config=new HookConfig(data); settingsSource="API102 remote";
-        });
-        install("settings", () -> Api102Runtime.findAndHookMethod(Application.class, "attach", Context.class,
-            new HookCallback() {
-                @Override protected void afterHookedMethod(HookCallback.Param p) {
-                    context = ((Context) p.args[0]).getApplicationContext();
-                    if (context == null) context = (Context) p.args[0];
-                    // API 102 config is already loaded. Provider is only a fallback
-                    // and a diagnostic return channel; never block SystemUI startup.
-                    if(config.revision<0) worker.post(() -> readSettings(0));
-                    else worker.post(ShadeHook::report);
-                }
-            }));
-        install("resource-overrides", ResourceOverrides::install);
+        initialize(processName);
         install("cloud-plugin-loader", () -> CloudHook.watch(loader));
         install("qs", () -> Api102Runtime.hookAllConstructors(Reflect.findClass(
             "com.oplus.systemui.separate.OplusSeparateQSManager", loader), new HookCallback() {
@@ -379,6 +353,49 @@ public final class ShadeHook {
         if (nativeMix == null || shaderConfigClass == null || !shaderConfigClass.isInstance(nativeMix)) return null;
         return snapshot.shade;
     }
+    private static synchronized void initialize(String processName) {
+        if (initialized) return;
+        initialized = true;
+        reportProcess = processName;
+        HandlerThread thread = new HandlerThread("Thunder-settings");
+        thread.start(); worker = new Handler(thread.getLooper()); main = new Handler(Looper.getMainLooper());
+        // Framework-owned storage is available before the target Application exists.
+        // This avoids the old provider startup race and stale dimension caches.
+        install("remote-settings", () -> {
+            SharedPreferences prefs=Api102Runtime.remotePreferences();
+            Bundle data=new Bundle();
+            for(Map.Entry<String,?> entry:prefs.getAll().entrySet()) {
+                Object value=entry.getValue(); String key=entry.getKey();
+                if(value instanceof Boolean)data.putBoolean(key,(Boolean)value);
+                else if(value instanceof Integer)data.putInt(key,(Integer)value);
+                else if(value instanceof Long)data.putLong(key,(Long)value);
+            }
+            if(!data.containsKey("revision"))throw new IllegalStateException("Open module app to sync API 102 settings");
+            config=new HookConfig(data); settingsSource="API102 remote";
+        });
+        install("settings", () -> Api102Runtime.findAndHookMethod(Application.class, "attach", Context.class,
+            new HookCallback() {
+                @Override protected void afterHookedMethod(HookCallback.Param p) {
+                    context = ((Context) p.args[0]).getApplicationContext();
+                    if (context == null) context = (Context) p.args[0];
+                    // API 102 config is already loaded. Provider is only a fallback
+                    // and a diagnostic return channel; never block SystemUI startup.
+                    if(config.revision<0) worker.post(() -> readSettings(0));
+                    else worker.post(ShadeHook::report);
+                }
+            }));
+        install("resource-overrides", ResourceOverrides::install);
+    }
+    static void installCloud(String packageName, String processName, ClassLoader loader) {
+        if (!"com.oplus.systemui.plugins".equals(packageName)
+                || !("com.android.systemui".equals(processName) || "com.oplus.systemui.plugins".equals(processName))
+                || android.os.Build.VERSION.SDK_INT != 37) return;
+        initialize(processName);
+        install("cloud-package-entry", () -> CloudHook.install(loader));
+    }
+    static void hookRegistered(String key) {
+        if (hooks.add(key) && worker != null) worker.postDelayed(ShadeHook::report, 500);
+    }
     static HookConfig snapshot() { return config; }
     static void resourceHit(String key) { hit(key); }
     private static void capturePanel(Object owner) {
@@ -464,7 +481,7 @@ public final class ShadeHook {
             area.color>>>24==0?0:Reflect.callMethod(mix,"getMode"),area.color>>>24==0?0:area.color,0));
         copyFlags(original,replacement);return replacement;
     }
-    private static void observed(String key,String value) {
+    static void observed(String key,String value) {
         String previous=effective.put(key,value);hit(key);
         if(!value.equals(previous)) worker.postDelayed(ShadeHook::report,500);
     }
@@ -512,6 +529,7 @@ public final class ShadeHook {
         if (context == null) return;
         try {
             Bundle data = new Bundle();
+            data.putString("process", reportProcess);
             data.putString("hooks", String.join(", ", hooks));
             data.putString("hits", String.join(", ", hits));
             data.putString("error", failureDetails.toString().equals("{}")?"":failureDetails.toString());
