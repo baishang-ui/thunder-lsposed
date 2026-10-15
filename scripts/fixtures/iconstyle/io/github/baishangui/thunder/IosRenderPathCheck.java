@@ -1,119 +1,86 @@
 package io.github.baishangui.thunder;
 
-import android.content.Context;
 import android.graphics.*;
-import android.graphics.drawable.Drawable;
-import android.os.Bundle;
+import android.graphics.drawable.*;
 import android.widget.ImageView;
-import android.widget.FrameLayout;
 import com.android.settingslib.graph.SignalDrawable;
 import com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView;
-import com.oplus.systemui.statusbar.pipeline.battery.ui.drawable.HorizontalBatteryContentDrawable;
+import com.oplus.systemui.statusbar.pipeline.battery.ui.view.StatBatteryMeterView;
 
 public final class IosRenderPathCheck {
-    static int failures,checks;
-    static void check(boolean value,String message){checks++;System.out.println((value?"PASS: ":"FAIL: ")+message);if(!value)failures++;}
-    static void config(boolean active)throws Exception {
-        Bundle b=new Bundle();b.putBoolean("enabled",active);b.putInt("status_bar_icon_style",1);
-        var f=ShadeHook.class.getDeclaredField("config");f.setAccessible(true);f.set(null,new HookConfig(b));
-    }
-    static HookCallback.Param param(Object self,Object... args){return StatusBarIconCheck.param(self,args);}
-    static final class SignalContext extends Context {
-        final android.content.res.Resources resources=new android.content.res.Resources();
+    static int checks;
+    static void check(boolean value,String message) { if(!value) throw new AssertionError(message); checks++; }
+    static void config(boolean active) throws Exception { IosStatusBarCheck.config(true,active?1:0); }
+    static HookCallback.Param param(Object object,Object... args) { return StatusBarIconCheck.param(object,args); }
+    public static class SignalContext extends android.content.Context {
+        public final android.content.res.Resources resources=new android.content.res.Resources();
         @Override public android.content.res.Resources getResources(){return resources;}
     }
-    public static void main(String[] args)throws Throwable {
-        ShadeHook.install("com.android.systemui","com.android.systemui",IosRenderPathCheck.class.getClassLoader());config(true);
-        for(String[] state:new String[][]{{"bluetooth","stat_sys_data_bluetooth_connected"},{"volume","stat_sys_ringer_silent"},
-                {"volume","stat_sys_ringer_vibrate"},{"nfc","stat_sys_nfc"},{"high_performance","stat_sys_high_performance"}}) {
-            var symbol=IosStatusIcons.slot(state[0],state[1]);
-            check(symbol!=null && IosStatusIcons.paths(symbol.kind()).length>0,"mapped status has drawable geometry: "+state[0]+"/"+state[1]);
+    public static class ThrowingCanvas extends Canvas {
+        @Override public void drawPath(Path path,Paint paint) { throw new IllegalStateException("renderer failed"); }
+    }
+    public static class BatteryModel {
+        public int level=75,charge=0,color=0xffeeeeee,fill=0xff34c759;
+        public int getPowerLevel(){return level;} public int getChargeIconId(){return charge;}
+        public int getTintColor(){return color;} public int getProgressColor(){return fill;}
+    }
+    public static class Charge { public boolean isVisible; }
+    public static void main(String[] args) throws Throwable {
+        ShadeHook.install("com.android.systemui","com.android.systemui",IosRenderPathCheck.class.getClassLoader()); config(true);
+        HookCallback loader=Api102Runtime.callbacks.get("androidx.appcompat.content.res.AppCompatResources#getDrawable");
+        var context=new SignalContext(); context.resources.full="com.android.systemui:drawable/stat_signal_wifi_signal_3_os17";
+        var nativeIcon=new Drawable(); var load=param(null,context,1); load.setResult(nativeIcon); loader.after(load);
+        check(load.getResult()==nativeIcon,"resource loader only records provenance");
+        var wifi=new ImageView(); wifi.parent=new com.android.systemui.statusbar.pipeline.wifi.ui.view.ModernStatusBarWifiView(); wifi.drawable=nativeIcon;
+        Canvas canvas=new Canvas(); IosStatusBarCheck.draw(wifi,canvas); check(!canvas.operations.isEmpty(),"loaded drawable survives mResource reset and still renders");
+        var stacked=new VectorDrawable(); stacked.setBounds(0,0,48,40);
+        context.resources.full="com.android.systemui:drawable/stat_signal_signal_stacked_primary_3";
+        load=param(null,context,2); load.setResult(stacked); loader.after(load);
+        check(load.getResult()==stacked,"Compose painter retains the native vector object");
+        HookCallback stackedDraw=Api102Runtime.callbacks.get(VectorDrawable.class.getName()+"#draw");
+        check(stackedDraw!=null,"native stacked vector has a drawing boundary without Compose hooks");
+        canvas=new Canvas(); var stackedCall=new IosStatusBarCheck.DrawCall(stacked,canvas); stackedDraw.before(stackedCall);
+        check(stackedCall.replaced && !canvas.operations.isEmpty() && canvas.depth==0,"stacked artwork paints without replacing painter input");
+        stacked.setTintList(android.content.res.ColorStateList.valueOf(0xff123456));
+        canvas=new Canvas(); stackedDraw.before(new IosStatusBarCheck.DrawCall(stacked,canvas));
+        check(canvas.colors.contains(0xff123456),"Compose vector native tint reaches the custom paths");
+        config(false); canvas=new Canvas(); stackedCall=new IosStatusBarCheck.DrawCall(stacked,canvas); stackedDraw.before(stackedCall);
+        check(!stackedCall.replaced && canvas.operations.isEmpty(),"cached Compose painter switches back to native drawing"); config(true);
+        int invalidations=stacked.invalidations; IosStatusBarHook.refresh(); check(stacked.invalidations>invalidations,"style toggle invalidates native Compose drawable callback");
+        var untagged=new VectorDrawable(); canvas=new Canvas(); stackedCall=new IosStatusBarCheck.DrawCall(untagged,canvas); stackedDraw.before(stackedCall);
+        check(!stackedCall.replaced && canvas.operations.isEmpty(),"unrelated vector drawables remain native");
+        var signal=new SignalDrawable(); signal.setLevel(5<<8|3); var image=new ImageView(); image.drawable=signal; image.parent=new ModernStatusBarMobileView();
+        signal.mForegroundPaint.setColor(0x64112233); signal.mForegroundPaint.setAlpha(100);
+        canvas=new Canvas(); IosStatusBarCheck.draw(image,canvas); check(!canvas.operations.isEmpty() && canvas.alphas.contains(100),"dynamic native signal level and alpha read without changing object type");
+        signal.setLevel(2<<16|5<<8|3); canvas=new Canvas(); IosStatusBarCheck.draw(image,canvas); check(canvas.operations.contains("text:!"),"dynamic connectivity warning preserved");
+        signal.setLevel(9<<16|5<<8|3); canvas=new Canvas(); IosStatusBarCheck.draw(image,canvas); check(canvas.operations.isEmpty(),"unknown signal encoding falls back");
+        var meter=new StatBatteryMeterView(); var model=new BatteryModel(); meter.batteryIcon=model;
+        HookCallback battery=Api102Runtime.callbacks.get(meter.getClass().getName()+"#dispatchDraw");
+        Object originalDrawable=meter.batteryStyleDrawable; Object originalStyle=meter.batteryIconStyle;
+        for(int style:new int[]{1,3,4,5}) {
+            meter.batteryIconStyle=new com.oplus.systemui.statusbar.pipeline.battery.ui.model.BatteryIconStyle(style);
+            for(int level:new int[]{0,1,20,99,100}) {
+                model.level=level; canvas=new Canvas(); battery.before(param(meter,canvas));
+                check(canvas.operations.contains("text:"+level) && canvas.depth==0,"real battery level in existing meter cell: "+style+"/"+level);
+                check(meter.batteryIcon==model && meter.batteryStyleDrawable==originalDrawable && meter.layout.width==37,"no battery model, drawable or layout replacement");
+            }
         }
-        var silent=IosStatusIcons.slot("volume","stat_sys_ringer_silent");
-        var vibrate=IosStatusIcons.slot("volume","stat_sys_ringer_vibrate");
-        check(silent!=null && vibrate!=null && silent.kind()!=vibrate.kind(),"silent and vibrate retain different meanings");
-        var wifiGlyph=new IosIconDrawable(new IosStatusIcons.Symbol(IosStatusIcons.Kind.WIFI));wifiGlyph.setBounds(0,0,24,24);
-        Canvas wifiCanvas=new Canvas();wifiGlyph.draw(wifiCanvas);
-        float wifiLeft=wifiCanvas.pathBounds.stream().map(x->x[0]).min(Float::compare).orElse(0f);
-        float expectedLeft=(24-18f*Math.min(24/IosIconDrawable.cellWidth(new IosStatusIcons.Symbol(IosStatusIcons.Kind.WIFI)),24/20f))/2;
-        check(Math.abs(wifiLeft-expectedLeft)<.4f,"Wi-Fi uses tight ink geometry with symmetric side spacing");
-        var resourceHook=Api102Runtime.callbacks.get(ImageView.class.getName()+"#setImageResource");
-        for(String name:new String[]{"stat_signal_signal_lte_single_3_os17","stat_signal_soft_signal_2_os17"}) {
-            ImageView image=new ImageView();image.parent=new ModernStatusBarMobileView();image.drawable=new Drawable();
-            image.res.full="com.android.systemui:drawable/"+name;resourceHook.after(param(image,15));
-            check(image.drawable instanceof IosIconDrawable.Replacement,"ColorOS independent signal resource replaced: "+name);
+        model.charge=1; canvas=new Canvas(); battery.before(param(meter,canvas)); check(canvas.colors.contains(model.fill),"native battery fill retained during charge");
+        for(int mode:new int[]{0,2}) {
+            meter.batteryIconStyle=new com.oplus.systemui.statusbar.pipeline.battery.ui.model.BatteryIconStyle(mode);
+            canvas=new Canvas(); battery.before(param(meter,canvas)); check(canvas.operations.isEmpty(),"hidden/percent-only battery mode stays native");
         }
-        HookCallback scope=Api102Runtime.callbacks.get("com.android.systemui.statusbar.pipeline.shared.ui.composable.OplusStackedMobileIconKt#OplusStackedMobileIcon");
-        HookCallback load=Api102Runtime.callbacks.get("androidx.appcompat.content.res.AppCompatResources#getDrawable");
-        check(scope!=null && load!=null,"real C17 Compose stacked drawable loader is intercepted");
-        if(scope!=null && load!=null) {
-            SignalContext ctx=new SignalContext();ctx.resources.full="com.android.systemui:drawable/stat_signal_signal_stacked_primary_3";
-            Drawable original=new Drawable();HookCallback.Param s=param(null);scope.before(s);
-            var p=param(null,ctx,1);p.setResult(original);load.after(p);Drawable primary=(Drawable)p.getResult();
-            ctx.resources.full="com.android.systemui:drawable/stat_signal_signal_stacked_secondary_2";
-            p=param(null,ctx,2);p.setResult(new Drawable());load.after(p);Drawable secondary=(Drawable)p.getResult();
-            check(primary instanceof IosIconDrawable.Replacement && secondary instanceof IosIconDrawable.Replacement,"both actual Compose layers receive replacement artwork");
-            int stackedPixels=Math.round(20*ctx.resources.getDisplayMetrics().density);
-            check(primary.getIntrinsicWidth()==Math.round(IosIconDrawable.cellWidth(new IosStatusIcons.Symbol(IosStatusIcons.Kind.CELLULAR,3,4,1))*ctx.resources.getDisplayMetrics().density) && primary.getIntrinsicHeight()==stackedPixels,
-                "Compose painter measures stacked signals at 20 dp instead of native 19 by 16 dp");
-            primary.setBounds(0,0,24,24);secondary.setBounds(0,0,24,24);
-            Canvas first=new Canvas(),second=new Canvas();primary.draw(first);secondary.draw(second);
-            float maxTop=first.pathBounds.stream().map(x->x[3]).max(Float::compare).orElse(100f);
-            float minBottom=second.pathBounds.stream().map(x->x[1]).min(Float::compare).orElse(0f);
-            check(maxTop<minBottom,"primary and secondary occupy separate rows in the same overlaid Compose viewport");
-            ctx.resources.full="com.android.systemui:drawable/stat_signal_signal_stacked_primary_noservice";
-            p=param(null,ctx,3);p.setResult(original);load.after(p);check(p.getResult() instanceof IosIconDrawable.Replacement && ((IosIconDrawable.Replacement)p.getResult()).symbol().kind()==IosStatusIcons.Kind.NO_SERVICE,"stacked no-service badge uses replacement with explicit no-service state");
-            scope.after(s);
-            ctx.resources.full="com.android.systemui:drawable/stat_signal_signal_stacked_primary_3";
-            p=param(null,ctx,4);p.setResult(original);load.after(p);check(p.getResult()==original,"same resource outside status Compose is unchanged");
-            config(false);primary.draw(new Canvas());check(original.draws==1,"cached Compose painter restores original drawing when disabled");
-            check(primary.getIntrinsicWidth()==original.getIntrinsicWidth() && primary.getIntrinsicHeight()==original.getIntrinsicHeight(),"Compose native intrinsic metrics restored when disabled");config(true);
-        }
-        HookCallback dynamic=Api102Runtime.callbacks.get(SignalDrawable.class.getName()+"#draw");
-        check(dynamic!=null,"direct SignalDrawable path is intercepted");
-        if(dynamic!=null) {
-            var icon=new SignalDrawable();var image=new ImageView();image.parent=new ModernStatusBarMobileView();icon.setCallback(image);
-            icon.setLevel(5<<8|3);icon.setBounds(0,0,24,24);Canvas c=new Canvas();dynamic.before(param(icon,c));
-            check(!c.operations.isEmpty() && c.depth==0,"separate cellular direct drawable renders custom signal with native level");
-            icon.mForegroundPaint.setColor(0x64112233);icon.mForegroundPaint.setAlpha(100);
-            c=new Canvas();dynamic.before(param(icon,c));check(c.alphas.contains(100),"native cellular alpha is applied once during status bar fades");
-            icon.setLevel(2<<16|5<<8|3);c=new Canvas();dynamic.before(param(icon,c));check(c.operations.contains("text:!"),"dynamic warning is visible in replacement");
-            icon.setLevel(5<<8|3);image.parent=null;c=new Canvas();dynamic.before(param(icon,c));check(c.operations.isEmpty(),"dynamic signals outside status bar stay native");
-        }
-        ImageView wifi=new ImageView();wifi.drawable=new IosIconDrawable.Replacement(new Drawable(),new IosStatusIcons.Symbol(IosStatusIcons.Kind.WIFI));
-        wifi.layout=new FrameLayout.LayoutParams(37,21,85);IosStatusBarMetrics.observe(wifi);
-        check(wifi.getScaleType()==ImageView.ScaleType.FIT_CENTER,"Wi-Fi no longer inherits FIT_END bottom alignment");
-        check((((FrameLayout.LayoutParams)wifi.layout).gravity&112)==16,"signal view aligns to vertical center within full-height parent");
-        config(false);IosStatusBarMetrics.refresh();
-        check(wifi.getScaleType()==ImageView.ScaleType.FIT_END && ((FrameLayout.LayoutParams)wifi.layout).gravity==85,"original image alignment restored on disable");config(true);
-        var clock=new com.android.systemui.statusbar.policy.Clock();clock.mShowSeconds=true;
-        HookCallback measure=Api102Runtime.callbacks.get(clock.getClass().getName()+"#onMeasure");
-        check(measure!=null,"clock font changes happen before C17 computes its fixed seconds width");
-        if(measure!=null){
-            measure.before(param(clock,0,0));
-            check(clock.mSecondsFixedWidth==0,"font change invalidates native fixed-width cache");
-            int ws=android.view.View.MeasureSpec.makeMeasureSpec(120,android.view.View.MeasureSpec.AT_MOST);
-            int hs=android.view.View.MeasureSpec.makeMeasureSpec(40,android.view.View.MeasureSpec.EXACTLY);
-            measure.before(param(clock,ws,hs));
-            check(clock.computeSecondsFixedLayoutWidth()<=120 && clock.getPaint().getFontMetricsInt().bottom-clock.getPaint().getFontMetricsInt().top<=40,
-                "entire seconds clock fits parent width and height at enlarged density");
-            clock.text="上午 11:59:59";measure.before(param(clock,ws,hs));
-            check(clock.computeSecondsFixedLayoutWidth()<=120,"localized AM/PM text also fits");
-            int changes=clock.fontChanges;measure.before(param(clock,ws,hs));
-            check(clock.fontChanges==changes,"repeated measurement does not alternate large and fitted fonts or request layout again");
-            config(false);IosStatusBarMetrics.refresh();
-            check(clock.getTextSize()==14 && clock.mSecondsFixedWidth==0,"restoring native font also resets seconds width");config(true);
-        }
-        var battery=new HorizontalBatteryContentDrawable();battery.setBounds(0,0,320,180);battery.rect=new RectF(80,60,240,120);battery.noPercentRectF=battery.rect;
-        HookCallback drawBattery=Api102Runtime.callbacks.get(battery.getClass().getName()+"#draw");
-        Canvas normal=new Canvas();drawBattery.before(param(battery,normal));float[] body=normal.pathBounds.get(0);
-        check(body[2]-body[0]>210,"battery uses full drawable bounds instead of vendor inset progress rect");
-        battery.paint.setAlpha(100);Canvas faded=new Canvas();drawBattery.before(param(battery,faded));
-        check(faded.alphas.get(1)==50,"battery terminal keeps half opacity during native fades, matching preview");
-        battery.paint.setAlpha(255);
-        battery.charge=1;Canvas charging=new Canvas();drawBattery.before(param(battery,charging));float[] charged=charging.pathBounds.get(0);
-        check(Math.abs((body[2]-body[0])-(charged[2]-charged[0]))<.1f,"charging mark does not shrink the battery body");
-        if(failures>0)throw new AssertionError(failures+" real-render-path regressions failed");
-        System.out.println("Verified "+checks+" render-path checks; phone pixels still require device validation.");
+        meter.batteryIconStyle=originalStyle;
+        var reverse=new Charge(); reverse.isVisible=true; meter.batteryReverse=reverse;
+        canvas=new Canvas(); battery.before(param(meter,canvas)); check(canvas.operations.isEmpty(),"reverse-charge badge retains native draw path"); meter.batteryReverse=null;
+        meter.hidden=true; canvas=new Canvas(); battery.before(param(meter,canvas)); check(canvas.operations.isEmpty(),"hidden meter remains hidden"); meter.hidden=false;
+        model.level=-1; canvas=new Canvas(); battery.before(param(meter,canvas)); check(canvas.operations.isEmpty(),"unknown battery state stays native"); model.level=75;
+        config(false); canvas=new Canvas(); battery.before(param(meter,canvas)); check(canvas.operations.isEmpty(),"battery off restores original without binder re-entry"); config(true);
+        image.drawable=new Drawable(); image.mResource=1; image.res.full="com.android.systemui:drawable/stat_sys_signal_5_bar_4_fully";
+        var broken=new ThrowingCanvas(); var fallback=IosStatusBarCheck.draw(image,broken); check(!fallback.replaced && broken.depth==0,"canvas restored after renderer throws");
+        canvas=new Canvas(); fallback=IosStatusBarCheck.draw(image,canvas); check(!fallback.replaced && canvas.operations.isEmpty(),"failed view is quarantined instead of repeatedly throwing");
+        canvas=new Canvas(); IosStatusBarCheck.draw(wifi,canvas); check(!canvas.operations.isEmpty(),"one failed view does not disable healthy icons");
+        check(image.drawable.getClass()==Drawable.class,"native caller can still use its exact expected drawable class");
+        System.out.println("Verified "+checks+" render-state and failure fallback checks.");
     }
 }

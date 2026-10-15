@@ -17,33 +17,41 @@
 
 历史诊断来自 `LSPosed_20261015_153239.zip`。`log.old/verbose_2026-10-15T13:26:51.867762.log` 的 43466、43671、44577、44783 行依次记录 13:50:26 第 1 次、13:50:58 第 2 次、14:18:29 第 3 次、14:18:51 进入安全模式，时间沿用手机日志中的北京时间。这个记录不能推出“任何时候退出都会计数”；它表明按按钮间隔限频不足以证明被重启的当前进程已经稳定。
 
-## 重启流程
+## 作用域重启流程
 
-保留右上角的“重启系统界面”，改用 Android 管理的应用生命周期：
+右上角入口为“重启作用域”，只覆盖模块声明的 `com.android.systemui` 和 `com.oplus.systemui.plugins`。先检查 LSPosed 实际作用域同时包含这两个包；其他作用域不会成为命令目标。
+
+目标 ColorOS 17 的插件存在两种加载方式：作为次要包加载进 SystemUI，或独立运行。已检查采集固件的 `SystemUIPlugin.apk`：`com.oplus.systemui.plugins.seedling.plugin.SeedlingPluginService` 继承 `android.app.Service`，清单声明该服务；插件未与 SystemUI 共享 UID。独立运行时按以下顺序恢复：
 
 ```sh
+am force-stop --user 0 com.oplus.systemui.plugins
+am startservice --user 0 -n com.oplus.systemui.plugins/com.oplus.systemui.plugins.seedling.plugin.SeedlingPluginService
+# 确认插件新 PID 后，再核对原 SystemUI 的身份和请求有效期。
 am force-stop --user 0 com.android.systemui
 am startservice --user 0 -n com.android.systemui/com.android.systemui.SystemUIService
 ```
 
-这两个命令只用于显式点击重启，执行前必须完成以下检查：
+插件没有独立进程时，仅重启 SystemUI，由宿主重新加载插件代码。不会为了一个未运行的插件额外启动进程。独立插件如果没有本次配置的有效报告，取消整个请求；不会把“未收到报告”当成“未运行”。
 
-- 保存并同步配置，收到本次操作之后、当前或更新配置版本的 Hook 报告。允许旧版 Hook 报告提供进程身份，以便已安装的模块升级；首次安装、没有有效报告时提示正常重启手机。
-- 从报告时间起等待 65 秒，超过已核对框架的 60 秒观察期。新报告证明该进程已经完成注入，因此是心跳注册时间之后的保守计时基准，不使用上一次点击的时间。界面显示倒计时，并支持后台继续。
-- Root 脚本用精确进程名核对报告 PID，用 `/proc/PID/stat` 的启动时间及 `getconf CLK_TCK` 排除 PID 已被复用的情况，再用 `/proc/uptime` 验证观察期已经结束。
-- 在停止前用 `cmd package query-services --components --user 0 -n ...` 确认目标服务存在；Root 等待或服务查询结束后，重新检查请求有效期及 PID。目标变化、无法读取身份或服务不可用时不执行停止。
+执行前必须完成以下检查：
 
-脚本只请求停止一次，并立即显式启动服务，随后等待新 PID。没有 TERM / KILL、崩溃命令或 Zygote / 手机重启兜底，不修改 LSPosed 的安全模式开关、计数或模块状态。自动调参始终只走配置监听通道。
+- 保存并同步配置，读取 `runtime` / `runtime_cloud` 的完整报告快照，要求 PID 有效、Hook 版本大于零、报告在本次请求之后、配置版本不低于本次提交。允许旧版 Hook 提供身份，以便升级；首次安装没有有效报告时提示正常重启手机。
+- 从每个已确认进程的报告时间起等待 65 秒，取剩余等待时间的最大值，超过已核对框架的 60 秒观察期。报告证明注入已完成，因此计时基准晚于心跳注册，不使用上次点击的时间。
+- 等待后重新检查实际作用域。Root 脚本用精确进程名、报告 PID、`/proc/PID/stat` 启动时间和 `getconf CLK_TCK` 排除进程变化及 PID 复用，并用 `/proc/uptime` 复核观察期。
+- 在第一次停止前，用 `cmd package query-services --components --user 0 -n ...` 确认全部所需服务存在，再重新检查请求有效期和两进程身份。插件在等待期间出现也会取消。
+- 独立插件恢复失败时不再停止 SystemUI；插件恢复后再次核对原 SystemUI，避免宿主已被 Android 自动替换时二次停止新进程。每个目标最多停止一次，步骤失败即结束，已经完成的步骤会在结果中说明。
 
-新进程启动后，仍要求新 PID、本版 Hook、当前或更新配置版本、本次操作后的报告全部匹配才显示确认成功，所有字段从同一报告快照读取。各阶段失败单独提示，不自动重试停止。
+新脚本为 `app/src/main/assets/restart-scope.sh`。没有信号强杀、崩溃命令或手机重启兜底，不修改 LSPosed 保护状态。自动调参始终只走配置监听通道。
+
+命令执行后分别检查两个作用域的新 PID、本版 Hook、本次或更新配置版本及报告时间；随宿主加载时，还要求 SystemUI 新报告包含精确的 `cloud-package-entry` 标记，独立插件则从其新进程报告核对该标记。只收到 SystemUI 报告不会显示全部成功；超时会指出未确认的作用域。
 
 ## 界面与验证
 
 确认、进度、倒计时和结果在同一个对话框中切换；“后台继续”可收起，右上角可重新查看。应用级协程和互斥锁避免旋转或重复点击产生并行重启。
 
-- `scripts/check_systemui_restart.py` 用模拟 Android 命令验证正常顺序、Root 拒绝、过期、无进程、非法 PID、进程变化、PID 复用、缺少报告、未过观察期、服务缺失、停止失败、启动失败及新进程超时；禁止信号强杀和崩溃兜底。
-- `SystemUiRestartWindowTest` 检查从当前进程报告起等待 65 秒，替换进程不能复用旧进程的等待时间。
-- `SystemUiRestartReceiptTest` 检查新 PID 和当前 Hook / 配置 / 报告时间的确认。
+- `scripts/check_systemui_restart.py` 用 30 个模拟场景验证宿主内加载、独立插件的停止与恢复顺序、全部服务预检查、Root 拒绝、过期、PID 复用、缺少报告、稳定期、插件延迟出现、进程替换和部分失败；检查插件失败或宿主变化后不再停止宿主。
+- `ScopeRestartWindowTest` 检查从当前进程报告起等待 65 秒，替换进程不能复用旧进程的等待时间。
+- `ScopeRestartReportTest` 检查各自的新 PID、当前 Hook / 配置 / 报告时间、插件加载标记及命令结果完整性。
 - `scripts/check_live_settings.py` 检查自动配置监听、重复通知合并、失败隔离及恢复。
 
 验证依据针对已核对的 LSPosed 2.2.1 (7912)，其他分支的保护策略可能不同。目前未连接真机，服务启动行为、实际界面显示及长期稳定性仍需目标 ColorOS 17 验证。真实 Hook 崩溃、固件或其他模块故障仍可能触发框架保护；本次不关闭该保护。

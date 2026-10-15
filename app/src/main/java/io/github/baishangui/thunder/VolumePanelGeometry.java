@@ -21,6 +21,16 @@ final class VolumePanelGeometry {
         float group=rowWidth+step*(n-1);
         return b.x()+(b.width()-group)/2f+i*step;
     }
+    static float progress(float x,float y,float fromX,float fromY,float toX,float toY,float fallback) {
+        float dx=toX-fromX,dy=toY-fromY,distance=dx*dx+dy*dy;
+        return clamp(distance<1?fallback:((x-fromX)*dx+(y-fromY)*dy)/distance);
+    }
+    static float clamp(float value) {return Math.max(0f,Math.min(1f,value));}
+    static float mix(float from,float to,float progress) {return from+(to-from)*clamp(progress);}
+    static Bounds widthAt(Bounds end,int startWidth,float progress) {
+        int width=Math.round(mix(Math.min(end.width(),Math.max(1,startWidth)),end.width(),progress));
+        return new Bounds(end.opensLeft()?end.x()+end.width()-width:end.x(),end.y(),width,end.height(),end.opensLeft());
+    }
     static float translation(float target,float screenPosition,float currentTranslation) {
         return target-(screenPosition-currentTranslation);
     }

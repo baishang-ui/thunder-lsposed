@@ -92,6 +92,7 @@ internal fun JSONObject.removeNotificationFields(): JSONObject = apply {
 }
 
 internal fun JSONObject.removeV13Fields(): JSONObject = apply {
+    getJSONObject("settings").remove("color_mode")
     getJSONObject("settings").apply {
         remove("gesture_bar_hidden"); remove("gesture_bar_remove_inset")
         VolumeSettings.keys.forEach { remove(it) }

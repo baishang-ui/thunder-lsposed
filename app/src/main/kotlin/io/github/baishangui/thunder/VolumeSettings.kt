@@ -33,16 +33,15 @@ internal data class VolumeSettings(
 
 @Composable internal fun VolumeSettingsControls(value: VolumeSettings, change: (VolumeSettings) -> Unit) {
     SettingsGroup {
-        LiquidSwitchRow("跟随音量条展开", "保留系统展开与收起动画，在当前音量条位置向内展开小面板", value.compact) { change(value.copy(compact = it)) }
+        LiquidSwitchRow("跟随音量条展开", "在音量条旁展开紧凑面板", value.compact) { change(value.copy(compact = it)) }
     }
     SettingsGroup {
-        LiquidSwitchRow("自定义音量条与按钮尺寸", "按钮为正方形，边长跟随音量条宽度；保留原生按压变形", value.size) { change(value.copy(size = it)) }
+        LiquidSwitchRow("自定义尺寸", "按钮边长跟随音量条宽度", value.size) { change(value.copy(size = it)) }
         if (value.size) {
-            LiquidValueSlider("音量条宽度 / 按钮边长", value.width, 32..96, " dp") { change(value.copy(width = it)) }
+            LiquidValueSlider("音量条宽度", value.width, 32..96, " dp") { change(value.copy(width = it)) }
             LiquidValueSlider("音量条长度", value.height, 120..400, " dp") { change(value.copy(height = it)) }
         }
     }
-    AreaControls("音量条与按钮材质", value.bar) { change(value.copy(bar = it)) }
-    AreaControls("展开面板材质", value.panel) { change(value.copy(panel = it)) }
-    UiText("混色 0% 不叠色，100% 为所选纯色；模糊独立控制背景细节。关闭各项自定义后恢复系统参数。升级后需正常重启手机加载新功能。", 12, muted = true)
+    AreaControls("音量条与按钮材质", value.bar, showTitle = true) { change(value.copy(bar = it)) }
+    AreaControls("展开面板材质", value.panel, showTitle = true) { change(value.copy(panel = it)) }
 }

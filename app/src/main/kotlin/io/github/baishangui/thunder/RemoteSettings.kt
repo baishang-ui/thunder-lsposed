@@ -11,11 +11,22 @@ import io.github.libxposed.service.XposedServiceHelper
 
 /** App writes through the framework; SystemUI reads before Application.attach. */
 internal object RemoteSettings {
+    enum class Activation(val label: String, val hint: String) {
+        Waiting("待激活 / 待连接", "请在 LSPosed 中启用 thunder，勾选系统界面和系统界面插件作用域，再重新打开应用。"),
+        Connected("已激活", "已连接 LSPosed 框架服务。首次激活或更改作用域后，请正常重启手机加载模块。"),
+        Unsupported("框架版本不支持", "需要支持 API 102 的 LSPosed 框架，请更新框架后重新打开应用。"),
+        Disconnected("连接已断开", "请在 LSPosed 中确认模块已启用，再重新打开应用检查。")
+    }
     @Volatile private var service: XposedService? = null
+    var activation by mutableStateOf(Activation.Waiting)
+        private set
     var status by mutableStateOf("等待 LSPosed API 102 服务")
         private set
     var scopeStatus by mutableStateOf("作用域：等待 LSPosed 连接")
         private set
+    fun actualScope(): Set<String>? = service?.let { framework ->
+        runCatching { framework.scope.toSet() }.getOrNull()
+    }
     fun refreshScope() {
         val framework = service ?: return
         Thread({ updateScope(framework) }, "Thunder-scope-check").start()
@@ -29,13 +40,24 @@ internal object RemoteSettings {
         val app = context.applicationContext
         XposedServiceHelper.registerListener(object : XposedServiceHelper.OnServiceListener {
             override fun onServiceBind(bound: XposedService) {
-                if (bound.apiVersion < 102) { status = "框架服务低于 API 102"; return }
+                if (bound.apiVersion < 102) {
+                    service = null
+                    activation = Activation.Unsupported
+                    status = "框架服务低于 API 102"
+                    return
+                }
                 service = bound
+                activation = Activation.Connected
                 // Binder callback must not do disk IO on the main thread.
                 Thread({ publish(app) }, "Thunder-config-sync").start()
             }
             override fun onServiceDied(bound: XposedService) {
-                if (service === bound) { service = null; status = "LSPosed 服务已断开，请重新打开应用"; scopeStatus = "作用域：服务已断开" }
+                if (service === bound) {
+                    service = null
+                    activation = Activation.Disconnected
+                    status = "LSPosed 服务已断开，请重新打开应用"
+                    scopeStatus = "作用域：服务已断开"
+                }
             }
         })
     }

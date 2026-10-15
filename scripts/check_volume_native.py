@@ -20,11 +20,11 @@ required = {
     base+'view/OplusVolumeRow;': (set(), {'slider','sliderFrame','view'}),
     base+'VolumeListAdapter;': ({'switchToDataSourcePanel','onBindViewHolder','getPanelShowList'}, set()),
     base+'anim/VolumeItemAnimator;': ({'getEndX','getTranslationY','resolvePanelStartTranslationX','animateAddImpl','animateMoveImpl','runPendingAnimations'}, {'adapter','cachedPanelBiasTranslationY'}),
-    base+'utils/material/VolumePlatformBlurHostHelper;': ({'mountPanelBackground','createPanelBackgroundIfNeeded'}, {'deps'}),
+    base+'utils/material/VolumePlatformBlurHostHelper;': ({'mountPanelBackground','createPanelBackgroundIfNeeded','applyBarPanelBottomProgress'}, {'deps'}),
     base+'utils/material/VolumeBlurManager;': ({'getVolumeBarBackground','getVolumeSettingsButtonBackground','getVolumeSideAccessoryBackground','getVolumePanelBackground'}, set()),
     base+'utils/material/OplusVolumeBlurDrawableFinder;': ({'findAutoBlurDrawable'}, set()),
-    base+'OplusVolumeSeekBar;': ({'onAttachedToWindow','onMeasure','onDraw','preCalcMaterialClipPath'}, set()),
-    'Lcom/coui/appcompat/seekbar/COUIVerticalSeekBar;': ({'ensureSize','updatePixPerProgress'}, {'mBackgroundWidth','mCurBackgroundWidth','mProgressWidth','mCurProgressWidth','mBackgroundRadius','mCurBackgroundRadius','mProgressRadius','mCurProgressRadius','mPaddingVertical','mCurPaddingVertical','mSeekbarMinWidth','mBackgroundColor'}),
+    base+'OplusVolumeSeekBar;': ({'onAttachedToWindow','onMeasure','onDraw','draw','preCalcMaterialClipPath'}, set()),
+    'Lcom/coui/appcompat/seekbar/COUIVerticalSeekBar;': ({'ensureSize','updatePixPerProgress'}, {'mBackgroundRect','mBackgroundWidth','mCurBackgroundWidth','mProgressWidth','mCurProgressWidth','mBackgroundRadius','mCurBackgroundRadius','mProgressRadius','mCurProgressRadius','mPaddingVertical','mCurPaddingVertical','mSeekbarMinWidth','mBackgroundColor'}),
 }
 classes = {}
 with ZipFile(args.apk) as apk:

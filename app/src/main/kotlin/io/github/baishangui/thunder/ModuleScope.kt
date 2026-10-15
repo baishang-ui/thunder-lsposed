@@ -6,6 +6,8 @@ internal object ModuleScope {
         "com.oplus.systemui.plugins" to "系统界面插件"
     )
 
+    fun complete(actual: Set<String>): Boolean = names.keys.all { it in actual }
+
     fun describe(actual: Set<String>): String {
         val missing = names.filterKeys { it !in actual }
         if (missing.isEmpty()) return "作用域已完整：${names.values.joinToString("、")}"

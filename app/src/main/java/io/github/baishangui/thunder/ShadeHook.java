@@ -49,16 +49,11 @@ public final class ShadeHook {
         initialize(processName);
         install("gesture-bar", () -> GestureBarHook.install(loader));
         install("status-bar-icons", () -> StatusBarIconHook.install(loader));
-        install("status-bar-ios-signal-mode", () -> IosSignalStackHook.install(loader));
-        install("status-bar-ios-metrics", () -> IosStatusBarMetrics.install(loader));
-        install("status-bar-ios-symbols", () -> IosStatusBarHook.installSymbols(loader));
-        install("status-bar-ios-signals", IosStatusBarHook::installSignals);
-        install("status-bar-ios-stacked-scope", () -> IosStatusBarHook.installStackedScope(loader));
-        install("status-bar-ios-stacked-layout", () -> IosStatusBarHook.installStackedLayoutScope(loader));
-        install("status-bar-ios-stacked-resources", () -> IosStatusBarHook.installStackedResources(loader));
-        install("status-bar-ios-dynamic-signal", () -> IosStatusBarHook.installDynamicSignals(loader));
-        install("status-bar-ios-battery-labels", () -> IosStatusBarHook.installBatteryLabels(loader));
-        install("status-bar-ios-battery", () -> IosStatusBarHook.installBattery(loader));
+        install("status-bar-ios-view-drawing", () -> IosStatusBarHook.install(loader));
+        install("status-bar-ios-symbol-sources", () -> IosStatusBarHook.installSymbols(loader));
+        install("status-bar-ios-resource-sources", () -> IosStatusBarHook.installResources(loader));
+        install("status-bar-ios-stacked-drawing", IosStatusBarHook::installStackedDrawing);
+        install("status-bar-ios-battery-drawing", () -> IosStatusBarHook.installBattery(loader));
         install("qs-card-backgrounds", () -> QsCardHook.install(loader));
         install("volume-panel", () -> VolumeHook.install(loader));
         install("notification-backgrounds", () -> NotificationCardHook.install(loader));
@@ -476,7 +471,7 @@ public final class ShadeHook {
     }
     static void resourceHit(String key) { hit(key); }
     static void statusIconsObserved(String slots) {
-        observed("status-bar-icons", (IosStatusIcons.active(snapshot()) ? "style=ios;signals="+(snapshot().statusBarStackSignals?"stacked":"separate") : "style=system") + (slots.isEmpty() ? "" : ";hidden="+slots));
+        observed("status-bar-icons", (IosStatusIcons.active(snapshot()) ? "style=ios;renderer=view;signals=system" : "style=system") + (slots.isEmpty() ? "" : ";hidden="+slots));
     }
     private static void capturePanel(Object owner) {
         try {

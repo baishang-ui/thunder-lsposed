@@ -23,7 +23,7 @@ class VolumeSettingsTest {
     @Test fun legacyIndependentButtonsMigrateToSharedBar() {
         val settings=Settings(volume=VolumeSettings(size=true,width=96,bar=Area(true,150,true,0x40557799,true,18)))
         for(version in listOf(13,14)) {
-            val old=JSONObject(settings.json()).put("version",version)
+            val old=JSONObject(settings.json()).put("version",version).apply { getJSONObject("settings").remove("color_mode") }
             old.getJSONObject("settings").apply {
                 put("volume_button_size",true);put("volume_button",36)
                 put("volume_buttons_blur",false);put("volume_buttons_radius",40)
@@ -33,7 +33,7 @@ class VolumeSettingsTest {
             val migrated=Settings.parse(old.toString())
             assertEquals(settings,migrated)
             assertFalse(migrated.bundle().keySet().any { it.startsWith("volume_button") })
-            assertEquals(15,JSONObject(migrated.json()).getInt("version"))
+            assertEquals(16,JSONObject(migrated.json()).getInt("version"))
             old.getJSONObject("settings").put("volume_buttons_blur","false")
             assertThrows(IllegalArgumentException::class.java) { Settings.parse(old.toString()) }
         }
@@ -81,5 +81,21 @@ class VolumeSettingsTest {
             assertTrue(target>=bounds.x()+20 && target+56<=bounds.x()+bounds.width()-20)
         }
         assertEquals(232f,VolumePanelGeometry.rowX(bounds,0,1,56,20,12))
+    }
+    @Test fun widthTransitionTracksNativeMotionAndReversesWithoutASecondClock() {
+        val right=VolumePanelGeometry.Bounds(100,200,300,260,true)
+        val left=VolumePanelGeometry.Bounds(10,200,300,260,false)
+        for (fraction in listOf(0f,.25f,.5f,.75f,1f,.5f,.25f,0f)) {
+            val progress=VolumePanelGeometry.progress(900-600*fraction,300-80*fraction,900f,300f,300f,220f,1f)
+            assertEquals(fraction,progress,.0001f)
+            val r=VolumePanelGeometry.widthAt(right,80,progress)
+            val l=VolumePanelGeometry.widthAt(left,80,progress)
+            assertEquals((80+220*fraction).toInt(),r.width())
+            assertEquals(400,r.x()+r.width());assertEquals(10,l.x())
+            assertEquals(right.height(),r.height());assertEquals(r.width(),l.width())
+        }
+        assertEquals(1f,VolumePanelGeometry.progress(250f,210f,900f,300f,300f,220f,0f),0f)
+        assertEquals(0f,VolumePanelGeometry.progress(950f,310f,900f,300f,300f,220f,1f),0f)
+        assertEquals(.4f,VolumePanelGeometry.progress(10f,10f,10f,10f,10f,10f,.4f),0f)
     }
 }

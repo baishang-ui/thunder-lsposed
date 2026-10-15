@@ -24,12 +24,16 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -40,8 +44,6 @@ import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.darkColorScheme
-import top.yukonga.miuix.kmp.theme.lightColorScheme
 
 class MainActivity : ComponentActivity() {
     private var resumeTick by mutableIntStateOf(0)
@@ -82,15 +84,17 @@ class MainActivity : ComponentActivity() {
             var message by rememberSaveable { mutableStateOf("") }
             var busy by remember { mutableStateOf(false) }
             var refresh by remember { mutableIntStateOf(0) }
-            val restartState by SystemUiSettings.restartState.collectAsState()
+            val restartState by ScopeRestart.restartState.collectAsState()
+            val rootState by RootAccess.state.collectAsState()
             LaunchedEffect(restartState) {
                 if (restartState.message.isNotEmpty()) { message=restartState.message; refresh++ }
             }
             val scope=rememberCoroutineScope()
             val dark=when(draft.theme) { 1->false; 2->true; else->isSystemInDarkTheme() }
+            val headerHeight = with(LocalDensity.current) { (50.sp.toDp() + 24.dp).coerceAtLeast(88.dp) }
             val wallpaper=rememberLayerBackdrop(); val content=rememberLayerBackdrop()
             val overlaySource=rememberCombinedBackdrop(wallpaper,content)
-            val style=GlassStyle(wallpaper,dark,draft)
+            val themeController = rememberAppTheme(draft, dark)
             val dirty=saved!=draft
             SideEffect { WindowCompat.getInsetsController(window,window.decorView).apply {
                 isAppearanceLightStatusBars=!dark; isAppearanceLightNavigationBars=!dark
@@ -107,7 +111,9 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(writeResult) {
                 writeResult.settings?.let { saved = it }
                 if (writeResult.error != null) message = "自动保存失败：${writeResult.error}"
-                else if (writeResult.settings != null && !restartState.running) message = if(writeResult.synced) "已自动保存并实时同步，系统界面将应用新配置" else "已自动保存在本地；${RemoteSettings.status}"
+            }
+            LaunchedEffect(message) {
+                if (message.isNotEmpty()) { delay(5000); message = "" }
             }
             fun navigateBack() {
                 if (detail != null) detail = null
@@ -138,8 +144,8 @@ class MainActivity : ComponentActivity() {
                     busy=false;message=if(result.isSuccess) "配置已导出" else "导出失败：${result.exceptionOrNull()?.message}"
                 } }
             }
-            val colors = if(dark) darkColorScheme(primary=style.accent) else lightColorScheme(primary=style.accent)
-            MiuixTheme(colors=colors) {
+            MiuixTheme(controller = themeController) {
+            val style = GlassStyle(wallpaper, dark, draft, MiuixTheme.colorScheme)
             CompositionLocalProvider(LocalGlass provides style,
                 LocalLiquidAppearance provides LiquidAppearance(dark, style.accent, draft.glassStrength / 60f, draft.refraction / 50f),
                 LocalControlHistory provides history,
@@ -153,8 +159,8 @@ class MainActivity : ComponentActivity() {
                                 val detailScroll = rememberScrollState()
                                 Column(Modifier.widthIn(max=640.dp).fillMaxSize()
                                     .verticalScroll(if (destination.detail != null) detailScroll else when(destination.page) { 0->scroll0;1->scroll1;else->scroll2 })
-                                    .statusBarsPadding().padding(start=20.dp,end=20.dp,top=100.dp,bottom=if (destination.detail == null) 136.dp else 36.dp).navigationBarsPadding(),
-                                    verticalArrangement=Arrangement.spacedBy(18.dp)) {
+                                    .statusBarsPadding().padding(start=16.dp,end=16.dp,top=headerHeight,bottom=if (destination.detail == null) 112.dp else 28.dp).navigationBarsPadding(),
+                                    verticalArrangement=Arrangement.spacedBy(16.dp)) {
                                     val currentDetail = destination.detail
                                     if (currentDetail != null) {
                                         when (currentDetail) {
@@ -162,7 +168,6 @@ class MainActivity : ComponentActivity() {
                                             SettingsPage.Configuration -> {
                                                 SettingsGroup {
                                                     UiText("导入与导出", 18, bold = true)
-                                                    UiText("导出当前全部参数，导入确认后会自动保存。", 13, muted = true)
                                                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                                         LiquidAction("导入配置", Modifier.weight(1f), enabled = !busy) { importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
                                                         LiquidAction("导出配置", Modifier.weight(1f), enabled = !busy) {
@@ -178,7 +183,7 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                             SettingsPage.Runtime -> {
-                                                val status = remember(resumeTick, refresh, RemoteSettings.status, RemoteSettings.scopeStatus) { runtimeStatus() }
+                                                val status = remember(resumeTick, refresh, RemoteSettings.activation, RemoteSettings.status, RemoteSettings.scopeStatus, rootState) { runtimeStatus() }
                                                 SettingsGroup {
                                                     UiText(status.first, 18, bold = true)
                                                     UiText(status.second, 12, muted = true)
@@ -201,49 +206,64 @@ class MainActivity : ComponentActivity() {
                                     } else when(destination.page) {
                                         0 -> {
                                             val status = remember(resumeTick, refresh, RemoteSettings.status, RemoteSettings.scopeStatus) { runtimeStatus() }
-                                            UiText("系统外观，随你调节", 14, muted = true, modifier = Modifier.padding(start = 8.dp))
                                             SettingsGroup {
-                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                                                    Box(Modifier.size(8.dp).background(if(status.first.startsWith("已收到")) Color(0xff5b9e76) else Color(0xffb78a53), RoundedCornerShape(8.dp)))
-                                                    UiText(status.first, 17, bold = true, modifier = Modifier.weight(1f))
-                                                }
-                                                LiquidSwitchRow("启用效果调整", "ColorOS 17 · SystemUI", draft.enabled) { draft = draft.copy(enabled = it) }
-                                                UiText(if(message.isNotEmpty()) message else "修改会自动保存并实时应用。", 13, muted = true)
-                                            }
-                                            SettingsMenuGroup("运行状态") {
-                                                SettingsMenuItem("框架与运行报告", RemoteSettings.status, MiuixIcons.Regular.Report) { detail = SettingsPage.Runtime }
-                                            }
-                                            SettingsGroup {
-                                                UiText("当前配置", 17, bold = true)
-                                                Summary("下拉背景", if(draft.panel.blur || draft.panel.tint) "已自定义" else "跟随系统")
-                                                Summary("控制中心磁贴", if(draft.cardArea.blur || draft.cardArea.tint || draft.cardArea.cornerEnabled) "已自定义" else "跟随系统")
-                                                Summary("通知中心通知条", if(draft.notificationArea.blur || draft.notificationArea.tint || draft.notificationArea.cornerEnabled) "已自定义" else "跟随系统")
-                                                Summary("流体云", if(draft.cloud) "已启用" else "跟随系统")
-                                                Summary("状态栏图标", "${if(draft.statusIconStyle == 1) "iOS 风格" else "系统默认"} · ${if(draft.hiddenStatusIcons == 0) "跟随系统显示" else "隐藏 ${Integer.bitCount(draft.hiddenStatusIcons)} 项"}")
+                                                LiquidSwitchRow("启用效果调整", "ColorOS 17", draft.enabled) { draft = draft.copy(enabled = it) }
                                                 LiquidAction("前往调节", Modifier.fillMaxWidth(), selected = true) { page = 1 }
                                             }
-                                            UiText("首次使用：在 LSPosed 启用模块，作用域同时勾选系统界面和系统界面插件，然后正常重启手机。后续修改自动同步；需要重新加载时，可点击右上角重启系统界面。", 12, muted = true)
+                                            SettingsGroup {
+                                                UiText("模块状态", 16, bold = true)
+                                                val activation = RemoteSettings.activation
+                                                ModuleStatusRow("LSPosed", activation.label,
+                                                    when {
+                                                        activation != RemoteSettings.Activation.Connected -> activation.hint
+                                                        !RemoteSettings.scopeStatus.startsWith("作用域已完整") -> RemoteSettings.scopeStatus
+                                                        else -> ""
+                                                    },
+                                                    activation == RemoteSettings.Activation.Connected)
+                                                ModuleStatusRow("Root", rootState.label,
+                                                    if (rootState !in setOf(RootAccessState.Unchecked, RootAccessState.Granted)) rootState.hint else "",
+                                                    rootState == RootAccessState.Granted, rootState == RootAccessState.Checking)
+                                                LiquidAction(
+                                                    if (rootState == RootAccessState.Checking) "正在验证…" else if (rootState == RootAccessState.Unchecked) "验证 Root 权限" else "重新验证 Root",
+                                                    Modifier.fillMaxWidth(),
+                                                    enabled = rootState != RootAccessState.Checking && !restartState.running
+                                                ) { RootAccess.verify() }
+                                            }
+                                            SettingsMenuGroup("快捷调节") {
+                                                SettingsMenuItem("整体背景", if(draft.panel.blur || draft.panel.tint) "已自定义" else "跟随系统", MiuixIcons.Regular.Background) { page = 1; detail = SettingsPage.Panel }
+                                                SettingsMenuItem("图标样式", if(draft.statusIconStyle == 1) "iOS 风格" else "系统默认", MiuixIcons.Regular.Theme) { page = 1; detail = SettingsPage.StatusStyle }
+                                            }
+                                            SettingsMenuGroup("诊断") {
+                                                SettingsMenuItem("运行报告", status.first, MiuixIcons.Regular.Report) { detail = SettingsPage.Runtime }
+                                            }
                                         }
                                         1 -> AdjustmentMenu(draft) { detail = it }
                                         else -> PreferencesMenu(draft) { detail = it }
                                     }
-                                    if(message.isNotEmpty() && (destination.page!=0 || destination.detail!=null)) SettingsGroup { UiText(message,13);LiquidAction("收起提示") { message="" } }
                                 }
                             }
                         }
                     }
-                    ProgressiveHeader(overlaySource,Modifier.fillMaxWidth().height(108.dp + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()).align(Alignment.TopCenter))
-                    Row(Modifier.align(Alignment.TopCenter).widthIn(max=640.dp).fillMaxWidth().statusBarsPadding().padding(horizontal=24.dp,vertical=14.dp),
+                    ProgressiveHeader(overlaySource,Modifier.fillMaxWidth().height(headerHeight + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()).align(Alignment.TopCenter))
+                    Row(Modifier.align(Alignment.TopCenter).widthIn(max=640.dp).fillMaxWidth().statusBarsPadding().padding(horizontal=16.dp,vertical=10.dp),
                         verticalAlignment=Alignment.CenterVertically) {
-                        LiquidAction("返回",Modifier.size(48.dp),icon=MiuixIcons.Regular.Back) { navigateBack() }
+                        if (detail != null || page != 0) {
+                            LiquidAction("返回",Modifier.size(48.dp),icon=MiuixIcons.Regular.Back) { navigateBack() }
+                        }
                         Crossfade(MenuDestination(page, detail), Modifier.weight(1f).padding(horizontal=14.dp),
                             animationSpec = tween(220), label = "Menu title") { destination ->
                             Column {
-                                UiText(destination.detail?.title ?: listOf("主页","调节","设置")[destination.page],24,bold=true)
-                                UiText((destination.detail?.let { "${it.category} · " } ?: "") + if(dirty) "正在自动保存…" else "已自动保存",11,muted=true)
+                                UiText(destination.detail?.title ?: listOf("thunder","调节","设置")[destination.page],22,bold=true,
+                                    maxLines=1,overflow=TextOverflow.Ellipsis)
+                                val caption = when {
+                                    writeResult.error != null -> "保存失败，请重试修改"
+                                    dirty -> "正在保存…"
+                                    else -> destination.detail?.category
+                                }
+                                if (caption != null) UiText(caption, 11, muted = true)
                             }
                         }
-                        LiquidAction("重启系统界面",Modifier.size(48.dp),enabled=!busy,selected=true,icon=MiuixIcons.Regular.Refresh) {
+                        LiquidAction("重启作用域",Modifier.size(48.dp),enabled=!busy,selected=restartState.running,icon=MiuixIcons.Regular.Refresh) {
                             restartRequested=restartState.running
                             restartFeedback=true
                         }
@@ -255,19 +275,25 @@ class MainActivity : ComponentActivity() {
                             FloatingNav(page,{ if (detail == null) page=it },Modifier.navigationBarsPadding().padding(horizontal=28.dp,vertical=14.dp))
                         }
                     }
+                    AnimatedVisibility(visible = message.isNotEmpty(), modifier = Modifier.align(Alignment.BottomCenter)
+                        .navigationBarsPadding().padding(horizontal = 16.dp, vertical = if (detail == null) 100.dp else 16.dp)) {
+                        SettingsGroup(Modifier.widthIn(max = 600.dp)) {
+                            UiText(message, 13, modifier = Modifier.fillMaxWidth())
+                        }
+                    }
                     if(restartFeedback) SettingsDialog(
-                        if(!restartRequested) "重启系统界面" else if(restartState.running) "正在重启系统界面" else "重启结果",
+                        if(!restartRequested) "重启作用域" else if(restartState.running) "正在重启作用域" else "重启结果",
                         {restartFeedback=false}
                     ) {
                         if(!restartRequested) {
-                            UiText("重新加载状态栏与通知栏",16,bold=true)
-                            UiText("先保存配置并检查运行状态，等待系统界面稳定后再重启。过程需要 Root 授权，状态栏和通知栏会短暂消失。",14,muted=true)
+                            UiText("重新加载系统界面及插件",16,bold=true)
+                            UiText("范围：系统界面、系统界面插件。保存配置并等待进程稳定后，按实际加载方式重启。需要 Root 授权，状态栏、通知栏和流体云会短暂中断。",14,muted=true)
                             UiText("普通参数修改会自动应用，无需重启。",12,muted=true)
                             Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                                 LiquidAction("取消",Modifier.weight(1f)) { restartFeedback=false }
-                                LiquidAction("重启",Modifier.weight(1f),enabled=!restartState.running,selected=true) {
+                                LiquidAction("重启",Modifier.weight(1f),enabled=!restartState.running && rootState != RootAccessState.Checking,selected=true) {
                                     restartRequested=true
-                                    SystemUiSettings.restart(this@MainActivity,draft)
+                                    ScopeRestart.restart(this@MainActivity,draft)
                                 }
                             }
                         } else {
@@ -308,7 +334,7 @@ class MainActivity : ComponentActivity() {
         val cloudTime=cloud.getLong("time",0)
         val cloudReport=if(cloudTime>0L && cloud.getLong("elapsed",-1)<=android.os.SystemClock.elapsedRealtime())
             "\n插件独立进程 PID ${cloud.getInt("pid",-1)} · Hook ${cloud.getInt("hook_version",0)} · 配置 ${cloud.getLong("revision",-1)}\n插件报告 ${SimpleDateFormat("MM-dd HH:mm:ss",Locale.CHINA).format(Date(cloudTime))}\n插件命中：${cloud.getString("hits", "")}\n插件参数：${cloud.getString("effective", "")}\n插件异常：${cloud.getString("error", "")}" else ""
-        val frameworkReport="${RemoteSettings.status}\n${RemoteSettings.scopeStatus}"
+        val frameworkReport="LSPosed 激活：${RemoteSettings.activation.label}\n${RemoteSettings.status}\n${RemoteSettings.scopeStatus}\nRoot 权限：${RootAccess.state.value.label}"
         val r=createDeviceProtectedStorageContext().getSharedPreferences("runtime",0)
         val time=r.getLong("time",0)
         val hookVersion=r.getInt("hook_version",0)
@@ -325,32 +351,45 @@ class MainActivity : ComponentActivity() {
 }
 
 private fun alphaPercent(c: Int)=TintColor.percent(c)
+@Composable private fun ModuleStatusRow(title: String, status: String, hint: String, ready: Boolean, checking: Boolean = false) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            if (checking) InfiniteProgressIndicator(Modifier.size(12.dp))
+            else Box(Modifier.size(8.dp).background(if (ready) Color(0xff5b9e76) else Color(0xffb78a53), RoundedCornerShape(8.dp)))
+            UiText(title, 15, bold = true, modifier = Modifier.weight(1f))
+            UiText(status, 13, muted = !ready)
+        }
+        if (hint.isNotEmpty()) UiText(hint, 12, muted = true)
+    }
+}
 @Composable private fun Summary(title: String,value: String) {
     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
         UiText(title,13,muted=true,modifier=Modifier.weight(1f).padding(end=12.dp));UiText(value,13,bold=true)
     }
 }
 @Composable private fun Wallpaper(modifier: Modifier,s: GlassStyle) {
-    Box(modifier.background(if(s.dark) MiuixTheme.colorScheme.surface else Color(s.settings.backdropColor)))
+    Box(modifier.background(s.background))
 }
 
 @Composable internal fun AreaControls(title: String,area: Area,blur: Boolean=true,corner: Boolean=true,
-                                    cornerRange: IntRange=0..64,relativeCorners: Boolean=false,onChange: (Area)->Unit) {
-    UiText(title,18,bold=true)
+                                    cornerRange: IntRange=0..64,relativeCorners: Boolean=false,
+                                    showTitle: Boolean=false,onChange: (Area)->Unit) {
+    CompositionLocalProvider(LocalControlScope provides "${LocalControlScope.current}:$title") {
+    if (showTitle) UiText(title,14,muted=true,modifier=Modifier.padding(start=8.dp,top=4.dp))
     if(blur) SettingsGroup {
-        LiquidSwitchRow("自定义背景模糊","关闭后跟随系统",area.blur) { onChange(area.copy(blur=it)) }
+        LiquidSwitchRow("背景模糊","",area.blur) { onChange(area.copy(blur=it)) }
         if(area.blur) LiquidValueSlider("模糊半径",area.radius,0..200," px") { onChange(area.copy(radius=it)) }
     }
     SettingsGroup {
-        LiquidSwitchRow("自定义背景混色","独立调整此区域的颜色与透明度",area.tint) { onChange(area.copy(tint=it)) }
+        LiquidSwitchRow("背景混色","",area.tint) { onChange(area.copy(tint=it)) }
         if(area.tint) {
             LiquidColorSetting("混色颜色",area.color) { onChange(area.copy(color=it)) }
-            UiText("0% 清除背景混色。关闭开关后恢复系统背景。",12,muted=true)
         }
     }
     if(corner) SettingsGroup {
-        LiquidSwitchRow("自定义圆角","关闭后使用系统圆角",area.cornerEnabled) { onChange(area.copy(cornerEnabled=it)) }
+        LiquidSwitchRow("自定义圆角","",area.cornerEnabled) { onChange(area.copy(cornerEnabled=it)) }
         if(area.cornerEnabled) LiquidValueSlider(if(relativeCorners) "圆角程度" else "圆角半径",area.corner,cornerRange,if(relativeCorners) " / 64" else " dp") { onChange(area.copy(corner=it)) }
     }
-    LiquidAction("恢复此区域系统参数",Modifier.fillMaxWidth()) { onChange(area.copy(blur=false,tint=false,cornerEnabled=false)) }
+    LiquidAction("恢复系统材质",Modifier.fillMaxWidth()) { onChange(area.copy(blur=false,tint=false,cornerEnabled=false)) }
+    }
 }

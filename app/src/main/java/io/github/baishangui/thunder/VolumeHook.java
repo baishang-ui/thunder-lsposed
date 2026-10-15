@@ -11,6 +11,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -26,6 +27,7 @@ final class VolumeHook {
     private static final Map<Object,Compact> panels=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View,int[]> layouts=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View,Map<String,Object>> barDefaults=Collections.synchronizedMap(new WeakHashMap<>());
+    private static final String[] MORPH_FIELDS={"mCurBackgroundWidth","mCurProgressWidth","mCurBackgroundRadius","mCurProgressRadius","mCurPaddingVertical"};
     private static final String[] ACCESSORIES={"mVolumePanelTitleIcon","mVolumePanelTitleText","mVolumePanelTipsText","mSettingsButton","mVolumeSettingText"};
 
     static void install(ClassLoader loader) {
@@ -96,6 +98,7 @@ final class VolumeHook {
                         if(index<0)return;
                         // Native LayoutManager keeps physical LTR order on both key sides.
                         float x=VolumePanelGeometry.rowX(panel.bounds,index,panel.count,item.getWidth(),panel.inset,panel.gap);
+                        panel.follow(item,x);
                         p.setResult(VolumePanelGeometry.translation(x,xy[0],item.getTranslationX()));
                     }
                 }
@@ -105,6 +108,13 @@ final class VolumeHook {
             @Override protected void afterHookedMethod(Param p) {
                 Object dialog=Reflect.getObjectField(Reflect.getObjectField(p.thisObject,"deps"),"this$0");
                 Compact panel=panels.get(dialog);if(panel!=null)panel.mount();
+            }
+        });
+        // Fallback for detached/replaced holders and vendor animation-disabled paths.
+        hook(loader,MATERIAL+"VolumePlatformBlurHostHelper",new String[]{"applyBarPanelBottomProgress"},new HookCallback() {
+            @Override protected void afterHookedMethod(Param p) {
+                Object dialog=Reflect.getObjectField(Reflect.getObjectField(p.thisObject,"deps"),"this$0");
+                Compact panel=panels.get(dialog);if(panel!=null)panel.backgroundProgress=((Number)p.args[0]).floatValue();
             }
         });
         hook(loader,BASE+"view.OplusVolumeDialogView$CustomDialog",new String[]{"dispatchTouchEvent"},new HookCallback() {
@@ -148,6 +158,34 @@ final class VolumeHook {
                 Object original=p.getObjectExtra("backgroundColor");if(original!=null)Reflect.setObjectField(p.thisObject,"mBackgroundColor",original);
             }
         });
+        // Include View.draw's background pass, not only onDraw's progress paint. Geometry is
+        // temporary: native press/release animators keep their fields, listeners and clocks.
+        hook(loader,BASE+"OplusVolumeSeekBar",new String[]{"draw"},new HookCallback() {
+            @Override protected void beforeHookedMethod(Param p) {
+                View bar=(View)p.thisObject;Compact panel=containing(bar);if(panel==null)return;
+                float progress=panel.progress();if(progress>=1f)return;
+                float[] pose=new float[MORPH_FIELDS.length];
+                for(int i=0;i<pose.length;i++)pose[i]=((Number)Reflect.getObjectField(bar,MORPH_FIELDS[i])).floatValue();
+                p.setObjectExtra("volume.widthPose",pose);
+                float base=((Number)Reflect.getObjectField(bar,"mBackgroundWidth")).floatValue();
+                float width=VolumePanelGeometry.mix(panel.startBarWidth,base,progress);
+                float ratio=base<=0?1:width/base;
+                Reflect.setObjectField(bar,MORPH_FIELDS[0],pose[0]*ratio);
+                Reflect.setObjectField(bar,MORPH_FIELDS[1],pose[1]*ratio);
+                float baseRadius=((Number)Reflect.getObjectField(bar,"mBackgroundRadius")).floatValue();
+                float radius=VolumePanelGeometry.mix(panel.startBarRadius,baseRadius,progress);
+                float cornerRatio=baseRadius<=0?1:radius/baseRadius;
+                float backgroundRadius=Math.min(pose[2]*cornerRatio,pose[0]*ratio/2f);
+                Reflect.setObjectField(bar,MORPH_FIELDS[2],backgroundRadius);
+                Reflect.setObjectField(bar,MORPH_FIELDS[3],Math.min(pose[3]*cornerRatio,pose[1]*ratio/2f));
+                Reflect.setObjectField(bar,MORPH_FIELDS[4],Math.max(0,pose[4]+backgroundRadius-pose[2]));
+                Reflect.callMethod(bar,"preCalcMaterialClipPath");
+            }
+            @Override protected void afterHookedMethod(Param p) {
+                float[] pose=(float[])p.getObjectExtra("volume.widthPose");if(pose==null)return;
+                for(int i=0;i<pose.length;i++)Reflect.setObjectField(p.thisObject,MORPH_FIELDS[i],pose[i]);
+            }
+        });
         for(String factory:new String[]{"getVolumeBarBackground","getVolumeSettingsButtonBackground","getVolumeSideAccessoryBackground","getVolumePanelBackground"}) {
             String role=factory.equals("getVolumeBarBackground")?"volume-bar":factory.equals("getVolumePanelBackground")?"volume-panel":"volume-buttons";
             hook(loader,MATERIAL+"VolumeBlurManager",new String[]{factory},new HookCallback() {
@@ -166,7 +204,7 @@ final class VolumeHook {
                         Reflect.setAdditionalInstanceField(blur,"volume.host",new WeakReference<>((View)p.args[2]));
                         ShadeHook.trackVolume(proxy,role);
                     }
-                    else p.setResult(new FlatSurface((Drawable)p.getResult(),(Context)p.args[0],role));
+                    else p.setResult(new FlatSurface((Drawable)p.getResult(),(Context)p.args[0],role,(View)p.args[2]));
                 }
             });
         }
@@ -189,7 +227,8 @@ final class VolumeHook {
             float width=((Number)Reflect.getObjectField(host,"mCurBackgroundWidth")).floatValue();
             return Math.min(radius,width/2f);
         }
-        int width=panel==null?host.getWidth():panel.bounds.width(),height=panel==null?host.getHeight():panel.bounds.height();
+        VolumePanelGeometry.Bounds visible=panel==null?null:panel.visualBounds();
+        int width=visible==null?host.getWidth():visible.width(),height=visible==null?host.getHeight():visible.height();
         return Math.min(radius,Math.min(width,height)/2f);
     }
 
@@ -315,8 +354,8 @@ final class VolumeHook {
         View item=rowView;
         while(item!=null&&item.getParent() instanceof View&&item.getParent()!=recycler)item=(View)item.getParent();
         if(item==null||item.getParent()!=recycler)return;
-        Compact panel=new Compact(dialog,root,recycler,item);panels.put(dialog,panel);
-        panel.arrange(Reflect.getObjectField(dialog,"volumeListAdapter"));
+        Compact panel=new Compact(dialog,root,recycler,item,bar);panels.put(dialog,panel);
+        panel.arrange(Reflect.getObjectField(dialog,"volumeListAdapter"));panel.watch();
         ShadeHook.observed("volume-compact","native item/accessory/background animators; anchored geometry");
     }
     private static Compact forAdapter(Object adapter) {
@@ -352,7 +391,12 @@ final class VolumeHook {
     private static final class Compact {
         final HookConfig config;
         final WeakReference<Object> dialog;
-        final WeakReference<View> root,recycler;
+        final WeakReference<View> root,recycler,anchorItem;
+        WeakReference<View> driver;
+        final float startBarWidth,startBarRadius;
+        float targetX,targetY,backgroundProgress=Float.NaN,lastProgress=-1;
+        ViewTreeObserver observer;
+        final ViewTreeObserver.OnPreDrawListener frame=()->{tick();return true;};
         final Map<View,Map<String,Object>> accessories=new WeakHashMap<>();
         final Rect usable=new Rect();
         final int anchorX,anchorY,anchorRight,inset,gap,sourceHeight;
@@ -362,13 +406,16 @@ final class VolumeHook {
         NativePanelSurface surface;
         boolean outsideGesture;
         int rowWidth;
-        Compact(Object d,View r,View list,View item) {
+        Compact(Object d,View r,View list,View item,View bar) {
+            anchorItem=new WeakReference<>(item);
+            startBarWidth=((Number)Reflect.getObjectField(bar,"mBackgroundWidth")).floatValue();
+            startBarRadius=((Number)Reflect.getObjectField(bar,"mBackgroundRadius")).floatValue();
             config=ShadeHook.snapshot();dialog=new WeakReference<>(d);root=new WeakReference<>(r);recycler=new WeakReference<>(list);
             int[] xy=location(item);anchorX=Math.round(xy[0]-item.getTranslationX());anchorY=Math.round(xy[1]-item.getTranslationY());anchorRight=anchorX+item.getWidth();
             r.getWindowVisibleDisplayFrame(usable);int[] origin=location(r);
             usable.left=Math.max(usable.left,origin[0]);usable.top=Math.max(usable.top,origin[1]);
             usable.right=Math.min(usable.right,origin[0]+r.getWidth());usable.bottom=Math.min(usable.bottom,origin[1]+r.getHeight());
-            inset=dp(r,12);gap=dp(r,8);sourceHeight=height(list);
+            inset=dp(r,8);gap=dp(r,6);sourceHeight=height(list);
         }
         void arrange(Object adapter) {
             View r=root.get(),list=recycler.get();Object d=dialog.get();if(r==null||list==null||d==null)return;
@@ -383,7 +430,7 @@ final class VolumeHook {
             styleButtons(d,config,this);
             View icon=view(d,ACCESSORIES[0]),title=view(d,ACCESSORIES[1]),tips=view(d,ACCESSORIES[2]);
             View button=view(d,ACCESSORIES[3]),label=view(d,ACCESSORIES[4]);
-            int iconSide=icon==null?0:dp(r,24),titleGap=icon==null?0:gap;
+            int iconSide=icon==null?0:dp(r,20),titleGap=icon==null?0:gap;
             int titleWidth=title==null?0:Math.max(1,Math.min(dp(r,128),contentWidth-iconSide-titleGap));
             measureAccessory(title,titleWidth);
             measureAccessory(tips,contentWidth);
@@ -391,8 +438,8 @@ final class VolumeHook {
             int titleHeight=Math.max(iconSide,height(title));
             header=inset+titleHeight+dp(r,4)+height(tips)+gap;
             footer=2*inset+Math.max(height(button),height(label));
-            int available=Math.min(dp(r,360),Math.max(1,usable.height()-2*margin));
-            rowHeight=Math.max(1,Math.min(Math.min(sourceHeight,dp(r,200)),available-header-footer));
+            int available=Math.min(dp(r,260),Math.max(1,usable.height()-2*margin));
+            rowHeight=Math.max(1,Math.min(Math.min(sourceHeight,dp(r,144)),available-header-footer));
             bounds=VolumePanelGeometry.place(usable.left+margin,usable.top+margin,usable.right-margin,usable.bottom-margin,
                     anchorX,anchorY-header+inset,anchorRight,anchorY+sourceHeight,
                     cardWidth,Math.min(available,header+rowHeight+footer),inset);
@@ -411,6 +458,32 @@ final class VolumeHook {
             placeAccessory(d,ACCESSORIES[3],settingsLeft,settingsTop+(settingsHeight-buttonSide)/2,buttonSide,buttonSide,origin);
             placeAccessory(d,ACCESSORIES[4],settingsLeft+buttonSide+(button==null?0:gap),settingsTop+(settingsHeight-height(label))/2,labelWidth,height(label),origin);
             if(surface!=null)surface.invalidateSelf();
+        }
+        void follow(View item,float x) {
+            // Prefer the original active holder, but allow the native adapter to replace it.
+            if(driver!=null&&driver.get()==item)return;
+            if(driver!=null&&driver.get()!=null&&driver.get().getParent()==recycler.get()&&item!=anchorItem.get())return;
+            driver=new WeakReference<>(item);targetX=x;targetY=rowTop;
+        }
+        float progress() {
+            View item=driver==null?null:driver.get();
+            float fallback=Float.isNaN(backgroundProgress)?(surface==null?0:surface.getDrawable().getAlpha()/255f):backgroundProgress;
+            if(item==null||!item.isAttachedToWindow()||item.getParent()!=recycler.get())return VolumePanelGeometry.clamp(fallback);
+            int[] xy=location(item);
+            return VolumePanelGeometry.progress(xy[0],xy[1],anchorX,anchorY,targetX,targetY,fallback);
+        }
+        VolumePanelGeometry.Bounds visualBounds() {
+            View r=root.get();return VolumePanelGeometry.widthAt(bounds,Math.round(startBarWidth)+(r==null?0:dp(r,10))+2*inset,progress());
+        }
+        void watch() {View r=root.get();if(r!=null){observer=r.getViewTreeObserver();observer.addOnPreDrawListener(frame);}}
+        void tick() {
+            float progress=progress();if(Math.abs(progress-lastProgress)<.0001f)return;lastProgress=progress;
+            if(surface!=null)surface.invalidateSelf();
+            View list=recycler.get();if(list!=null)invalidateTree(list);
+        }
+        void invalidateTree(View v) {
+            v.invalidate();
+            if(v instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++)invalidateTree(group.getChildAt(i));
         }
         int barWidth() {View r=root.get();return r==null?1:Math.max(1,rowWidth-dp(r,10));}
         void measureAccessory(View v,int width) {
@@ -439,7 +512,8 @@ final class VolumeHook {
             surface=new NativePanelSurface(background,this);r.setBackground(surface);
         }
         boolean contains(float x,float y) {
-            if(bounds!=null&&x>=bounds.x()&&x<bounds.x()+bounds.width()&&y>=bounds.y()&&y<bounds.y()+bounds.height())return true;
+            VolumePanelGeometry.Bounds visible=bounds==null?null:visualBounds();
+            if(visible!=null&&x>=visible.x()&&x<visible.x()+visible.width()&&y>=visible.y()&&y<visible.y()+visible.height())return true;
             View list=recycler.get();
             if(list instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++)if(hit(group.getChildAt(i),x,y))return true;
             Object d=dialog.get();return d!=null&&hit(view(d,"mSnackBar"),x,y);
@@ -450,6 +524,8 @@ final class VolumeHook {
         }
         void restore() {
             View r=root.get(),list=recycler.get();
+            if(observer!=null&&observer.isAlive())observer.removeOnPreDrawListener(frame);
+            else if(r!=null)r.getViewTreeObserver().removeOnPreDrawListener(frame);
             if(r!=null&&r.getBackground()==surface)r.setBackground(surface.getDrawable());
             for(Map.Entry<View,Map<String,Object>> entry:accessories.entrySet()) {
                 View v=entry.getKey();Object lp=v.getLayoutParams();
@@ -466,7 +542,7 @@ final class VolumeHook {
         NativePanelSurface(Drawable original,Compact p){super(original);panel=p;}
         @Override public void draw(Canvas canvas) {
             View root=panel.root.get();if(root==null||panel.bounds==null)return;
-            int[] origin=location(root);VolumePanelGeometry.Bounds b=panel.bounds;
+            int[] origin=location(root);VolumePanelGeometry.Bounds b=panel.visualBounds();
             int x=b.x()-origin[0],y=b.y()-origin[1];
             HookConfig c=panel.config;float corner=dp(root,c.enabled&&c.volumePanel.cornerEnabled?c.volumePanel.corner:28);
             corner=Math.min(corner,Math.min(b.width(),b.height())/2f);
@@ -479,28 +555,39 @@ final class VolumeHook {
     }
     /** Dynamic fallback retains the native drawable so disabling a setting restores it immediately. */
     private static final class FlatSurface extends DrawableWrapper {
-        final Context context;final String role;final Path clip=new Path();final GradientDrawable fill=new GradientDrawable();
-        FlatSurface(Drawable nativeDrawable,Context ctx,String r){super(nativeDrawable);context=ctx;role=r;}
+        final Context context;final String role;final WeakReference<View> host;final Path clip=new Path();final GradientDrawable fill=new GradientDrawable();
+        FlatSurface(Drawable nativeDrawable,Context ctx,String r,View v){super(nativeDrawable);context=ctx;role=r;host=new WeakReference<>(v);}
         HookConfig.Area area() {
             HookConfig c=ShadeHook.snapshot();return !c.enabled?null:role.equals("volume-panel")?c.volumePanel:c.volumeBar;
         }
-        float radius(HookConfig.Area a) {
+        Rect materialBounds() {
+            View v=host.get();
+            if(v==null||!role.equals("volume-bar"))return getBounds();
+            Reflect.callMethod(v,"preCalcMaterialClipPath");return (Rect)Reflect.getObjectField(v,"mBackgroundRect");
+        }
+        float radius(HookConfig.Area a,Rect bounds) {
+            View v=host.get();
+            if(v!=null&&role.equals("volume-bar"))return Math.min(((Number)Reflect.getObjectField(v,"mCurBackgroundRadius")).floatValue(),Math.min(bounds.width(),bounds.height())/2f);
             Outline nativeOutline=new Outline();getDrawable().getOutline(nativeOutline);
             float nativeRadius=getDrawable() instanceof GradientDrawable?((GradientDrawable)getDrawable()).getCornerRadius():Math.max(0f,nativeOutline.getRadius());
-            return Math.min(a.cornerEnabled?a.corner*context.getResources().getDisplayMetrics().density:nativeRadius,Math.min(getBounds().width(),getBounds().height())/2f);
+            return Math.min(a.cornerEnabled?a.corner*context.getResources().getDisplayMetrics().density:nativeRadius,Math.min(bounds.width(),bounds.height())/2f);
         }
         @Override public void draw(Canvas canvas) {
             HookConfig.Area a=area();if(a==null||(!a.tint&&!a.cornerEnabled)){super.draw(canvas);return;}
+            Rect b=materialBounds();float radius=radius(a,b);
             if(a.tint) {
-                fill.setBounds(getBounds());fill.setColor(a.color);fill.setCornerRadius(radius(a));fill.setAlpha(getAlpha());fill.draw(canvas);
+                fill.setBounds(b);fill.setColor(a.color);fill.setCornerRadius(radius);fill.setAlpha(getAlpha());fill.draw(canvas);
             } else {
-                Rect b=getBounds();float radius=radius(a);clip.rewind();clip.addRoundRect(b.left,b.top,b.right,b.bottom,radius,radius,Path.Direction.CW);
-                int save=canvas.save();try {canvas.clipPath(clip);super.draw(canvas);}finally {canvas.restoreToCount(save);}
+                clip.rewind();clip.addRoundRect(b.left,b.top,b.right,b.bottom,radius,radius,Path.Direction.CW);
+                Drawable original=getDrawable();Rect old=original.getBounds();int l=old.left,t=old.top,r=old.right,bottom=old.bottom;
+                Drawable.Callback callback=original.getCallback();int save=canvas.save();
+                try {original.setCallback(null);original.setBounds(b);canvas.clipPath(clip);super.draw(canvas);}
+                finally {original.setBounds(l,t,r,bottom);original.setCallback(callback);canvas.restoreToCount(save);}
             }
         }
         @Override public void getOutline(Outline outline) {
             HookConfig.Area a=area();if(a==null||!a.cornerEnabled){super.getOutline(outline);return;}
-            Rect b=getBounds();outline.setRoundRect(b.left,b.top,b.right,b.bottom,radius(a));
+            Rect b=materialBounds();outline.setRoundRect(b.left,b.top,b.right,b.bottom,radius(a,b));
         }
     }
     private static void hook(ClassLoader loader,String type,String[] names,HookCallback callback) {

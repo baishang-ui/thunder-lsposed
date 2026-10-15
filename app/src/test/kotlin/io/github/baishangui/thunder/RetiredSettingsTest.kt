@@ -9,7 +9,7 @@ class RetiredSettingsTest {
         val settings = Settings(statusIconStyle = 1, hiddenStatusIcons = StatusBarIcons.BLUETOOTH,
             cardArea = Area(true, 73, true, 0x4188aacc, true, 18))
         for (version in 10..13) for (enabled in listOf(false, true)) {
-            val old = JSONObject(settings.json()).put("version", version)
+            val old = JSONObject(settings.json()).put("version", version).apply { getJSONObject("settings").remove("color_mode") }
             if (version < 13) old.removeV13Fields()
             if (version < 12) old.removeNotificationFields()
             if (version < 11) old.getJSONObject("settings").remove("status_bar_stack_signals")
@@ -25,7 +25,7 @@ class RetiredSettingsTest {
     }
     @Test fun currentExportsRejectRetiredAndUnknownFields() {
         val current = JSONObject(Settings().json())
-        assertEquals(15, current.getInt("version"))
+        assertEquals(16, current.getInt("version"))
         current.getJSONObject("settings").put("status_bar_follow_app", true)
         assertThrows(IllegalArgumentException::class.java) { Settings.parse(current.toString()) }
     }

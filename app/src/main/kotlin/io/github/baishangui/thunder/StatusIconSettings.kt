@@ -18,7 +18,6 @@ import androidx.compose.ui.text.font.FontWeight
 import top.yukonga.miuix.kmp.basic.Text
 
 @Composable internal fun StatusIconStyleSettings(settings: Settings, change: (Settings) -> Unit) {
-    UiText("iOS 风格状态图标与实心百分比电池，时间根据状态栏可用空间适配。", 13, muted = true)
     SettingsGroup {
         UiText("图标样式", 15)
         ChoiceTabs(listOf("系统默认", "iOS 风格"), settings.statusIconStyle) {
@@ -26,17 +25,11 @@ import top.yukonga.miuix.kmp.basic.Text
         }
     }
     if (!settings.enabled) UiText("模块总开关已关闭。样式会保存，启用模块后应用。", 13, muted = true)
-    SettingsGroup {
-        UiText("双卡移动信号", 15)
-        ChoiceTabs(listOf("分开显示", "合并堆叠"), if (settings.statusBarStackSignals) 1 else 0) {
-            change(settings.copy(statusBarStackSignals = it == 1))
-        }
-        UiText("iOS 风格下生效。双卡堆叠时上下两行分别显示真实信号；单卡保持单行。", 12, muted = true)
-    }
+    UiText("双卡排列跟随系统设置，已识别的堆叠信号上下两行分别显示真实强度。", 12, muted = true)
     UiText("iOS 风格预览", 15)
-    StatusStrip(dark = false, stacked = settings.statusBarStackSignals)
-    StatusStrip(dark = true, stacked = settings.statusBarStackSignals)
-    UiText("时间根据可用空间完整显示；图标统一居中，间距跟随图形宽度。预览为示意，实际颜色与状态跟随系统。", 12, muted = true)
+    StatusStrip(dark = false, stacked = false)
+    StatusStrip(dark = true, stacked = false)
+    UiText("预览为图形示意。实际图标在系统原有空间内居中绘制，颜色、电量与信号状态跟随系统。", 12, muted = true)
     SettingsGroup {
         UiText("电池内数字", 15)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -81,9 +74,6 @@ import top.yukonga.miuix.kmp.basic.Text
             }
         }
     }
-    UiText("电池内数字随真实电量更新，充电显示闪电标记。开启后统一替换横向、竖向、圆形和旧版电池，关闭后恢复原样式。", 12, muted = true)
-    UiText("图形参考苹果官方状态栏比例并用平滑曲线重绘；Android 专属状态使用配套图形。实心百分比电池参考 iOS 16。", 12, muted = true)
-    UiText("自动保存并同步。漫游、无服务和网络异常也使用配套图标并保留状态提示；锁屏及下拉区域共用的状态图标也会应用样式。", 12, muted = true)
 }
 
 @Composable private fun StatusStrip(dark: Boolean, stacked: Boolean) {

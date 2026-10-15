@@ -11,7 +11,6 @@ import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.DrawableWrapper;
 import androidx.core.graphics.PathParser;
 import java.util.EnumMap;
 import java.util.Map;
@@ -196,38 +195,4 @@ final class IosIconDrawable extends Drawable {
     @Override public int getIntrinsicWidth() { return 24; }
     @Override public int getIntrinsicHeight() { return 24; }
 
-    /** Retain the native drawable and its metrics/state so switching off is exact and immediate. */
-    static final class Replacement extends DrawableWrapper implements android.graphics.drawable.Animatable {
-        private IosIconDrawable icon;
-        private final String hit;
-        private int densitySize;
-        boolean density(float density) { int pixels=Math.round(20*density);boolean changed=pixels!=densitySize;densitySize=pixels;return changed; }
-        @Override public void start() { if(getDrawable() instanceof android.graphics.drawable.Animatable animation)animation.start(); }
-        @Override public void stop() { if(getDrawable() instanceof android.graphics.drawable.Animatable animation)animation.stop(); }
-        @Override public boolean isRunning() { return getDrawable() instanceof android.graphics.drawable.Animatable animation && animation.isRunning(); }
-        Replacement(Drawable nativeIcon, IosStatusIcons.Symbol symbol) {
-            this(nativeIcon,symbol,0);
-        }
-        Replacement(Drawable nativeIcon, IosStatusIcons.Symbol symbol,int stackedSize) {
-            super(nativeIcon);icon=new IosIconDrawable(symbol);
-            this.densitySize=stackedSize;
-            hit=symbol.row()>0?"stacked":symbol.kind().name().toLowerCase(java.util.Locale.ROOT);
-            icon.setAlpha(nativeIcon.getAlpha());icon.setColorFilter(nativeIcon.getColorFilter());
-        }
-        @Override public void draw(Canvas canvas) {
-            if(!IosStatusIcons.active(ShadeHook.snapshot())) { super.draw(canvas);return; }
-            icon.setBounds(getBounds());icon.draw(canvas);
-            ShadeHook.resourceHit("status-bar-ios-symbol-draw");
-            ShadeHook.resourceHit("status-bar-ios-"+hit+"-draw");
-        }
-        @Override public void setAlpha(int alpha) { super.setAlpha(alpha);if(icon!=null)icon.setAlpha(alpha); }
-        @Override public void setColorFilter(ColorFilter filter) { super.setColorFilter(filter);if(icon!=null)icon.setColorFilter(filter); }
-        @Override public void setTintList(ColorStateList tint) { super.setTintList(tint);if(icon!=null)icon.setTintList(tint); }
-        @Override protected boolean onStateChange(int[] state) { boolean changed=super.onStateChange(state);return (icon!=null&&icon.setState(state))||changed; }
-        @Override public boolean isStateful() { return super.isStateful() || (icon!=null&&icon.isStateful()); }
-        @Override public int getIntrinsicWidth() { return densitySize>0&&IosStatusIcons.active(ShadeHook.snapshot())?Math.round(cellWidth(icon.symbol)*densitySize/20f):super.getIntrinsicWidth(); }
-        @Override public int getIntrinsicHeight() { return densitySize>0&&IosStatusIcons.active(ShadeHook.snapshot())?densitySize:super.getIntrinsicHeight(); }
-        IosStatusIcons.Symbol symbol() { return icon.symbol; }
-        @Override public ConstantState getConstantState() { return null; }
-    }
 }

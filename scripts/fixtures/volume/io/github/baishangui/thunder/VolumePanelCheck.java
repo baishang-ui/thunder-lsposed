@@ -102,14 +102,14 @@ public final class VolumePanelCheck {
         before(VIEW+"#expandPanel",d);
         check(d.mDialogView.getBackground()==bounded,"repeated expansion keeps the existing transition geometry and captured anchor");
         check(bounded instanceof DrawableWrapper&&((DrawableWrapper)bounded).getDrawable()==original,"only background bounds are wrapped; native animated drawable stays the same");
-        check(panel.width()<=880&&panel.height()<=990&&panel.right<=1072&&panel.top>=24,"compact card is at most 320 dp wide and 360 dp tall, including all accessories");
+        check(panel.width()<=880&&panel.height()<=715&&panel.right<=1072&&panel.top>=24,"compact card is at most 320 dp wide and 260 dp tall, including all accessories");
         before(BAR+"#onMeasure",row.slider,0,0);
         check(row.slider.layout.width>0&&row.slider.layout.width<209,"compact row width fits the card when configured bars are too wide");
         check(d.mSettingsButton.layout.width==row.slider.layout.width&&d.mSettingsButton.layout.height==row.slider.layout.width,"compact settings button stays square and follows the fitted bar width");
-        check(d.mVolumeRecyclerview.layout.height<=550,"compact native row viewport is capped at 200 dp even with a 320 dp sidebar");
+        check(d.mVolumeRecyclerview.layout.height<=396,"compact native row viewport is capped at 144 dp even with a 320 dp sidebar");
         check(d.mDialogView.layout.width==37&&d.mVolumeRecyclerview.parent==d.mDialogView,"native root and recycler hierarchy remain untouched during transition");
         VolumeItemAnimator animator=new VolumeItemAnimator(d.volumeListAdapter);
-        float previous=-1;
+        float previous=-1,activeEndX=0,activeEndY=0;
         for(int i=0;i<4;i++) {
             RecyclerView.ViewHolder item=i==0?h:holder(d,i,900-i*154,300);
             CloudCheck.after(BASE+"VolumeListAdapter#onBindViewHolder",adapter,null,item,i);
@@ -118,9 +118,39 @@ public final class VolumePanelCheck {
             float x=item.itemView.screenX-item.itemView.translationX+endpoint("getEndX",animator,item);
             float y=item.itemView.screenY+endpoint("getTranslationY",animator,item);
             check(x>=panel.left&&x+item.itemView.layout.width<=panel.right&&x>previous&&y>=panel.top&&y+d.mVolumeRecyclerview.layout.height<=panel.bottom,"native row "+i+" animation endpoint fits card and preserves physical order");previous=x;
+            if(i==0){activeEndX=x;activeEndY=y;}
             float start=item.itemView.screenX-item.itemView.translationX+endpoint("resolvePanelStartTranslationX",animator,item);
             check(start==900,"native expand/collapse returns row "+i+" to captured sidebar anchor");
         }
+        HookCallback.Param flatMaterial=CloudCheck.param(null,new GradientDrawable(),new android.content.Context(),d.mDialogView,row.slider,28f,true);
+        Api102Runtime.callbacks.get(factory).after(flatMaterial);
+        Drawable flatBar=(Drawable)flatMaterial.getResult();
+        int lastWidth=0;float nativeWidth=row.slider.mCurBackgroundWidth;int halfWidth=0;
+        for(float fraction:new float[]{0,.25f,.5f,.75f,1}) {
+            h.itemView.screenX=Math.round(900+(activeEndX-900)*fraction);h.itemView.screenY=Math.round(300+(activeEndY-300)*fraction);
+            d.mDialogView.observer.dispatchOnPreDraw();bounded.draw(new Canvas());Rect frame=original.getBounds();
+            check(frame.width()>=lastWidth&&frame.right==panel.right,"native motion at "+fraction+" drives an inward width change with a fixed sidebar edge");
+            if(fraction==0)check(frame.width()<panel.width()/2,"panel starts as a narrow surface beside the original volume bar");
+            if(fraction==.5f)halfWidth=frame.width();lastWidth=frame.width();
+            HookCallback.Param widthDraw=before(BAR+"#draw",row.slider,new Canvas());
+            float expected=nativeWidth*(209+(row.slider.mBackgroundWidth-209)*fraction)/row.slider.mBackgroundWidth;
+            check(Math.abs(row.slider.mCurBackgroundWidth-expected)<.6f,"bar width at "+fraction+" follows native motion without scaling its icons or labels");
+            flatBar.draw(new Canvas());
+            java.lang.reflect.Field fillField=flatBar.getClass().getDeclaredField("fill");fillField.setAccessible(true);
+            Drawable flatFill=(Drawable)fillField.get(flatBar);
+            check(Math.abs(flatFill.getBounds().width()-row.slider.mCurBackgroundWidth)<=1,"flat bar material follows the same animated width at "+fraction);
+            widthDraw.failure=new IllegalStateException("interrupted draw");QsTintCheck.after(BAR+"#draw",widthDraw);
+            check(row.slider.mCurBackgroundWidth==nativeWidth,"native press pose restores after the width draw, including errors");
+        }
+        check(lastWidth==panel.width(),"native motion reaches the final compact width exactly");
+        h.itemView.screenX=Math.round(900+(activeEndX-900)*.5f);h.itemView.screenY=Math.round(300+(activeEndY-300)*.5f);
+        d.mDialogView.observer.dispatchOnPreDraw();bounded.draw(new Canvas());
+        check(original.getBounds().width()==halfWidth,"interrupted collapse returns through the same intermediate width without restarting");
+        h.itemView.screenX=Math.round(900+(activeEndX-900)*.25f);h.itemView.screenY=Math.round(300+(activeEndY-300)*.25f);
+        d.mDialogView.observer.dispatchOnPreDraw();bounded.draw(new Canvas());
+        check(original.getBounds().width()<halfWidth,"native collapse narrows the panel continuously toward the sidebar");
+        h.itemView.screenX=Math.round(activeEndX);h.itemView.screenY=Math.round(activeEndY);
+        d.mDialogView.observer.dispatchOnPreDraw();bounded.draw(new Canvas());
         LayoutParams title=(LayoutParams)d.mVolumePanelTitleText.layout;
         check(title.width>66&&title.leftMargin>=panel.left&&title.leftMargin+title.width<=panel.right,"native title receives space before the expansion assigns its text");
         LayoutParams titleIcon=(LayoutParams)d.mVolumePanelTitleIcon.layout;
@@ -140,6 +170,7 @@ public final class VolumePanelCheck {
         CloudCheck.after(VIEW+"#resetSliderState",d,null);
         check(d.mDialogView.getBackground()==original&&button.leftToLeft==-1&&button.topMargin==0&&button.width==209&&button.height==209,"native terminal reset restores background, constraints and configured sidebar button size");
         check(d.mVolumeRecyclerview.layout.height==940,"native terminal reset restores the full configured sidebar length");
+        check(d.mDialogView.observer.listeners.isEmpty(),"terminal reset removes the native frame observer");
         float nativeEnd=endpoint("getEndX",animator,h);
         check(nativeEnd==999,"completed transitions no longer override native animator endpoints");
         Bundle off=config();off.putBoolean("enabled",false);CloudCheck.config(off);VolumeHook.refresh();

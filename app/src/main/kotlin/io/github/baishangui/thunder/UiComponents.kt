@@ -15,6 +15,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -23,6 +25,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.Backdrop
@@ -38,14 +41,16 @@ import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.Colors
 import top.yukonga.miuix.kmp.window.WindowDialog
 import kotlin.math.roundToInt
 
-internal data class GlassStyle(val source: Backdrop, val dark: Boolean, val settings: Settings) {
-    val ink get() = if (dark) Color(0xfff2f2f2) else Color(0xff181818)
-    val muted get() = if (dark) Color(0xffaaaaaa) else Color(0xff737373)
-    val accent get() = Color(settings.accent)
-    val surface get() = if (dark) Color(0xff242424) else Color.White
+internal data class GlassStyle(val source: Backdrop, val dark: Boolean, val settings: Settings, val colors: Colors) {
+    val ink get() = colors.onSurface
+    val muted get() = colors.onSurfaceVariantSummary
+    val accent get() = colors.primary
+    val surface get() = colors.surface
+    val background get() = if (settings.colorMode == 0 && !dark) Color(settings.backdropColor) else colors.background
 }
 internal val LocalGlass = staticCompositionLocalOf<GlassStyle> { error("Missing UI style") }
 
@@ -54,30 +59,31 @@ data class LiquidAppearance(val dark: Boolean, val accent: Color, val blur: Floa
 val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, Color(0xff3482ff)) }
 
 @Composable internal fun UiText(text: String, size: Int = 15, muted: Boolean = false,
-    bold: Boolean = false, modifier: Modifier = Modifier, color: Color? = null) {
+    bold: Boolean = false, modifier: Modifier = Modifier, color: Color? = null,
+    maxLines: Int = Int.MAX_VALUE, overflow: TextOverflow = TextOverflow.Clip) {
     val s = LocalGlass.current
     Text(text, modifier = modifier, color = color ?: if (muted) s.muted else s.ink,
-        fontSize = size.sp, lineHeight = (size * 1.45f).sp,
+        fontSize = size.sp, lineHeight = (size * 1.45f).sp, maxLines = maxLines, overflow = overflow,
         fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal)
 }
 
 @Composable internal fun SettingsGroup(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Card(modifier.fillMaxWidth(), cornerRadius = LocalGlass.current.settings.roundness.dp) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp), content = content)
+    Card(modifier.fillMaxWidth(), cornerRadius = LocalGlass.current.settings.roundness.dp, insideMargin = PaddingValues(0.dp)) {
+        Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
     }
 }
 
 @Composable internal fun LiquidAction(text: String, modifier: Modifier = Modifier, enabled: Boolean = true,
     selected: Boolean = false, icon: ImageVector? = null, onClick: () -> Unit) {
     val s = LocalGlass.current
-    val contentColor = if (selected) (if (s.accent.luminance() > .45f) Color.Black else Color.White) else s.ink
+    val contentColor = if (selected) s.colors.onPrimary else s.ink
     // Remove gesture handlers altogether while disabled, including the author's press animation.
     Box(modifier.alpha(if (enabled) 1f else .45f).semantics(mergeDescendants = icon != null) {
         if (icon != null) contentDescription = text
         if (!enabled) disabled()
     }, contentAlignment = Alignment.Center, propagateMinConstraints = icon == null) {
         LiquidButton(onClick = { if (enabled) onClick() }, backdrop = s.source,
-            modifier = (if (icon != null) Modifier.size(40.dp) else Modifier)
+            modifier = (if (icon != null) Modifier.size(48.dp) else Modifier.heightIn(min = 48.dp))
                 .then(if (!enabled) Modifier.clearAndSetSemantics { disabled() } else Modifier),
             isInteractive = enabled, tint = if (selected) s.accent else Color.Unspecified,
             surfaceColor = if (selected) Color.Unspecified else s.surface.copy(alpha = .18f),
@@ -90,10 +96,10 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
 }
 
 @Composable internal fun SettingsMenuGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         UiText(title, 13, muted = true, modifier = Modifier.padding(start = 8.dp))
-        Card(Modifier.fillMaxWidth(), cornerRadius = LocalGlass.current.settings.roundness.dp) {
-            Column(Modifier.padding(vertical = 4.dp), content = content)
+        Card(Modifier.fillMaxWidth(), cornerRadius = LocalGlass.current.settings.roundness.dp, insideMargin = PaddingValues(0.dp)) {
+            Column(content = content)
         }
     }
 }
@@ -102,13 +108,13 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
     val s = LocalGlass.current
     BasicComponent(
         title = title,
-        summary = summary,
-        insideMargin = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+        summary = summary.takeIf { it.isNotBlank() },
+        insideMargin = PaddingValues(horizontal = 18.dp, vertical = 13.dp),
         startAction = {
-            Box(Modifier.padding(end = 14.dp).size(40.dp)
-                .background(s.accent.copy(alpha = if (s.dark) .18f else .09f), RoundedCornerShape(13.dp)),
+            Box(Modifier.padding(end = 14.dp).size(36.dp)
+                .background(s.colors.secondaryContainer, RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp), tint = s.accent)
+                Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = s.colors.onSecondaryContainer)
             }
         },
         endActions = {
@@ -140,7 +146,14 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
     SideEffect { history.register(key, color) }
     val original = history.original(key, color)
     Row(verticalAlignment = Alignment.CenterVertically) {
-        LiquidAction("$title  ${hex(color)}", Modifier.weight(1f)) { open = true }
+        Row(Modifier.weight(1f).heightIn(min = 52.dp).clickable(onClickLabel = "选择$title") { open = true },
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(32.dp).background(LocalGlass.current.colors.secondaryContainer, CircleShape)
+                .background(Color(color), CircleShape).border(1.dp, LocalGlass.current.colors.outline.copy(alpha = .3f), CircleShape))
+            UiText(title, modifier = Modifier.weight(1f))
+            UiText(if (opaque) "#%06X".format(color and 0xffffff) else hex(color), 12, muted = true)
+            Icon(MiuixIcons.Regular.ChevronForward, null, Modifier.size(16.dp), tint = LocalGlass.current.muted)
+        }
         UndoAction(original?.let { { change(it) } })
     }
     if (open) CompositionLocalProvider(LocalControlScope provides "$key:dialog") {
@@ -159,7 +172,9 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
     val original = history.original(key, checked)
     val latestChange = rememberUpdatedState<(Boolean) -> Unit> { history.record(key, checked, it); change(it) }
     Row(Modifier.fillMaxWidth().heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f).padding(end = 16.dp)) {
+        Column(Modifier.weight(1f).heightIn(min = 48.dp)
+            .clickable(onClickLabel = title) { latestChange.value(!latestChecked.value) }
+            .wrapContentHeight().padding(end = 12.dp)) {
             UiText(title, bold = true)
             if (subtitle.isNotEmpty()) UiText(subtitle, 12, muted = true, modifier = Modifier.padding(top = 4.dp))
         }
@@ -187,7 +202,7 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
         history.record(id, value, next); if (next != value) change(next)
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 32.dp), verticalAlignment = Alignment.CenterVertically) {
             UiText(title, 14, modifier = Modifier.weight(1f))
             UndoAction(original?.let { { change(it) } })
             UiText("${dragging.roundToInt()}$unit", 14, bold = true)
