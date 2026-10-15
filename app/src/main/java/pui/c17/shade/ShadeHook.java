@@ -73,6 +73,7 @@ public final class ShadeHook {
                 }
             }));
         install("resource-overrides", ResourceOverrides::install);
+        install("cloud-plugin-loader", () -> CloudHook.watch(loader));
         install("qs", () -> Api102Runtime.hookAllConstructors(Reflect.findClass(
             "com.oplus.systemui.separate.OplusSeparateQSManager", loader), new HookCallback() {
                 @Override protected void afterHookedMethod(HookCallback.Param p) { qsManager = p.thisObject; }
@@ -230,6 +231,7 @@ public final class ShadeHook {
                     if(area.blur) {
                         temporary(p,blur,"blurRadius",area.radius);
                         temporary(p,blur,"motionBlurRadius",area.radius);
+                        if("panel".equals(role))temporary(p,blur,"scaleBlurRadiusWithAmount",true);
                     }
                     if(area.tint) {
                         Object platform=Reflect.getObjectField(blur,"platformMixConfig");
@@ -240,7 +242,7 @@ public final class ShadeHook {
                 }
                 @Override protected void afterHookedMethod(HookCallback.Param p) {
                     Object blur=p.getObjectExtra("config");if(blur==null)return;
-                    for(String field:new String[]{"blurRadius","motionBlurRadius","platformMixConfig","motionBlurMixConfig"}) {
+                    for(String field:new String[]{"blurRadius","motionBlurRadius","platformMixConfig","motionBlurMixConfig","scaleBlurRadiusWithAmount"}) {
                         Object saved=p.getObjectExtra(field);
                         if(saved instanceof Object[])Reflect.setObjectField(blur,field,((Object[])saved)[0]);
                     }
@@ -300,7 +302,8 @@ public final class ShadeHook {
                     try {
                         HookConfig.Area area = area(p.thisObject);
                         if (area == null || !area.blur) return;
-                        boolean scales = Reflect.getBooleanField(p.thisObject, "scaleBlurRadiusWithAmount");
+                        boolean scales = "panel".equals(Reflect.getAdditionalInstanceField(p.thisObject, ROLE))
+                            || Reflect.getBooleanField(p.thisObject, "scaleBlurRadiusWithAmount");
                         float amount = scales ? Math.max(0f, Math.min(1f, (Float) p.args[0])) : 1f;
                         p.setResult((int) (area.radius * amount));
                         hit("radius");
@@ -318,6 +321,13 @@ public final class ShadeHook {
                 }
             }));
         }
+        install("panel-radius-scaling", () -> Api102Runtime.findAndHookMethod(blur,"getScaleBlurRadiusWithAmount",new HookCallback() {
+            @Override protected void afterHookedMethod(HookCallback.Param p) {
+                HookConfig.Area a=area(p.thisObject);
+                if(!p.hasThrowable() && a!=null && a.blur && "panel".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE)))p.setResult(true);
+            }
+        }));
+        install("deopt-platform-radius", () -> Api102Runtime.deoptimizeCallers(Reflect.findClass(BLUR+"platformblur.PlatformBlurDrawable",loader),"applyBlurConfig"));
         install("panel-mask", () -> Api102Runtime.findAndHookMethod(blur,"getBlurColor",new HookCallback() {
             @Override protected void afterHookedMethod(HookCallback.Param p) {
                 if(p.hasThrowable())return;

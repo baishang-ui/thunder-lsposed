@@ -118,11 +118,22 @@ final class ResourceOverrides {
         if(c.margins && ("com.android.systemui:dimen/notification_side_paddings_single".equals(name)
                 || "com.android.systemui:dimen/notification_side_paddings_dual".equals(name)
                 || "com.android.systemui:dimen/notification_side_paddings_split".equals(name))) return c.margin;
-        if(c.cloud && "com.oplus.systemui.plugins:dimen/capsule_layout_max_height".equals(name))return 34;
+        if(c.cloud && name.startsWith("com.oplus.systemui.plugins:dimen/")) {
+            String key=name.substring("com.oplus.systemui.plugins:dimen/".length());
+            if(c.cloudHeightEnabled && (key.equals("capsule_height") || key.equals("capsule_max_height_size")
+                || key.equals("capsule_max_height_size_high") || key.equals("capsule_layout_max_height")
+                || key.equals("capsule_layout_max_height_high") || key.equals("capsule_layout_max_height_small")))return c.cloudHeight;
+            if(c.cloudCornerEnabled && (key.equals("capsule_corner_radius") || key.equals("capsule_card_corner_radius")
+                || key.equals("round_corner_radius_fluid_cloud") || key.equals("round_corner_radius_fluid_cloud_lite")))return c.cloudCorner;
+            if(key.equals("capsule_layout_max_height"))return 34;
+        }
         return null;
     }
     static Integer color(String name,HookConfig c) {
         if(!c.enabled||!c.cloud||!name.startsWith("com.oplus.systemui.plugins:color/"))return null;
-        return CLOUD.get(name.substring("com.oplus.systemui.plugins:color/".length()));
+        String key=name.substring("com.oplus.systemui.plugins:color/".length());
+        if(c.cloudArea.tint && CLOUD.containsKey(key) && (key.contains("background") || key.equals("cardview_dark_background")
+                || key.equals("cardview_light_background") || key.equals("capsule_moon_dark_color") || key.equals("capsule_moon_light_color")))return c.cloudArea.color;
+        return CLOUD.get(key);
     }
 }

@@ -10,8 +10,8 @@ android {
   applicationId = "pui.c17.shade"
   minSdk = 37
   targetSdk = 37
-  versionCode = 6
-  versionName = "4.1"
+  versionCode = 7
+  versionName = "4.2"
  }
  buildFeatures { compose = true; buildConfig = true }
  compileOptions {

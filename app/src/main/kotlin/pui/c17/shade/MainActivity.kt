@@ -2,6 +2,8 @@ package pui.c17.shade
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import android.Manifest
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -48,10 +50,9 @@ class MainActivity : ComponentActivity() {
         val loaded = Bundle().apply { prefs.all.forEach { (k,v) -> when(v) { is Boolean -> putBoolean(k,v); is Int -> putInt(k,v) } } }
         setContent {
             var saved by remember { mutableStateOf(Settings.from(loaded)) }
-            var draft by rememberSaveable(stateSaver=Settings.saver) { mutableStateOf(saved) }
+            var draft by rememberSaveable(stateSaver=Settings.saver) { mutableStateOf(SettingsWriter.latest ?: saved) }
             var page by rememberSaveable { mutableIntStateOf(0) }
             var section by rememberSaveable { mutableIntStateOf(0) }
-            var picker by rememberSaveable { mutableIntStateOf(-1) }
             var restart by rememberSaveable { mutableStateOf(false) }
             var reset by rememberSaveable { mutableStateOf(false) }
             var imported by rememberSaveable(stateSaver=Settings.saver) { mutableStateOf(Settings()) }
@@ -70,22 +71,27 @@ class MainActivity : ComponentActivity() {
             SideEffect { WindowCompat.getInsetsController(window,window.decorView).apply {
                 isAppearanceLightStatusBars=!dark; isAppearanceLightNavigationBars=!dark
             } }
-            fun save(after: Boolean=false) {
-                if(busy) return
-                val snapshot=draft; busy=true
-                scope.launch {
-                    var synced=false
-                    val ok=withContext(Dispatchers.IO) {
-                        val b=snapshot.bundle(); val edit=prefs.edit()
-                        b.keySet().forEach { k -> @Suppress("DEPRECATION") when(val v=b.get(k)) { is Boolean->edit.putBoolean(k,v); is Int->edit.putInt(k,v) } }
-                        val committed=edit.putLong("revision",maxOf(System.currentTimeMillis(),prefs.getLong("revision",0)+1)).commit()
-                        if(committed) synced=RemoteSettings.publish(this@MainActivity)
-                        committed
-                    }
-                    busy=false
-                    if(ok) { saved=snapshot;refresh++;message=if(synced) "已保存并同步到 API 102，重启系统界面后应用" else "已保存在本地；${RemoteSettings.status}，请确认模块已启用后重新打开应用"; if(after && synced) restart=true }
-                    else message="保存失败，请重试"
+            val history = remember { ControlHistory() }
+            val writeResult by SettingsWriter.result.collectAsState()
+            val lastRequested = remember { arrayOf(saved) }
+            SideEffect {
+                if (lastRequested[0] != draft) {
+                    lastRequested[0] = draft
+                    SettingsWriter.submit(this@MainActivity, draft)
                 }
+            }
+            LaunchedEffect(writeResult) {
+                writeResult.settings?.let { saved = it }
+                if (writeResult.error != null) message = "自动保存失败：${writeResult.error}"
+                else if (writeResult.settings != null) message = if(writeResult.synced) "已自动保存并同步，重启系统界面后应用" else "已自动保存在本地；${RemoteSettings.status}"
+            }
+            BackHandler(enabled=page!=0) { page=0 }
+            val notificationPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                message=if(granted) TestNotification.post(this@MainActivity) else "未允许通知权限，暂时无法发送测试通知。可再次点击测试或在系统设置中开启通知。"
+            }
+            fun testNotification() {
+                if(TestNotification.permissionGranted(this@MainActivity)) message=TestNotification.post(this@MainActivity)
+                else notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
             val importLauncher=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
                 if(uri!=null) { busy=true;scope.launch {
@@ -107,7 +113,9 @@ class MainActivity : ComponentActivity() {
             val colors = if(dark) darkColorScheme(primary=style.accent) else lightColorScheme(primary=style.accent)
             MiuixTheme(colors=colors) {
             CompositionLocalProvider(LocalGlass provides style,
-                LocalLiquidAppearance provides LiquidAppearance(dark, style.accent, draft.glassStrength / 60f, draft.refraction / 50f)) {
+                LocalLiquidAppearance provides LiquidAppearance(dark, style.accent, draft.glassStrength / 60f, draft.refraction / 50f),
+                LocalControlHistory provides history,
+                LocalControlScope provides if(page==1) "adjust-$section" else "page-$page") {
                 Box(Modifier.fillMaxSize()) {
                     Wallpaper(Modifier.matchParentSize().layerBackdrop(wallpaper),style)
                     Box(Modifier.fillMaxSize().layerBackdrop(content)) {
@@ -126,7 +134,7 @@ class MainActivity : ComponentActivity() {
                                             UiText(status.first,17,bold=true)
                                         }
                                         LiquidSwitchRow("启用效果调整","ColorOS 17 · SystemUI",draft.enabled) { draft=draft.copy(enabled=it) }
-                                        UiText(if(message.isNotEmpty()) message else "保存后重启系统界面，确认新进程读取配置。",13,muted=true)
+                                        UiText(if(message.isNotEmpty()) message else "交互会自动保存，重启系统界面后应用系统效果。",13,muted=true)
                                         UiText(if(runtimeDetails) "收起运行报告" else "查看运行报告",13,color=style.accent,
                                             modifier=Modifier.clickable { runtimeDetails=!runtimeDetails })
                                         if(runtimeDetails) {
@@ -139,7 +147,6 @@ class MainActivity : ComponentActivity() {
                                         }
                                         Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                                             LiquidAction("刷新状态",Modifier.weight(1f),enabled=!busy) { refresh++ }
-                                            LiquidAction("重启系统界面",Modifier.weight(1f),enabled=!busy,selected=true) { if(dirty) save(true) else restart=true }
                                         }
                                     }
                                     SettingsGroup {
@@ -153,7 +160,7 @@ class MainActivity : ComponentActivity() {
                                     UiText("首次使用：在 LSPosed 启用模块，作用域选择系统界面，重启手机。",12,muted=true)
                                 }
                                 1 -> {
-                                    ChoiceTabs(listOf("下拉背景","通知横幅","布局与流体云"),section) { section=it }
+                                    ChoiceTabs(listOf("下拉背景","通知横幅","布局与流体云"),section,undoable=false) { section=it }
                                     when(section) {
                                         0,1 -> {
                                             val area=if(section==0) draft.panel else draft.banner
@@ -168,11 +175,15 @@ class MainActivity : ComponentActivity() {
                                                     "关闭后恢复系统原有混色",area.tint) { change(area.copy(tint=it)) }
                                                 if(area.tint) {
                                                     LiquidValueSlider(if(section==0) "压暗 / 混色程度" else "混色程度",alphaPercent(area.color),0..100,"%") {
-                                                        change(area.copy(color=(area.color and 0xffffff) or ((it*255/100) shl 24)))
+                                                        change(area.copy(color=TintColor.withPercent(area.color,it)))
                                                     }
-                                                    LiquidAction("混色颜色  ${hex(area.color)}",Modifier.fillMaxWidth()) { picker=if(section==0) 0 else 1 }
+                                                    LiquidColorSetting("混色颜色",area.color) { change(area.copy(color=it)) }
                                                     UiText("黑色用于压暗；透明度为 0% 时无混色。选择其他颜色可改变遮罩色调。",12,muted=true)
                                                 }
+                                            }
+                                            if(section==1) {
+                                                LiquidAction("发送横幅测试通知",Modifier.fillMaxWidth()) { testNotification() }
+                                                UiText("点击后发送一条真实通知，15 秒后自动移除。首次使用需要允许通知权限。",12,muted=true)
                                             }
                                             LiquidAction("恢复此区域系统参数",Modifier.fillMaxWidth()) { change(Area(color=area.color)) }
                                             UiText("圆角沿用 C17。模糊半径与混色在系统的实际背景路径应用。",12,muted=true)
@@ -187,9 +198,20 @@ class MainActivity : ComponentActivity() {
                                             SettingsGroup {
                                                 UiText("流体云",18,bold=true)
                                                 LiquidSwitchRow("融合 PUI 流体云","重复资源保留 C17 版本",draft.cloud) { draft=draft.copy(cloud=it) }
-                                                Summary("胶囊最大高度","34 dp")
-                                                Summary("深色文字强调色","#FFFFA800")
-                                                UiText("包含 C17 胶囊边框、背景、卡片混色与渐变配色。需 SystemUI 加载流体云插件后生效。",12,muted=true)
+                                                if(draft.cloud) {
+                                                    LiquidSwitchRow("自定义流体云高度","关闭时保留融合高度 34 dp",draft.cloudHeightEnabled) { draft=draft.copy(cloudHeightEnabled=it) }
+                                                    if(draft.cloudHeightEnabled) LiquidValueSlider("流体云高度",draft.cloudHeight,20..64," dp") { draft=draft.copy(cloudHeight=it) }
+                                                    LiquidSwitchRow("自定义流体云圆角","胶囊和展开卡片的圆角",draft.cloudCornerEnabled) { draft=draft.copy(cloudCornerEnabled=it) }
+                                                    if(draft.cloudCornerEnabled) LiquidValueSlider("流体云圆角",draft.cloudCorner,0..48," dp") { draft=draft.copy(cloudCorner=it) }
+                                                    LiquidSwitchRow("自定义流体云模糊","胶囊及展开卡片使用原生背景模糊",draft.cloudArea.blur) { draft=draft.copy(cloudArea=draft.cloudArea.copy(blur=it)) }
+                                                    if(draft.cloudArea.blur) LiquidValueSlider("流体云模糊半径",draft.cloudArea.radius,0..200," px") { draft=draft.copy(cloudArea=draft.cloudArea.copy(radius=it)) }
+                                                    LiquidSwitchRow("自定义流体云混色","调整胶囊及展开卡片的背景颜色",draft.cloudArea.tint) { draft=draft.copy(cloudArea=draft.cloudArea.copy(tint=it)) }
+                                                    if(draft.cloudArea.tint) {
+                                                        LiquidValueSlider("流体云混色程度",alphaPercent(draft.cloudArea.color),0..100,"%") { draft=draft.copy(cloudArea=draft.cloudArea.copy(color=TintColor.withPercent(draft.cloudArea.color,it))) }
+                                                        LiquidColorSetting("流体云混色颜色",draft.cloudArea.color) { draft=draft.copy(cloudArea=draft.cloudArea.copy(color=it)) }
+                                                    }
+                                                }
+                                                UiText("自动保存后点击右上角重启系统界面。展开卡片的模糊随系统透明度动画变化。",12,muted=true)
                                             }
                                         }
                                     }
@@ -198,7 +220,7 @@ class MainActivity : ComponentActivity() {
                                     UiText("配置管理",13,muted=true)
                                     SettingsGroup {
                                         UiText("带走你的设置",18,bold=true)
-                                        UiText("导出当前界面中的全部参数，包含尚未保存的修改。导入后可预览，再保存应用。",12,muted=true)
+                                        UiText("导出当前全部参数，导入确认后会自动保存。",12,muted=true)
                                         Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                                             LiquidAction("导入配置",Modifier.weight(1f),enabled=!busy) { importLauncher.launch(arrayOf("application/json","text/plain","application/octet-stream")) }
                                             LiquidAction("导出配置",Modifier.weight(1f),enabled=!busy) { exportText=draft.json();exportLauncher.launch("thunder-${SimpleDateFormat("yyyyMMdd-HHmm",Locale.US).format(Date())}.json") }
@@ -208,8 +230,8 @@ class MainActivity : ComponentActivity() {
                                     SettingsGroup {
                                         UiText("明暗模式",16,bold=true)
                                         ChoiceTabs(listOf("跟随系统","浅色","深色"),draft.theme) { draft=draft.copy(theme=it) }
-                                        LiquidAction("强调色  ${hex(draft.accent)}",Modifier.fillMaxWidth()) { picker=2 }
-                                        LiquidAction("背景底色  ${hex(draft.backdropColor)}",Modifier.fillMaxWidth()) { picker=3 }
+                                        LiquidColorSetting("强调色",draft.accent,opaque=true) { draft=draft.copy(accent=it) }
+                                        LiquidColorSetting("背景底色",draft.backdropColor,opaque=true) { draft=draft.copy(backdropColor=it) }
                                         LiquidValueSlider("玻璃雾度",draft.glassStrength,0..100,"%") { draft=draft.copy(glassStrength=it) }
                                         LiquidValueSlider("玻璃折射",draft.refraction,0..100,"%") { draft=draft.copy(refraction=it) }
                                         LiquidValueSlider("界面圆角",draft.roundness,16..36," dp") { draft=draft.copy(roundness=it) }
@@ -224,39 +246,39 @@ class MainActivity : ComponentActivity() {
                     ProgressiveHeader(overlaySource,Modifier.fillMaxWidth().height(108.dp + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()).align(Alignment.TopCenter))
                     Row(Modifier.align(Alignment.TopCenter).widthIn(max=640.dp).fillMaxWidth().statusBarsPadding().padding(horizontal=24.dp,vertical=14.dp),
                         verticalAlignment=Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            UiText(listOf("主页","调节","设置")[page],28,bold=true)
-                            UiText(if(dirty) "有未保存的修改" else "独立 LSPosed 模块 · ColorOS 17",11,muted=true)
+                        LiquidAction("返回",Modifier.sizeIn(minWidth=52.dp,minHeight=48.dp)) { if(page==0) { SettingsWriter.submit(this@MainActivity,draft,immediate=true); finish() } else page=0 }
+                        Column(Modifier.weight(1f).padding(horizontal=14.dp)) {
+                            UiText(listOf("主页","调节","设置")[page],24,bold=true)
+                            UiText(if(dirty) "正在自动保存…" else "已自动保存",11,muted=true)
                         }
-                        LiquidAction(if(busy) "处理中" else if(dirty) "保存" else "已保存",enabled=!busy&&dirty,selected=dirty) { save() }
+                        LiquidAction("重启",Modifier.sizeIn(minWidth=52.dp,minHeight=48.dp),enabled=!busy,selected=true) { restart=true }
                     }
                     CompositionLocalProvider(LocalGlass provides style.copy(source=overlaySource)) {
                         FloatingNav(page,{ page=it },Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(horizontal=28.dp,vertical=14.dp))
-                    }
-                    if(picker>=0) ColorDialog(when(picker) {0->draft.panel.color;1->draft.banner.color;2->draft.accent;else->draft.backdropColor},picker>=2,{picker=-1}) { color ->
-                        draft=when(picker) {0->draft.copy(panel=draft.panel.copy(color=color));1->draft.copy(banner=draft.banner.copy(color=color));2->draft.copy(accent=color);else->draft.copy(backdropColor=color)};picker=-1
                     }
                     if(restart) SettingsDialog("重启系统界面",{restart=false}) {
                         UiText("状态栏、控制中心与通知会短暂消失，然后恢复。需要授予此应用 Root 权限。",14,muted=true)
                         Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                             LiquidAction("取消",Modifier.weight(1f)) { restart=false }
-                            LiquidAction("重启",Modifier.weight(1f),selected=true) { restart=false;busy=true;scope.launch { message=SystemUiRestarter.restart(this@MainActivity) { message=it };busy=false;refresh++ } }
+                            LiquidAction("重启",Modifier.weight(1f),selected=true) { restart=false;busy=true;scope.launch { val pending=SettingsWriter.submit(this@MainActivity,draft,immediate=true).await()
+                                message=if(pending.settings==null) "配置保存失败：${pending.error}" else if(!pending.synced) "已保存在本地；${RemoteSettings.status}" else SystemUiRestarter.restart(this@MainActivity) { message=it }
+                                busy=false;refresh++ } }
                         }
                     }
                     if(reset) SettingsDialog("恢复默认设置",{reset=false}) {
-                        UiText("将界面外观和效果参数恢复为默认值，保存后才会替换已存配置。",14,muted=true)
+                        UiText("将界面外观和效果参数恢复为默认值，并自动保存。",14,muted=true)
                         Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                             LiquidAction("取消",Modifier.weight(1f)) { reset=false }
                             LiquidAction("恢复",Modifier.weight(1f),selected=true) { draft=Settings();reset=false }
                         }
                     }
                     if(importConfirm) SettingsDialog("导入此配置？",{importConfirm=false}) {
-                        UiText("会替换当前未保存的修改。导入后可检查参数，再点击保存。",14,muted=true)
+                        UiText("导入后会替换当前配置并自动保存。",14,muted=true)
                         Summary("下拉模糊",if(imported.panel.blur) "${imported.panel.radius} px" else "系统默认")
                         Summary("压暗 / 混色",if(imported.panel.tint) "${alphaPercent(imported.panel.color)}%" else "系统默认")
                         Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                             LiquidAction("取消",Modifier.weight(1f)) { importConfirm=false }
-                            LiquidAction("导入",Modifier.weight(1f),selected=true) { draft=imported;importConfirm=false;message="已导入，检查后点击保存" }
+                            LiquidAction("导入",Modifier.weight(1f),selected=true) { draft=imported;importConfirm=false;message="已导入，正在自动保存" }
                         }
                     }
                 }
@@ -280,7 +302,7 @@ class MainActivity : ComponentActivity() {
 
 }
 
-private fun alphaPercent(c: Int)=((c ushr 24)*100/255f).toInt()
+private fun alphaPercent(c: Int)=TintColor.percent(c)
 @Composable private fun Summary(title: String,value: String) {
     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
         UiText(title,13,muted=true,modifier=Modifier.weight(1f).padding(end=12.dp));UiText(value,13,bold=true)

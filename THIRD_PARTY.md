@@ -19,14 +19,21 @@ Copyright Kyant (Kyant0), Apache License 2.0. License text is distributed under
 Local adaptations: replace hardcoded theme/accent with `LocalLiquidAppearance`,
 scale blur/lens dimensions using the app's UI preferences, and wrap the components
 with accessible labels/value actions and current callback state. Layout and the
-original press/drag/optical implementations are retained.
+original press/optical implementations are retained. The slider keeps a continuous
+floating-point drag accumulator, reads current callbacks and geometry, and adds a
+finished callback so the app commits a drag once instead of recomposing the whole
+screen for every pointer event.
 
 Other UI components (theme, text, cards, choice tabs, dialog, color picker, and
 text input) use `top.yukonga.miuix.kmp:miuix-ui:0.9.0`.
 Copyright compose-miuix-ui contributors, Apache License 2.0; license under
 `app/src/main/assets/licenses/miuix.txt`.
 
-The progressive header uses Backdrop with the app's variable-radius shader.
+The progressive header follows Kyant0's [progressive blur tutorial](https://kyant.gitbook.io/backdrop/tutorials/progressive-blur):
+Backdrop `blur` plus the `effect` API applies an alpha-mask shader to the blurred
+backdrop and tint. The mask uses an equivalent ascending smoothstep expression;
+intensity and tint follow the app theme. It does not use the previous custom
+variable-radius convolution shader.
 
 Hook framework: libxposed [API](https://github.com/libxposed/api) and
 [Service](https://github.com/libxposed/service) **102.0.0**, Copyright libxposed

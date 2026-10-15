@@ -38,6 +38,14 @@ public final class SettingsProvider extends ContentProvider {
             result.putBoolean("notification_margins", prefs.getBoolean("notification_margins", false));
             result.putInt("notification_margin", Math.max(0, Math.min(64, prefs.getInt("notification_margin", 30))));
             result.putBoolean("cloud_pui", prefs.getBoolean("cloud_pui", true));
+            result.putBoolean("cloud_height_enabled",prefs.getBoolean("cloud_height_enabled",false));
+            result.putInt("cloud_height",prefs.getInt("cloud_height",34));
+            result.putBoolean("cloud_corner_enabled",prefs.getBoolean("cloud_corner_enabled",false));
+            result.putInt("cloud_corner",prefs.getInt("cloud_corner",20));
+            result.putBoolean("cloud_blur",prefs.getBoolean("cloud_blur",false));
+            result.putInt("cloud_radius",prefs.getInt("cloud_radius",100));
+            result.putBoolean("cloud_tint",prefs.getBoolean("cloud_tint",false));
+            result.putInt("cloud_color",prefs.getInt("cloud_color",0x20282828));
             result.putLong("revision", prefs.getLong("revision", 0));
             return result;
         }

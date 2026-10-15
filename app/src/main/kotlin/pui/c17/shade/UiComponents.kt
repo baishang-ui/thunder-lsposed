@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -22,6 +24,7 @@ import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawPlainBackdrop
 import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.effect
 import com.kyant.backdrop.catalog.components.*
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.ColorPicker
@@ -72,15 +75,51 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
     }
 }
 
+internal class ControlHistory {
+    private val originals = mutableStateMapOf<String, Any>()
+    fun <T : Any> register(key: String, value: T) { if (!originals.containsKey(key)) originals[key] = value }
+    fun <T : Any> record(key: String, before: T, after: T) {
+        if (before != after && !originals.containsKey(key)) originals[key] = before
+    }
+    @Suppress("UNCHECKED_CAST") fun <T : Any> original(key: String, value: T): T? = originals[key]?.takeIf { it != value } as T?
+}
+internal val LocalControlHistory = staticCompositionLocalOf { ControlHistory() }
+internal val LocalControlScope = staticCompositionLocalOf { "" }
+@Composable private fun UndoAction(restore: (() -> Unit)?) {
+    if (restore != null) UiText("回退", 12, color = LocalGlass.current.accent,
+        modifier = Modifier.heightIn(min = 48.dp).clickable(onClickLabel = "回退此项修改", onClick = restore).wrapContentHeight().padding(horizontal = 8.dp))
+}
+@Composable internal fun LiquidColorSetting(title: String, color: Int, opaque: Boolean = false, change: (Int) -> Unit) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    val history = LocalControlHistory.current
+    val key = LocalControlScope.current + ":color:" + title
+    SideEffect { history.register(key, color) }
+    val original = history.original(key, color)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        LiquidAction("$title  ${hex(color)}", Modifier.weight(1f)) { open = true }
+        UndoAction(original?.let { { change(it) } })
+    }
+    if (open) CompositionLocalProvider(LocalControlScope provides "$key:dialog") {
+        ColorDialog(color, opaque, { open = false }) {
+            history.record(key, color, it); change(it); open = false
+        }
+    }
+}
+
 @Composable internal fun LiquidSwitchRow(title: String, subtitle: String, checked: Boolean, change: (Boolean) -> Unit) {
     val s = LocalGlass.current
     val latestChecked = rememberUpdatedState(checked)
-    val latestChange = rememberUpdatedState(change)
+    val history = LocalControlHistory.current
+    val key = LocalControlScope.current + ":switch:" + title
+    SideEffect { history.register(key, checked) }
+    val original = history.original(key, checked)
+    val latestChange = rememberUpdatedState<(Boolean) -> Unit> { history.record(key, checked, it); change(it) }
     Row(Modifier.fillMaxWidth().heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f).padding(end = 16.dp)) {
             UiText(title, bold = true)
             if (subtitle.isNotEmpty()) UiText(subtitle, 12, muted = true, modifier = Modifier.padding(top = 4.dp))
         }
+        UndoAction(original?.let { { change(it) } })
         Box(Modifier.size(68.dp, 48.dp), contentAlignment = Alignment.Center) {
             LiquidToggle(selected = { latestChecked.value }, onSelect = { latestChange.value(it) },
                 backdrop = s.source, modifier = Modifier.semantics(mergeDescendants = true) {
@@ -94,27 +133,44 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
 
 @Composable internal fun LiquidValueSlider(title: String, value: Int, range: IntRange, unit: String = "", change: (Int) -> Unit) {
     val s = LocalGlass.current
-    val latestValue = rememberUpdatedState(value)
-    val latestChange = rememberUpdatedState(change)
+    var dragging by remember { mutableFloatStateOf(value.toFloat()) }
+    LaunchedEffect(value) { dragging = value.toFloat() }
+    val history = LocalControlHistory.current
+    val id = LocalControlScope.current + ":slider:" + title
+    SideEffect { history.register(id, value) }
+    val original = history.original(id, value)
+    val latestCommit = rememberUpdatedState<(Int) -> Unit> { next ->
+        history.record(id, value, next); if (next != value) change(next)
+    }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            UiText(title, 14); UiText("$value$unit", 14, bold = true)
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            UiText(title, 14, modifier = Modifier.weight(1f))
+            UndoAction(original?.let { { change(it) } })
+            UiText("${dragging.roundToInt()}$unit", 14, bold = true)
         }
         key(range) {
-            LiquidSlider(value = { latestValue.value.toFloat() }, onValueChange = { latestChange.value(it.roundToInt().coerceIn(range)) },
-                valueRange = range.first.toFloat()..range.last.toFloat(), visibilityThreshold = .1f,
+            LiquidSlider(value = { dragging }, onValueChange = { dragging = it.coerceIn(range.first.toFloat(), range.last.toFloat()) },
+                onValueChangeFinished = { latestCommit.value(dragging.roundToInt().coerceIn(range)) },
+                valueRange = range.first.toFloat()..range.last.toFloat(), visibilityThreshold = .01f,
                 backdrop = s.source, modifier = Modifier.height(48.dp).semantics(mergeDescendants = true) {
                     contentDescription = title
-                    progressBarRangeInfo = ProgressBarRangeInfo(value.toFloat(), range.first.toFloat()..range.last.toFloat(), range.last-range.first-1)
-                    setProgress { latestChange.value(it.roundToInt().coerceIn(range)); true }
+                    progressBarRangeInfo = ProgressBarRangeInfo(dragging, range.first.toFloat()..range.last.toFloat(), range.last-range.first-1)
+                    setProgress { dragging = it.coerceIn(range.first.toFloat(),range.last.toFloat()); latestCommit.value(dragging.roundToInt()); true }
                 }.focusable())
         }
     }
 }
 
-@Composable internal fun ChoiceTabs(labels: List<String>, selected: Int, select: (Int) -> Unit) {
-    TabRowWithContour(tabs = labels, selectedTabIndex = selected, onTabSelected = select,
-        minWidth = 72.dp, maxWidth = 180.dp)
+@Composable internal fun ChoiceTabs(labels: List<String>, selected: Int, undoable: Boolean = true, select: (Int) -> Unit) {
+    val history = LocalControlHistory.current
+    val id = LocalControlScope.current + ":choice:" + labels.joinToString()
+    SideEffect { if(undoable) history.register(id, selected) }
+    val original = if(undoable) history.original(id, selected) else null
+    Column {
+        TabRowWithContour(tabs = labels, selectedTabIndex = selected, onTabSelected = { if(undoable) history.record(id, selected, it); select(it) },
+            minWidth = 72.dp, maxWidth = 180.dp)
+        UndoAction(original?.let { { select(it) } })
+    }
 }
 
 @Composable internal fun FloatingNav(page: Int, change: (Int) -> Unit, modifier: Modifier = Modifier) {
@@ -156,8 +212,8 @@ internal fun hex(color: Int) = "#%08X".format(color)
         ColorPicker(color = Color(color or (0xff shl 24)), onColorChanged = { selected ->
             set((selected.toArgb() and 0xffffff) or (color and (0xff shl 24)))
         }, modifier = Modifier.fillMaxWidth())
-        if (!opaque) LiquidValueSlider("混色程度", ((color ushr 24) * 100 / 255f).roundToInt(), 0..100, "%") {
-            set((color and 0xffffff) or ((it * 255 / 100) shl 24))
+        if (!opaque) LiquidValueSlider("混色程度", TintColor.percent(color), 0..100, "%") {
+            set(TintColor.withPercent(color,it))
         }
         TextField(value = input, onValueChange = { text ->
             input = text
@@ -173,41 +229,26 @@ internal fun hex(color: Int) = "#%08X".format(color)
         }
     }
 }
-// Two separable, spatially varying convolution passes. The sample radius decreases
-// continuously toward the lower edge; alpha also fades to prevent a hard seam.
+// Kyant0 Backdrop tutorial: alpha-masked progressive blur. The mask is applied
+// to the blurred backdrop itself so content below the header fades into the page.
 internal const val PROGRESSIVE_SHADER = """
 uniform shader content;
-uniform float height;
-uniform float radius;
-uniform float origin;
-uniform float2 axis;
-uniform float fade;
-half4 main(float2 p) {
-    float t = 1.0 - smoothstep(height * 0.32, height, p.y - origin);
-    float r = radius * t;
-    half4 c = half4(0.0);
-    float total = 0.0;
-    for (int i = -6; i <= 6; i++) {
-        float q = float(i) / 6.0;
-        float weight = exp(-q * q * 2.0);
-        c += content.eval(p + axis * r * q) * weight;
-        total += weight;
-    }
-    return c / total * mix(1.0, 1.0 - smoothstep(height * 0.65, height, p.y - origin), fade);
+uniform float2 size;
+layout(color) uniform half4 tint;
+uniform float tintIntensity;
+half4 main(float2 coord) {
+    float mask = 1.0 - smoothstep(size.y * 0.5, size.y, coord.y);
+    return mix(content.eval(coord) * mask, tint * mask, tintIntensity);
 }
 """
 @Composable internal fun ProgressiveHeader(source: Backdrop, modifier: Modifier) {
     val s = LocalGlass.current
     Box(modifier.drawPlainBackdrop(source, shape = { RectangleShape }, effects = {
-        padding = 28.dp.toPx()
-        val horizontal = obtainRuntimeShader("pui-progressive-x", PROGRESSIVE_SHADER).apply {
-            setFloatUniform("height", size.height); setFloatUniform("radius", 22.dp.toPx()); setFloatUniform("origin", padding)
-            setFloatUniform("axis", 1f, 0f); setFloatUniform("fade", 0f)
-        }
-        val vertical = obtainRuntimeShader("pui-progressive-y", PROGRESSIVE_SHADER).apply {
-            setFloatUniform("height", size.height); setFloatUniform("radius", 22.dp.toPx()); setFloatUniform("origin", padding)
-            setFloatUniform("axis", 0f, 1f); setFloatUniform("fade", 1f)
-        }
-        renderEffect = RenderEffect.createChainEffect(RenderEffect.createRuntimeShaderEffect(vertical,"content"), RenderEffect.createRuntimeShaderEffect(horizontal,"content"))
-    }, onDrawSurface = { drawRect(Brush.verticalGradient(listOf(s.surface.copy(alpha=.52f),s.surface.copy(alpha=.14f),Color.Transparent))) }))
+        blur(4f.dp.toPx())
+        effect(RenderEffect.createRuntimeShaderEffect(obtainRuntimeShader("thunder-header-alpha-mask", PROGRESSIVE_SHADER).apply {
+            setFloatUniform("size",size.width,size.height)
+            setColorUniform("tint",s.surface.toArgb())
+            setFloatUniform("tintIntensity",if(s.dark) .55f else .65f)
+        },"content"))
+    }))
 }

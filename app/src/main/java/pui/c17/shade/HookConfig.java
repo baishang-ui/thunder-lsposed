@@ -6,7 +6,9 @@ import android.os.Bundle;
 final class HookConfig {
     final boolean enabled;
     final long revision;
-    final Area qs, shade, banner;
+    final Area qs, shade, banner, cloudArea;
+    final boolean cloudHeightEnabled, cloudCornerEnabled;
+    final int cloudHeight, cloudCorner;
     final boolean margins, cloud;
     final int margin;
     HookConfig(Bundle data) {
@@ -17,6 +19,11 @@ final class HookConfig {
         margins = data != null && data.getBoolean("notification_margins", false);
         margin = Math.max(0, Math.min(64, data == null ? 30 : data.getInt("notification_margin", 30)));
         cloud = data != null && data.getBoolean("cloud_pui", true);
+        cloudArea = new Area(data,"cloud");
+        cloudHeightEnabled = data != null && data.getBoolean("cloud_height_enabled",false);
+        cloudCornerEnabled = data != null && data.getBoolean("cloud_corner_enabled",false);
+        cloudHeight = Math.max(20,Math.min(64,data == null ? 34 : data.getInt("cloud_height",34)));
+        cloudCorner = Math.max(0,Math.min(48,data == null ? 20 : data.getInt("cloud_corner",20)));
     }
     static final class Area {
         final boolean blur, tint;
