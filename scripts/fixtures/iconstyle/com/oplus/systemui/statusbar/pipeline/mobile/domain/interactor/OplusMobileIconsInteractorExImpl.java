@@ -1,0 +1,1 @@
+package com.oplus.systemui.statusbar.pipeline.mobile.domain.interactor;public class OplusMobileIconsInteractorExImpl {public Object isStackableMode;public OplusMobileIconsInteractorExImpl(Object value){isStackableMode=value;}public Object isStackableMode(){return isStackableMode;}}

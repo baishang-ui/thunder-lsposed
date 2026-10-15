@@ -1,0 +1,1 @@
+package ma;public class p0 implements Runnable {public gi.c a=new gi.c();public com.android.quickstep.util.animation.RectTransformHelper b=new com.android.quickstep.util.animation.RectTransformHelper();public void run(){}}

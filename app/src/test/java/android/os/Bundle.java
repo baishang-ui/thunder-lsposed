@@ -16,5 +16,6 @@ public class Bundle {
     public boolean getBoolean(String key,boolean fallback) { return values.containsKey(key)?(Boolean)values.get(key):fallback; }
     public boolean containsKey(String key) { return values.containsKey(key); }
     public Set<String> keySet() { return values.keySet(); }
+    public void remove(String key) { values.remove(key); }
     public Object get(String key) { return values.get(key); }
 }

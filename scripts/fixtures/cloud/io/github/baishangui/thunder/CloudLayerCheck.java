@@ -47,7 +47,8 @@ public final class CloudLayerCheck {
         com.oplus.systemui.plugins.seedling.util.d lockOverlay=(com.oplus.systemui.plugins.seedling.util.d)layers.getDrawable(1);
         check(manager.corner==9*density && ((Number)lockOverlay.d.e()).floatValue()==9*density,
             "lock screen blur and translucent overlay share selected corner");
-        check(manager.radius==87 && manager.params.mode==4,"lock screen receives the same blur and tint settings");
+        check(lockOverlay.g==null,"custom card tint removes the independent gradient shader");
+        check(manager.radius==87 && manager.params.mode==1,"lock screen receives the same blur and tint settings");
         apply(lock,manager);
         lockOverlay=(com.oplus.systemui.plugins.seedling.util.d)((LayerDrawable)lock.getBackground()).getDrawable(1);
         check(((Number)lockOverlay.d.e()).floatValue()==9*density,"rebuilt lock screen backgrounds retain custom corners");
@@ -56,6 +57,20 @@ public final class CloudLayerCheck {
         check(((GradientDrawable)fallback.getBackground()).radius==9*density && outline.radius==9*density && fallback.clip,
             "non-blur fallback fill and clipping outline share custom corners");
         check(outline.right==fallback.getWidth() && outline.bottom==fallback.getHeight(),"fallback outline uses current view bounds");
+
+        // A manager can exist while the native producer chooses its flat fallback.
+        CardBackgroundView flatCard=new CardBackgroundView();
+        GradientDrawable lower=new GradientDrawable(),upper=new GradientDrawable();
+        ColorDrawable solid=new ColorDrawable(0xff998877);
+        flatCard.setBackground(new LayerDrawable(new Drawable[]{lower,new DrawableWrapper(upper),solid}));
+        CloudCheck.after(CARD+"#onAttachedToWindow",flatCard,null);
+        check(flatCard.c.params==null,"unused manager does not turn fallback into a material path");
+        check(lower.getColor().getDefaultColor()==0 && upper.getColor().getDefaultColor()==0 && solid.getColor()==0x416688aa,
+            "flat background receives selected tint once across nested gradient and solid fills");
+        check(ResourceOverrides.color("com.oplus.systemui.plugins:color/card_background_blend_color",ShadeHook.snapshot())==null &&
+            ResourceOverrides.color("com.oplus.systemui.plugins:color/card_background_mix_color",ShadeHook.snapshot())==null &&
+            ResourceOverrides.color("com.oplus.systemui.plugins:color/capsule_background_color",ShadeHook.snapshot())==null,
+            "native background resources stay intact instead of injecting tint into multiple inputs");
 
         // Both lock and status bar inflate CapsuleView; verify separate instances receive identical geometry.
         CapsuleView statusCapsule=new CapsuleView(),lockCapsule=new CapsuleView();

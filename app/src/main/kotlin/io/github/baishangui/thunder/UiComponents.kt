@@ -2,7 +2,6 @@ package io.github.baishangui.thunder
 
 import android.graphics.RenderEffect
 import androidx.compose.foundation.background
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -14,9 +13,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.shape.RoundedCornerShape
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.*
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -64,23 +68,55 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
 }
 
 @Composable internal fun LiquidAction(text: String, modifier: Modifier = Modifier, enabled: Boolean = true,
-    selected: Boolean = false, icon: Int? = null, onClick: () -> Unit) {
+    selected: Boolean = false, icon: ImageVector? = null, onClick: () -> Unit) {
     val s = LocalGlass.current
     val contentColor = if (selected) (if (s.accent.luminance() > .45f) Color.Black else Color.White) else s.ink
     // Remove gesture handlers altogether while disabled, including the author's press animation.
     Box(modifier.alpha(if (enabled) 1f else .45f).semantics(mergeDescendants = icon != null) {
         if (icon != null) contentDescription = text
         if (!enabled) disabled()
-    }, propagateMinConstraints = true) {
+    }, contentAlignment = Alignment.Center, propagateMinConstraints = icon == null) {
         LiquidButton(onClick = { if (enabled) onClick() }, backdrop = s.source,
-            modifier = Modifier.then(if (!enabled) Modifier.clearAndSetSemantics { disabled() } else Modifier),
+            modifier = (if (icon != null) Modifier.size(40.dp) else Modifier)
+                .then(if (!enabled) Modifier.clearAndSetSemantics { disabled() } else Modifier),
             isInteractive = enabled, tint = if (selected) s.accent else Color.Unspecified,
-            surfaceColor = if (selected) Color.Unspecified else s.surface.copy(alpha = .18f)) {
-            if (icon != null) Image(painterResource(icon), contentDescription = null,
-                modifier = Modifier.size(24.dp), colorFilter = ColorFilter.tint(contentColor))
+            surfaceColor = if (selected) Color.Unspecified else s.surface.copy(alpha = .18f),
+            contentPadding = PaddingValues(horizontal = if (icon != null) 8.dp else 16.dp)) {
+            if (icon != null) Icon(icon, contentDescription = null,
+                modifier = Modifier.size(22.dp), tint = contentColor)
             else UiText(text, 14, bold = true, color = contentColor)
         }
     }
+}
+
+@Composable internal fun SettingsMenuGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        UiText(title, 13, muted = true, modifier = Modifier.padding(start = 8.dp))
+        Card(Modifier.fillMaxWidth(), cornerRadius = LocalGlass.current.settings.roundness.dp) {
+            Column(Modifier.padding(vertical = 4.dp), content = content)
+        }
+    }
+}
+
+@Composable internal fun SettingsMenuItem(title: String, summary: String, icon: ImageVector, onClick: () -> Unit) {
+    val s = LocalGlass.current
+    BasicComponent(
+        title = title,
+        summary = summary,
+        insideMargin = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+        startAction = {
+            Box(Modifier.padding(end = 14.dp).size(40.dp)
+                .background(s.accent.copy(alpha = if (s.dark) .18f else .09f), RoundedCornerShape(13.dp)),
+                contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp), tint = s.accent)
+            }
+        },
+        endActions = {
+            Icon(MiuixIcons.Regular.ChevronForward, contentDescription = null,
+                modifier = Modifier.padding(start = 12.dp).size(18.dp), tint = s.muted)
+        },
+        onClick = onClick
+    )
 }
 
 internal class ControlHistory {
@@ -187,9 +223,11 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
     val latestChange = rememberUpdatedState(change)
     LiquidBottomTabs(selectedTabIndex = { latestPage.value }, onTabSelected = { latestChange.value(it) },
         backdrop = s.source, tabsCount = 3, modifier = modifier.widthIn(max = 380.dp).fillMaxWidth()) {
+        val icons = listOf(MiuixIcons.Regular.GridView, MiuixIcons.Regular.Tune, MiuixIcons.Regular.Settings)
         listOf("主页", "调节", "设置").forEachIndexed { i, name ->
             LiquidBottomTab(onClick = { latestChange.value(i) }, modifier = Modifier.semantics { selected = page == i }) {
-                UiText(name, 16, bold = page == i)
+                Icon(icons[i], contentDescription = null, modifier = Modifier.size(22.dp), tint = if (page == i) s.accent else s.muted)
+                UiText(name, 12, bold = page == i, color = if (page == i) s.ink else s.muted)
             }
         }
     }
@@ -217,12 +255,9 @@ internal fun hex(color: Int) = "#%08X".format(color)
     var invalid by remember { mutableStateOf(false) }
     fun set(value: Int) { color = value; input = hex(value); invalid = false }
     SettingsDialog("选择颜色", dismiss) {
-        ColorPicker(color = Color(color or (0xff shl 24)), onColorChanged = { selected ->
-            set((selected.toArgb() and 0xffffff) or (color and (0xff shl 24)))
+        ColorPicker(color = Color(color), onColorChanged = { selected ->
+            set(if (opaque) selected.copy(alpha = 1f).toArgb() else selected.toArgb())
         }, modifier = Modifier.fillMaxWidth())
-        if (!opaque) LiquidValueSlider("混色程度", TintColor.percent(color), 0..100, "%") {
-            set(TintColor.withPercent(color,it))
-        }
         TextField(value = input, onValueChange = { text ->
             input = text
             val raw = text.removePrefix("#")

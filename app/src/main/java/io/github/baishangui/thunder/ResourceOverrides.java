@@ -14,19 +14,7 @@ final class ResourceOverrides {
     private static final Map<Resources, Map<Integer,String>> names = Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<String,Integer> CLOUD = new HashMap<>();
     static {
-        CLOUD.put("capsule_background_color", 0xFF000000);
-        CLOUD.put("capsule_moon_dark_color", 0xFF000000);
-        CLOUD.put("capsule_moon_light_color", 0xFF000000);
         CLOUD.put("capsule_stroke_default_color", 0x3AFFFFFF);
-        CLOUD.put("card_background_blend_color", 0x2A585858);
-        CLOUD.put("card_background_color_above_blur", 0x00000000);
-        CLOUD.put("card_background_color_no_blur", 0x50282828);
-        CLOUD.put("card_background_mix_color", 0x20282828);
-        CLOUD.put("cardview_dark_background", 0x20282828);
-        CLOUD.put("cardview_light_background", 0x50282828);
-        CLOUD.put("card_background_gradient_bottom_color", 0x40000000);
-        CLOUD.put("card_background_gradient_middle_color", 0x40000000);
-        CLOUD.put("card_background_gradient_top_color", 0x40000000);
         CLOUD.put("coui_color_primary_text_blue_dark", 0xFFFFA800);
         CLOUD.put("coui_color_primary_on_popup_blue_dark", 0xFFFFA800);
     }
@@ -123,8 +111,9 @@ final class ResourceOverrides {
             if(c.cloudHeightEnabled && (key.equals("capsule_height") || key.equals("capsule_max_height_size")
                 || key.equals("capsule_max_height_size_high") || key.equals("capsule_layout_max_height")
                 || key.equals("capsule_layout_max_height_high") || key.equals("capsule_layout_max_height_small")))return c.cloudHeight;
-            if(c.cloudCornerEnabled && (key.equals("capsule_corner_radius") || key.equals("capsule_card_corner_radius")
-                || key.equals("round_corner_radius_fluid_cloud") || key.equals("round_corner_radius_fluid_cloud_lite")))return c.cloudCorner;
+            if(c.cloudArea.cornerEnabled && key.equals("capsule_corner_radius"))return c.cloudArea.corner;
+            if(c.cloudCardArea.cornerEnabled && !CloudHook.readingNativeCorners() && (key.equals("capsule_card_corner_radius")
+                || key.equals("round_corner_radius_fluid_cloud") || key.equals("round_corner_radius_fluid_cloud_lite")))return c.cloudCardArea.corner;
             if(key.equals("capsule_layout_max_height"))return 34;
         }
         return null;
@@ -132,8 +121,8 @@ final class ResourceOverrides {
     static Integer color(String name,HookConfig c) {
         if(!c.enabled||!c.cloud||!name.startsWith("com.oplus.systemui.plugins:color/"))return null;
         String key=name.substring("com.oplus.systemui.plugins:color/".length());
-        if(c.cloudArea.tint && CLOUD.containsKey(key) && (key.contains("background") || key.equals("cardview_dark_background")
-                || key.equals("cardview_light_background") || key.equals("capsule_moon_dark_color") || key.equals("capsule_moon_light_color")))return c.cloudArea.color;
+        // Background fills and material inputs remain native here. Runtime hooks
+        // replace the selected color once after the producer chooses its backend.
         return CLOUD.get(key);
     }
 }

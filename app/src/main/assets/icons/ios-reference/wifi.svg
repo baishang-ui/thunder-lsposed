@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+<!-- Project vector geometry; proportions and sources: docs/status-icons-sources.md. -->
+<path d="M9.5,16.4 C10.88,15.02 13.12,15.02 14.5,16.4 L12.45,18.45 C12.2,18.7 11.8,18.7 11.55,18.45 Z" fill="currentColor" fill-rule="evenodd"/>
+<path d="M5.25,12.15 C8.98,8.42 15.02,8.42 18.75,12.15 L16.8,14.1 C14.15,11.45 9.85,11.45 7.2,14.1 Z" fill="currentColor" fill-rule="evenodd"/>
+<path d="M2,8.9 C7.52,3.38 16.48,3.38 22,8.9 L20.05,10.85 C15.61,6.41 8.39,6.41 3.95,10.85 Z" fill="currentColor" fill-rule="evenodd"/>
+</svg>

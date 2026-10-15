@@ -1,0 +1,72 @@
+{
+  "page": "https://support.apple.com/zh-cn/guide/iphone/iphef7bb57dc/ios",
+  "retrieved": "2026-10-15",
+  "method": "Alpha silhouette study; signal columns regularized to equal width and a shared baseline. Filled battery body adapted to iOS 16 percentage mode.",
+  "references": [
+    {
+      "symbol": "LOCATION",
+      "url": "https://ipcdn-web.apple.com/assets/v2/web/4e9715c9-8d7d-4448-86b5-1bd0e89fec9e",
+      "sha256": "5acb930823bc08ecd20c6d1b0b9c7fbfe3c6e390a0f4d61bb3a1562e3469ef6e"
+    },
+    {
+      "symbol": "AIRPLANE",
+      "url": "https://ipcdn-web.apple.com/assets/v2/web/e1f1b17e-47f4-4eb3-8728-9df70061c20d",
+      "sha256": "42dfdaa46864e4598b37dee59fd6426b47a9677976580c41936dd62d8303a50e"
+    },
+    {
+      "symbol": "HOTSPOT",
+      "url": "https://ipcdn-web.apple.com/assets/v2/web/55bb727a-aa71-4e4c-9293-530a7ad1e24a",
+      "sha256": "edb6cc4cb23a120a78988c09a599b9baae97005d977a7656ff3ea0831b8bbeb9"
+    },
+    {
+      "symbol": "VPN",
+      "url": "https://ipcdn-web.apple.com/assets/v2/web/884c2940-ea9d-4aa9-b497-13e2752b69fa",
+      "sha256": "6c9b5867ffd5f530795c3ef62cb6300e1551f390628d4a119c19881f3d054fc2"
+    },
+    {
+      "symbol": "MOON",
+      "url": "https://ipcdn-web.apple.com/assets/v2/web/d777d21d-d935-4abe-8ce6-f3857f16b452",
+      "sha256": "662e2a05f463bac863ed10d1128dcce901e6f84635769e6df447333a1b21a7e2"
+    },
+    {
+      "symbol": "ROTATION",
+      "url": "https://ipcdn-web.apple.com/assets/v2/web/3a021954-e4ca-4202-bbcd-d6a8b70a9c39",
+      "sha256": "011fa36edbb7f7a72a797dabb9245c82ab9e03724c996381b54c47a7cb96bca8"
+    },
+    {
+      "symbol": "ALARM",
+      "url": "https://ipcdn-web.apple.com/assets/v2/web/5ae30076-f58d-4d27-a17e-4b0fef30a64e",
+      "sha256": "99746ba1107fc840f26db1fae610964ab4fb408b24fbaff04fc402e5ffa6ffd7"
+    },
+    {
+      "symbol": "HEADPHONES",
+      "url": "https://ipcdn-web.apple.com/assets/v2/web/397ef2eb-71d9-428a-8eb6-e930c4aed1d6",
+      "sha256": "8edcb84d98115f0b93ecc97e88ff45f6c0aace72ef8c378e4225b842d4bdae86"
+    },
+    {
+      "symbol": "CHARGING",
+      "url": "https://ipcdn-web.apple.com/assets/v2/web/b8a67d85-5b4f-4bcf-a7f2-0d51483454d6",
+      "sha256": "87717bc9c2819dd5a3e43b740ffda19f44db0381983db5b80bf246d8c2a0ca6c"
+    },
+    {
+      "symbol": "WIFI",
+      "url": "https://ipcdn-web.apple.com/assets/v2/web/70ddf141-7ee1-4d2b-be74-61694d17b877",
+      "sha256": "3af3ec139a70b33ea85058b7271e0179bef03464351b64c383b2c306b2e01139"
+    },
+    {
+      "symbol": "CELLULAR",
+      "url": "https://ipcdn-web.apple.com/assets/v2/web/e2e8a0a5-5189-40d5-bf8d-82eaa0469a10",
+      "sha256": "eae125af05b62bf11a669b05784971abdb86d7379ac4e28af35f99c35aa30090"
+    },
+    {
+      "symbol": "DUAL",
+      "url": "https://ipcdn-web.apple.com/assets/v2/web/75d59ea4-5cdc-4688-b052-c40a2b40e65b",
+      "sha256": "98415ed9165b7a63b3251415ef5b1a571b507327057985520583f88694f85c18"
+    },
+    {
+      "symbol": "BATTERY",
+      "url": "https://ipcdn-web.apple.com/assets/v2/web/a7f3e2dc-5d94-401b-9224-c0c08ab1e4ad",
+      "sha256": "6d68de86ec371e96280a34210ba30b75b0d5bfced9f1c275469be5a4496ae187"
+    }
+  ]
+}

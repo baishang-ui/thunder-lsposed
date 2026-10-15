@@ -52,10 +52,13 @@ public final class QsTintCheck {
         int[] redraws={0};
         android.graphics.drawable.Drawable.Callback callback=who -> redraws[0]++;
         flat.colorDrawable.setCallback(callback);
+        android.graphics.ColorFilter nativeFilter=new android.graphics.ColorFilter();flat.colorDrawable.setColorFilter(nativeFilter);
         CloudCheck.after(FLAT+"#<init>",flat,null);
         draw=before(FLAT+"#draw",flat,new Canvas());
+        check(flat.colorDrawable.getColorFilter()==null,"custom flat tint clears native theme color filter during draw");
         check(flat.colorDrawable.getColor()==0x40446688,"non-blur control card tint follows native drawable opacity");
         draw.failure=new IllegalStateException();after(FLAT+"#draw",draw);
+        check(flat.colorDrawable.getColorFilter()==nativeFilter,"native theme filter restores after drawing failure");
         check(flat.colorDrawable.getColor()==0xff998877,"non-blur card restores original fill after drawing failures");
         check(redraws[0]==0 && flat.colorDrawable.getCallback()==callback,
             "temporary fill changes preserve callbacks without scheduling an endless redraw loop");

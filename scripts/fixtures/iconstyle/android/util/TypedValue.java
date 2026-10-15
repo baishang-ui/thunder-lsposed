@@ -1,0 +1,1 @@
+package android.util;public class TypedValue {public static final int COMPLEX_UNIT_PX=0;public static final int TYPE_INT_COLOR_ARGB8=28,TYPE_DIMENSION=5,COMPLEX_UNIT_DIP=1,COMPLEX_MANTISSA_SHIFT=8;public static int createComplexDimension(int v,int u){return v;}public int type,data;public CharSequence string;}

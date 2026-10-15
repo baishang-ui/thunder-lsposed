@@ -3,11 +3,17 @@ This checks state, interpolation and package/feature guards, not device renderin
 """
 from pathlib import Path
 import json
+import argparse
 import os
 import shutil
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--only', nargs='+', help='Run only the named Java check classes')
+parser.add_argument('--entries', action='store_true', help='Also check module package lifecycle routing with --only')
+args = parser.parse_args()
 
 ROOT = Path(__file__).resolve().parent.parent
 required = {'com.android.systemui', 'com.oplus.systemui.plugins'}
@@ -15,7 +21,7 @@ manifest = ET.parse(ROOT / 'app/src/main/AndroidManifest.xml').getroot()
 visible = {p.attrib['{http://schemas.android.com/apk/res/android}name'] for p in manifest.findall('./queries/package')}
 assert required <= visible, 'SettingsProvider must be able to resolve both target package UIDs'
 scope = set((ROOT / 'app/src/main/resources/META-INF/xposed/scope.list').read_text().splitlines())
-assert scope == required, 'Both target packages must be recommended to LSPosed'
+assert scope == required | {'system', 'com.android.launcher'}, 'API 102 system_server requires virtual system scope; android only covers framework UI processes'
 sources = json.loads((ROOT / 'scripts/fixtures/effect-runtime.json').read_text())
 java_home = os.environ.get('JAVA_HOME')
 java = str(Path(java_home) / 'bin/java') if java_home else shutil.which('java')
@@ -30,17 +36,21 @@ with tempfile.TemporaryDirectory(prefix='thunder-effects-') as folder:
         path = src / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(data)
-    for fixture in ['statusbar', 'cloud', 'qs']:
+    for fixture in ['statusbar', 'cloud', 'qs', 'text', 'iconstyle', 'transitions', 'gesture', 'volume']:
         for path in (ROOT / 'scripts/fixtures' / fixture).rglob('*.java'):
             target = src / path.relative_to(ROOT / 'scripts/fixtures' / fixture)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(path.read_text())
-    for name in ['ShadeHook', 'QsCardHook', 'LiveSettings', 'HookConfig', 'SettingsProvider', 'ResourceOverrides', 'Reflect', 'CloudHook', 'HookEntry', 'StatusBarIcons', 'StatusBarIconHook']:
+    for name in ['VolumeHook', 'VolumePanelGeometry', 'GestureBarHook', 'ShadeHook', 'QsCardHook', 'QsCornerHook', 'NotificationCardHook', 'AdaptiveTextColor', 'AdaptiveTextHook', 'LiveSettings', 'HookConfig', 'SettingsProvider', 'ResourceOverrides', 'Reflect', 'CloudHook', 'HookEntry', 'StatusBarIcons', 'StatusBarIconHook', 'IosStatusIcons', 'IosIconAssets', 'IosIconDrawable', 'IosStatusBarHook', 'IosStatusBarMetrics', 'IosSignalStackHook', 'StatusBarFollowHook', 'StatusBarTransition', 'SystemProviderCall', 'StatusBarOverlayIpc', 'LauncherStatusBarHook', 'StatusBarFrameGeometry']:
         path = Path('io/github/baishangui/thunder') / (name + '.java')
         (src / path).write_text((ROOT / 'app/src/main/java' / path).read_text())
     subprocess.run([javac, '-d', str(classes), *map(str, src.rglob('*.java'))], check=True)
-    for main in ['HookCheck', 'ProviderCheck', 'CloudCheck', 'CloudLayerCheck', 'StatusBarIconCheck', 'QsTintCheck']:
+    checks = ['VolumePanelCheck', 'GestureBarCheck', 'LauncherProviderCheck', 'CardBlendCheck', 'HookCheck', 'ProviderCheck', 'CloudCheck', 'CloudLayerCheck', 'StatusBarIconCheck', 'IosStatusBarCheck', 'IosRenderPathCheck', 'QsTintCheck', 'QsStateCheck', 'QsGeometryCheck', 'NotificationStyleCheck', 'AdaptiveTextCheck']
+    if args.only:
+        unknown = set(args.only) - set(checks)
+        if unknown: raise SystemExit('Unknown checks: ' + ', '.join(sorted(unknown)))
+    for main in (args.only or checks):
         subprocess.run([java, '-cp', str(classes), 'io.github.baishangui.thunder.' + main], check=True)
 
-    for scene in ['host', 'plugin', 'secondary', 'other']:
+    for scene in ([] if args.only and not args.entries else ['host', 'plugin', 'secondary', 'other', 'system', 'launcher']):
         subprocess.run([java, '-cp', str(classes), 'io.github.baishangui.thunder.EntryCheck', scene], check=True)

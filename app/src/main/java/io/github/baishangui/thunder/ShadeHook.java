@@ -47,8 +47,22 @@ public final class ShadeHook {
         if (android.os.Build.VERSION.SDK_INT != 37) return;
         installed = true;
         initialize(processName);
+        install("gesture-bar", () -> GestureBarHook.install(loader));
         install("status-bar-icons", () -> StatusBarIconHook.install(loader));
+        install("status-bar-ios-signal-mode", () -> IosSignalStackHook.install(loader));
+        install("status-bar-ios-metrics", () -> IosStatusBarMetrics.install(loader));
+        install("status-bar-ios-symbols", () -> IosStatusBarHook.installSymbols(loader));
+        install("status-bar-ios-signals", IosStatusBarHook::installSignals);
+        install("status-bar-ios-stacked-scope", () -> IosStatusBarHook.installStackedScope(loader));
+        install("status-bar-ios-stacked-layout", () -> IosStatusBarHook.installStackedLayoutScope(loader));
+        install("status-bar-ios-stacked-resources", () -> IosStatusBarHook.installStackedResources(loader));
+        install("status-bar-ios-dynamic-signal", () -> IosStatusBarHook.installDynamicSignals(loader));
+        install("status-bar-ios-battery-labels", () -> IosStatusBarHook.installBatteryLabels(loader));
+        install("status-bar-ios-battery", () -> IosStatusBarHook.installBattery(loader));
         install("qs-card-backgrounds", () -> QsCardHook.install(loader));
+        install("volume-panel", () -> VolumeHook.install(loader));
+        install("notification-backgrounds", () -> NotificationCardHook.install(loader));
+        install("adaptive-panel-text", AdaptiveTextHook::install);
         install("cloud-plugin-loader", () -> CloudHook.watch(loader));
         install("qs", () -> Api102Runtime.hookAllConstructors(Reflect.findClass(
             "com.oplus.systemui.separate.OplusSeparateQSManager", loader), new HookCallback() {
@@ -72,8 +86,16 @@ public final class ShadeHook {
             mixClass = Reflect.findClass(BLUR+"MixColor", loader);
             motionConfigClass = Reflect.findClass(BLUR+"BlurMixConfig$BlurMixSingle", loader);
         });
-        // Same producer used by the original working dim-removal module.
-        // Runs before ViewBlurProxy creates/caches its native backend and configs.
+        install("single-tint-alpha", () -> Api102Runtime.findAndHookMethod(
+            "com.oplusos.systemui.common.util.ShaderBlendParamHelper",loader,
+            "updateMixSingleShaderParams",shaderConfigClass,float.class,new HookCallback() {
+                @Override protected void beforeHookedMethod(HookCallback.Param p) {
+                    // The native helper scales single/background tint alpha, but leaves multi
+                    // foreground alpha alone. Our drawable alpha already applies blurAmount.
+                    if(Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(p.args[0],"thunder-custom-tint")))p.args[1]=1f;
+                }
+            }));
+        // Replace before ViewBlurProxy caches producer configs; retain their native source for restore.
         install("panel-source", () -> Api102Runtime.findAndHookMethod(
             "com.oplusos.systemui.common.util.NotifiAndQsPlatformBlurExKt", loader,
             "panelPlatformMixConfig", Context.class, boolean.class, boolean.class, new HookCallback() {
@@ -151,14 +173,19 @@ public final class ShadeHook {
                 @Override protected void afterHookedMethod(HookCallback.Param p) {
                     if (p.hasThrowable() || p.getResult() == null) return;
                     String type = ((Enum<?>) p.args[1]).name();
-                    if (!"FULLSCREENBANNER".equals(type)) return;
+                    if (!"FULLSCREENBANNER".equals(type)&&!"NOTIFICATION".equals(type)&&!"CUSTOM".equals(type)) return;
                     try {
                         Object proxy = p.getResult();
                         Object blur = Reflect.callMethod(proxy, "getBlurConfig");
-                        if (Reflect.getAdditionalInstanceField(blur, ROLE) == null) {
-                            Reflect.setAdditionalInstanceField(blur, ROLE, "banner");
-                            proxies.put(proxy, true);
-                            Reflect.callMethod(proxy, "applyBlurConfig");
+                        String role="FULLSCREENBANNER".equals(type)?"banner":"notification-card";
+                        Object base=Reflect.getAdditionalInstanceField(blur,"thunder.base-role");
+                        // A repeated request while heads-up is active must not revert it to list styling.
+                        if(!role.equals(base)||Reflect.getAdditionalInstanceField(blur,ROLE)==null) {
+                            Reflect.setAdditionalInstanceField(blur,"thunder.base-role",role);
+                            Reflect.setAdditionalInstanceField(blur,ROLE,role);
+                            NotificationCardHook.track((View)p.args[0],role);
+                            proxies.put(proxy,true);
+                            Reflect.callMethod(proxy,"applyBlurConfig");
                         }
                     } catch (Throwable error) { failed("banner", error); }
                 }
@@ -174,10 +201,14 @@ public final class ShadeHook {
                             Object blurConfig = Reflect.callMethod(proxy, "getBlurConfig");
                             if ("blurForHeadsUp".equals(name)) {
                                 Reflect.setAdditionalInstanceField(blurConfig, ROLE, "banner");
+                                NotificationCardHook.track((View)p.args[0],"banner");
                                 proxies.put(proxy, true);
                                 hit("banner");
                             } else {
-                                Reflect.removeAdditionalInstanceField(blurConfig, ROLE);
+                                Object base=Reflect.getAdditionalInstanceField(blurConfig,"thunder.base-role");
+                                if(base==null)Reflect.removeAdditionalInstanceField(blurConfig, ROLE);
+                                else Reflect.setAdditionalInstanceField(blurConfig,ROLE,base);
+                                NotificationCardHook.track((View)p.args[0],base==null?null:String.valueOf(base));
                             }
                         } catch (Throwable error) { failed(name, error); }
                     }
@@ -199,28 +230,35 @@ public final class ShadeHook {
             install("native-"+method, () -> Api102Runtime.findAndHookMethod(BLUR+"ViewBlurProxy",loader,method,new HookCallback() {
                 @Override protected void beforeHookedMethod(HookCallback.Param p) {
                     Object blur=Reflect.callMethod(p.thisObject,"getBlurConfig");
+                    // Producer replacements can live in BlurConfig. Unwrap them even when
+                    // customization is disabled, including native consumers bypassing getters.
+                    p.setObjectExtra("config",blur);
+                    Object stored=Reflect.getObjectField(blur,"platformMixConfig");
+                    Object nativeMix=nativeMix(stored);
+                    if(nativeMix!=stored)temporary(p,blur,"platformMixConfig",nativeMix);
                     HookConfig.Area area=area(blur);if(area==null)return;
                     String role=String.valueOf(Reflect.getAdditionalInstanceField(blur,ROLE));
                     Object type=Reflect.callMethod(p.thisObject,"getBlurType");
                     String backend=type==null?"unknown":type.getClass().getSimpleName();
                     Reflect.setAdditionalInstanceField(blur,"thunder-backend",backend);
-                    p.setObjectExtra("config",blur);
+                    NotificationCardHook.overrideCorners(p,blur,area);
                     if(area.blur) {
                         temporary(p,blur,"blurRadius",area.radius);
                         temporary(p,blur,"motionBlurRadius",area.radius);
                         if("panel".equals(role))temporary(p,blur,"scaleBlurRadiusWithAmount",true);
                     }
-                    if(area.tint) {
+                    if(area.tint && QsCardHook.useCustomTint(blur)) {
                         Object platform=Reflect.getObjectField(blur,"platformMixConfig");
                         temporary(p,blur,"platformMixConfig","panel".equals(role)?panelMix(platform,area):
                             backgroundMix(platform,area));
-                        if("banner".equals(role))temporary(p,blur,"motionBlurMixConfig",motionMix(Reflect.getObjectField(blur,"motionBlurMixConfig"),area));
+                        temporary(p,blur,"motionBlurMixConfig",motionMix(Reflect.getObjectField(blur,"motionBlurMixConfig"),area));
                     }
                     observed(role+"-native",backend+" radius="+(area.blur?area.radius:"system")+" ARGB="+(area.tint?Integer.toHexString(area.color):"system"));
                 }
                 @Override protected void afterHookedMethod(HookCallback.Param p) {
                     Object blur=p.getObjectExtra("config");if(blur==null)return;
-                    for(String field:new String[]{"blurRadius","motionBlurRadius","platformMixConfig","motionBlurMixConfig","scaleBlurRadiusWithAmount"}) {
+                    for(String field:new String[]{"blurRadius","motionBlurRadius","platformMixConfig","motionBlurMixConfig","scaleBlurRadiusWithAmount","cornerRadius","leftTopCornerRadius","rightTopCornerRadius",
+                            "leftBottomCornerRadius","rightBottomCornerRadius","pathProvider","gradientStrokeCornerParam","radiusWeight","enableMotionSmoothCorner"}) {
                         Object saved=p.getObjectExtra(field);
                         if(saved instanceof Object[])Reflect.setObjectField(blur,field,((Object[])saved)[0]);
                     }
@@ -262,7 +300,7 @@ public final class ShadeHook {
                     Object enabled=p.getObjectExtra("thunder-overlay-enabled");
                     if(enabled==null)return;
                     Reflect.setBooleanField(p.thisObject,"isOverlayEnabled",(Boolean)enabled);
-                    if(p.hasThrowable() || !(Boolean)enabled)return;
+                    if(p.hasThrowable())return;
                     int color=(Integer)p.getObjectExtra("thunder-overlay-color");
                     int amount=Math.max(0,Math.min(255,Reflect.getIntField(p.thisObject,"currentAlpha")));
                     int alpha=Math.round((color>>>24)*amount/255f);
@@ -312,10 +350,10 @@ public final class ShadeHook {
                 try {
                     HookConfig.Area area=area(p.thisObject);
                     Object role=Reflect.getAdditionalInstanceField(p.thisObject,ROLE);
-                    if(area!=null && area.tint && ("panel".equals(role)||"qs-card".equals(role))) {
+                    if(area!=null && area.tint && QsCardHook.useCustomTint(p.thisObject) && ("panel".equals(role)||"qs-card".equals(role)||"notification-card".equals(role)||"banner".equals(role)||String.valueOf(role).startsWith("volume-"))) {
                         // The chosen native mix is the dim layer; avoid an independent opaque mask on top.
                         Object backend=Reflect.getAdditionalInstanceField(p.thisObject,"thunder-backend");
-                        boolean mask="BlurTypeMotion".equals(backend)||"BlurTypeStatic".equals(backend);
+                        boolean mask="BlurTypeStatic".equals(backend);
                         p.setResult(mask?area.color:0);hit("panel".equals(role)?"panel-dim":"qs-card-dim");
                     }
                 } catch(Throwable error) { failed("panel-mask",error); }
@@ -325,12 +363,16 @@ public final class ShadeHook {
             @Override protected void afterHookedMethod(HookCallback.Param p) {
                 if (p.hasThrowable() || p.getResult() == null || shaderClass == null) return;
                 try {
+                    Object original=nativeMix(p.getResult());
+                    p.setResult(original);
                     HookConfig.Area area = area(p.thisObject);
-                    if (area == null || !area.tint) return;
+                    if (area == null || !area.tint || !QsCardHook.useCustomTint(p.thisObject)) return;
                     Object replacement;
-                    if("banner".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE))) {
+                    if("banner".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE)) ||
+                            String.valueOf(Reflect.getAdditionalInstanceField(p.thisObject,ROLE)).startsWith("volume-")) {
                         replacement=backgroundMix(p.getResult(),area);
-                    } else if("qs-card".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE))) {
+                    } else if("qs-card".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE))||
+                            "notification-card".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE))) {
                         replacement=backgroundMix(p.getResult(),area);
                     } else replacement=panelMix(p.getResult(),area);
                     p.setResult(replacement); hit("color");
@@ -339,11 +381,10 @@ public final class ShadeHook {
         }));
         install("banner-motion", () -> Api102Runtime.findAndHookMethod(blur, "getMotionBlurMixConfig", new HookCallback() {
             @Override protected void afterHookedMethod(HookCallback.Param p) {
-                if (p.hasThrowable() || p.getResult() == null || mixClass == null) return;
+                if (p.hasThrowable() || mixClass == null) return;
                 try {
-                    if (!"banner".equals(Reflect.getAdditionalInstanceField(p.thisObject, ROLE))) return;
                     HookConfig.Area area = area(p.thisObject);
-                    if (area == null || !area.tint) return;
+                    if (area == null || !area.tint || !QsCardHook.useCustomTint(p.thisObject)) return;
                     Object replacement=motionMix(p.getResult(),area); p.setResult(replacement); hit("banner-motion");
                 } catch (Throwable error) { failed("banner-motion", error); }
             }
@@ -353,8 +394,13 @@ public final class ShadeHook {
         HookConfig snapshot = config;
         if (!snapshot.enabled) return null;
         Object role = Reflect.getAdditionalInstanceField(blur, ROLE);
+        if ("volume-bar".equals(role)) return snapshot.volumeBar;
+        if ("volume-buttons".equals(role)) return snapshot.volumeButtons;
+        if ("volume-panel".equals(role)) return snapshot.volumePanel;
         if ("banner".equals(role)) return snapshot.banner;
         if ("qs-card".equals(role)) return snapshot.qsCards;
+        if ("qs-progress".equals(role)) return snapshot.qsProgress;
+        if ("notification-card".equals(role)) return snapshot.notificationCard;
         if (!"panel".equals(role)) return null;
         Object nativeMix = Reflect.getObjectField(blur, "platformMixConfig");
         // Bouncer and global themes use other config types; leave those paths to the system.
@@ -383,6 +429,7 @@ public final class ShadeHook {
                 main.post(() -> {
                     refreshProxies();
                     StatusBarIconHook.refresh();
+                    GestureBarHook.refresh();
                     worker.post(ShadeHook::report);
                 });
             }, error -> failed("remote-settings", error));
@@ -393,6 +440,7 @@ public final class ShadeHook {
                 @Override protected void afterHookedMethod(HookCallback.Param p) {
                     context = ((Context) p.args[0]).getApplicationContext();
                     if (context == null) context = (Context) p.args[0];
+                    if ("com.android.systemui".equals(reportProcess)) AdaptiveTextHook.startWallpaper(context, worker, main);
                     // API 102 config is already loaded. Provider is only a fallback
                     // and a diagnostic return channel; never block SystemUI startup.
                     if(config.revision<0) worker.post(() -> readSettings(0));
@@ -412,14 +460,23 @@ public final class ShadeHook {
         if (hooks.add(key) && worker != null) worker.postDelayed(ShadeHook::report, 500);
     }
     static HookConfig snapshot() { return config; }
+    static void trackVolume(Object proxy,String role) {
+        Reflect.setAdditionalInstanceField(Reflect.callMethod(proxy,"getBlurConfig"),ROLE,role);
+        proxies.put(proxy,true);Reflect.callMethod(proxy,"applyBlurConfig");
+    }
     static void trackQsCard(Object proxy) {
         Reflect.setAdditionalInstanceField(Reflect.callMethod(proxy,"getBlurConfig"),ROLE,"qs-card");
         proxies.put(proxy,true);
         Reflect.callMethod(proxy,"applyBlurConfig");
     }
+    static void trackQsProgress(Object proxy) {
+        Reflect.setAdditionalInstanceField(Reflect.callMethod(proxy,"getBlurConfig"),ROLE,"qs-progress");
+        proxies.put(proxy,true);
+        Reflect.callMethod(proxy,"applyBlurConfig");
+    }
     static void resourceHit(String key) { hit(key); }
     static void statusIconsObserved(String slots) {
-        observed("status-bar-icons", slots.isEmpty() ? "system" : "hidden="+slots);
+        observed("status-bar-icons", (IosStatusIcons.active(snapshot()) ? "style=ios;signals="+(snapshot().statusBarStackSignals?"stacked":"separate") : "style=system") + (slots.isEmpty() ? "" : ";hidden="+slots));
     }
     private static void capturePanel(Object owner) {
         try {
@@ -436,27 +493,12 @@ public final class ShadeHook {
     }
     private static Object panelMix(Object original,HookConfig.Area area) {
         if(shaderConfigClass==null||!shaderConfigClass.isInstance(original))return original;
-        Object nativeMix=Reflect.getAdditionalInstanceField(original,"thunder-native-mix");
-        if(nativeMix==null)nativeMix=original;
-        Object ref=Reflect.getAdditionalInstanceField(nativeMix,"thunder-cached-mix");
-        Object cached=ref instanceof WeakReference ? ((WeakReference<?>)ref).get() : null;
-        if(cached!=null && Reflect.getAdditionalInstanceField(nativeMix,"thunder-cached-area")==area) {
-            copyFlags(original,cached);return cached;
-        }
-        Object shader=Reflect.callMethod(nativeMix,"getBackgroundShaderParam");
-        int nativeTop=(Integer)Reflect.callMethod(shader,"getTopLayerColor");
-        int nativeBottom=(Integer)Reflect.callMethod(shader,"getBottomLayerColor");
-        int alpha=area.color>>>24;
-        int bottomAlpha=Math.min(255,Math.round((nativeBottom>>>24)*alpha/(float)Math.max(1,nativeTop>>>24)));
-        Object replacementShader=alpha==0?Reflect.newInstance(shaderClass,0,0,0,0):Reflect.newInstance(shaderClass,
-            Reflect.callMethod(shader,"getTopMode"),area.color,
-            Reflect.callMethod(shader,"getBottomMode"),(nativeBottom&0xffffff)|(bottomAlpha<<24));
-        Object replacement=Reflect.newInstance(shaderConfigClass,replacementShader);
-        copyFlags(original,replacement);
-        Reflect.setAdditionalInstanceField(replacement,"thunder-native-mix",nativeMix);
-        Reflect.setAdditionalInstanceField(nativeMix,"thunder-cached-area",area);
-        Reflect.setAdditionalInstanceField(nativeMix,"thunder-cached-mix",new WeakReference<>(replacement));
-        return replacement;
+        return backgroundMix(original,area);
+    }
+    private static Object nativeMix(Object mix) {
+        if(mix==null)return null;
+        Object original=Reflect.getAdditionalInstanceField(mix,"thunder-native-mix");
+        return original==null?mix:original;
     }
     private static HookCallback livePanelScope(boolean controller) {
         return new HookCallback() {
@@ -485,41 +527,48 @@ public final class ShadeHook {
         catch(android.content.res.Resources.NotFoundException ignored) { return false; }
     }
     private static void temporary(HookCallback.Param p,Object object,String field,Object value) {
-        p.setObjectExtra(field,new Object[]{Reflect.getObjectField(object,field)});
+        if(p.getObjectExtra(field)==null)p.setObjectExtra(field,new Object[]{Reflect.getObjectField(object,field)});
         Reflect.setObjectField(object,field,value);
     }
     private static Object backgroundMix(Object original,HookConfig.Area area) {
+        original=nativeMix(original);
         if(original==null)return null;
         boolean multi=multiShaderConfigClass!=null&&multiShaderConfigClass.isInstance(original);
         if(!multi&&!shaderConfigClass.isInstance(original))return original;
         Object ref=Reflect.getAdditionalInstanceField(original,"thunder-background-mix");
         Object cached=ref instanceof WeakReference ? ((WeakReference<?>)ref).get() : null;
         if(cached!=null&&Reflect.getAdditionalInstanceField(original,"thunder-background-area")==area) {
-            copyFlags(original,cached);return cached;
+            customFlags(original,cached);return cached;
         }
-        Object nativeShader=Reflect.callMethod(original,multi?"getForegroundShaderParam":"getBackgroundShaderParam");
         int color=area.color>>>24==0?0:area.color;
-        int mode=color==0?0:(Integer)Reflect.callMethod(nativeShader,"getTopMode");
-        // EMPTY cannot display a chosen color; use the native card overlay mode in that case.
-        if(color!=0&&mode==0)mode=4;
+        // C17 AGSL MIX interpolates straight RGB by the selected alpha.
+        int mode=color==0?0:1;
         Object tint=Reflect.newInstance(shaderClass,mode,color,0,0);
         Object result;
         if(multi) {
             Object empty=Reflect.newInstance(shaderClass,0,0,0,0);
             result=Reflect.newInstance(multiShaderConfigClass,tint,empty);
-            Reflect.callMethod(result,"setPlaceHolderColor",color);
         } else result=Reflect.newInstance(shaderConfigClass,tint);
-        copyFlags(original,result);
+        Reflect.callMethod(result,"setPlaceHolderColor",color);
+        customFlags(original,result);
+        Reflect.setAdditionalInstanceField(result,"thunder-native-mix",original);
+        Reflect.setAdditionalInstanceField(result,"thunder-custom-tint",true);
         Reflect.setAdditionalInstanceField(original,"thunder-background-area",area);
         Reflect.setAdditionalInstanceField(original,"thunder-background-mix",new WeakReference<>(result));
         return result;
     }
     private static Object motionMix(Object original,HookConfig.Area area) {
-        if(original==null)return null;
-        Object mix=Reflect.callMethod(original,"getMixColor");
-        Object replacement=Reflect.newInstance(motionConfigClass,Reflect.newInstance(mixClass,
-            area.color>>>24==0?0:Reflect.callMethod(mix,"getMode"),area.color>>>24==0?0:area.color,0));
-        copyFlags(original,replacement);return replacement;
+        // OplusBlurParam has its own enum: 1=COLORMIX, 4=GLOW_OVERLAY.
+        // Keep the tint in the compositor; BackgroundBlurDrawable.setColor is a
+        // separate paint drawn before the RenderNode and does not follow setAlpha.
+        int color=area.color>>>24==0?0:area.color;
+        Object replacement=Reflect.newInstance(motionConfigClass,
+            Reflect.newInstance(mixClass,color==0?0:1,color,0));
+        customFlags(original,replacement);return replacement;
+    }
+    private static void customFlags(Object original,Object replacement) {
+        if(original!=null)copyFlags(original,replacement);
+        Reflect.callMethod(replacement,"setAlphaWithBlurAmount",true);
     }
     static void observed(String key,String value) {
         String previous=effective.put(key,value);hit(key);
@@ -534,7 +583,7 @@ public final class ShadeHook {
             Bundle data = context.getContentResolver().call(URI, "settings", null, null);
             if (data == null) throw new IllegalStateException("No settings response");
             config = new HookConfig(data); settingsSource="provider fallback";
-            main.post(() -> { refreshProxies(); StatusBarIconHook.refresh(); }); report();
+            main.post(() -> { refreshProxies(); StatusBarIconHook.refresh(); GestureBarHook.refresh(); }); report();
         } catch (Throwable error) {
             if (attempt < 4) worker.postDelayed(() -> readSettings(attempt+1), 2500);
             else failed("settings-read", error);
@@ -549,6 +598,10 @@ public final class ShadeHook {
             catch (Throwable error) { failed("refresh", error); }
         }
         QsCardHook.refresh();
+        NotificationCardHook.refresh();
+        AdaptiveTextHook.refresh();
+        CloudHook.refresh();
+        VolumeHook.refresh();
     }
     private interface Install { void run() throws Throwable; }
     private static void install(String key, Install action) {

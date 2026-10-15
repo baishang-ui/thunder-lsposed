@@ -87,6 +87,7 @@ jobs:
       - name: Check module handlers and live settings
         run: |
           python3 scripts/check_effects.py
+          python3 scripts/check_transitions.py
           python3 scripts/check_systemui_restart.py
           python3 scripts/check_live_settings.py
       - name: Test, lint and assemble release APK

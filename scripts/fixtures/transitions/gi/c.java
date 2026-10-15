@@ -1,0 +1,1 @@
+package gi;public class c {public int a=42;public android.view.SurfaceControl d=new android.view.SurfaceControl();}

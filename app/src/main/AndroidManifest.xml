@@ -2,9 +2,10 @@
  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
  <queries>
   <package android:name="com.android.systemui" />
+  <package android:name="com.android.launcher" />
   <package android:name="com.oplus.systemui.plugins" />
  </queries>
- <application android:name=".ThunderApplication" android:label="@string/app_name" android:icon="@drawable/ic_launcher" android:theme="@style/AppTheme" android:allowBackup="false" android:supportsRtl="true">
+ <application android:name=".ThunderApplication" android:label="@string/app_name" android:icon="@drawable/ic_launcher" android:theme="@style/AppTheme" android:allowBackup="false" android:supportsRtl="true" android:enableOnBackInvokedCallback="true">
   <activity android:name=".MainActivity" android:exported="true" android:configChanges="uiMode" >
    <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
   </activity>

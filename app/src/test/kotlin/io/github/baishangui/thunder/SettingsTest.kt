@@ -11,7 +11,7 @@ class SettingsTest {
             glassStrength=84,refraction=22,roundness=34,panel=Area(true,183,true,0x8890baba.toInt()),
             banner=Area(true,41,true,0x22446688),margins=true,margin=19,cloud=false,cloudHeightEnabled=true,cloudHeight=47,
             cloudCornerEnabled=true,cloudCorner=11,cloudArea=Area(true,175,true,0x65883322),
-            hiddenStatusIcons=StatusBarIcons.BLUETOOTH or StatusBarIcons.NFC)
+            hiddenStatusIcons=StatusBarIcons.BLUETOOTH or StatusBarIcons.NFC,statusIconStyle=1)
         assertEquals(settings,Settings.parse(settings.json()))
     }
     @Test fun defaultsUseNativeDimUntilUserEnablesIt() {
@@ -29,9 +29,9 @@ class SettingsTest {
     }
     @Test fun wrongVersionOrForeignFormatFails() {
         val root=JSONObject(Settings().json())
-        root.put("version",7)
+        root.put("version",14)
         assertThrows(IllegalArgumentException::class.java) { Settings.parse(root.toString()) }
-        root.put("version",3).put("format","other")
+        root.put("version",3).removeV13Fields().put("format","other")
         assertThrows(IllegalArgumentException::class.java) { Settings.parse(root.toString()) }
     }
     @Test fun missingAndUnknownFieldsFail() {
@@ -59,7 +59,8 @@ class SettingsTest {
         assertEquals(s,Settings.parse(s.json()))
     }
     @Test fun v3ImportRetainsValuesAndAddsNativeCloudDefaults() {
-        val old = JSONObject(Settings(panel=Area(true,78,true,0x557799aa)).json()).put("version",3)
+        val old = JSONObject(Settings(panel=Area(true,78,true,0x557799aa)).json()).put("version",3).removeV13Fields()
+        old.removeV7Fields()
         val data=old.getJSONObject("settings")
         listOf("cloud_height_enabled","cloud_height","cloud_corner_enabled","cloud_corner",
             "cloud_blur","cloud_radius","cloud_tint","cloud_color","status_bar_hidden_icons",
@@ -73,7 +74,8 @@ class SettingsTest {
     }
     @Test fun v4ImportKeepsCloudAndDefaultsStatusIconsToSystem() {
         val settings=Settings(cloudHeightEnabled=true,cloudHeight=41,hiddenStatusIcons=StatusBarIcons.ALL)
-        val old=JSONObject(settings.json()).put("version",4)
+        val old=JSONObject(settings.json()).put("version",4).removeV13Fields()
+        old.removeV7Fields()
         old.getJSONObject("settings").remove("status_bar_hidden_icons")
         old.getJSONObject("settings").apply { remove("qs_card_tint");remove("qs_card_color") }
         assertEquals(settings.copy(hiddenStatusIcons=0),Settings.parse(old.toString()))
@@ -90,13 +92,13 @@ class SettingsTest {
     }
     @Test fun cloudOverridesUseOnlyCloudResourcesAndRespectOffSwitch() {
         val s=Settings(cloudHeightEnabled=true,cloudHeight=44,cloudCornerEnabled=true,cloudCorner=9,
-            cloudArea=Area(true,123,true,0x416688aa))
+            cloudArea=Area(true,123,true,0x416688aa),cloudCardArea=Area(true,123,true,0x416688aa,true,9))
         val c=HookConfig(s.bundle())
         assertEquals(123,c.cloudArea.radius)
         assertEquals(44,ResourceOverrides.dimension("com.oplus.systemui.plugins:dimen/capsule_height",c))
         assertEquals(9,ResourceOverrides.dimension("com.oplus.systemui.plugins:dimen/round_corner_radius_fluid_cloud",c))
         assertNull(ResourceOverrides.dimension("com.oplus.systemui.plugins:dimen/new_round_corner_radius_notif",c))
-        assertEquals(0x416688aa,ResourceOverrides.color("com.oplus.systemui.plugins:color/card_background_blend_color",c))
+        assertNull(ResourceOverrides.color("com.oplus.systemui.plugins:color/card_background_blend_color",c))
         assertEquals(0xffffa800.toInt(),ResourceOverrides.color("com.oplus.systemui.plugins:color/coui_color_primary_text_blue_dark",c))
         assertNull(ResourceOverrides.color("com.android.systemui:color/card_background_blend_color",c))
         val off=HookConfig(s.copy(cloud=false).bundle())

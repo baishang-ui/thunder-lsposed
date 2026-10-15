@@ -1,0 +1,1 @@
+package android.text; public class Layout {public static float getDesiredWidth(CharSequence text,TextPaint paint){return text.length()*paint.textSize*.6f;}}

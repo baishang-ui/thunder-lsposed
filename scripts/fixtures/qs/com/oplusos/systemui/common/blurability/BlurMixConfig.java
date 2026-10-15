@@ -1,5 +1,6 @@
 package com.oplusos.systemui.common.blurability;
 public class BlurMixConfig {
+ private int placeHolderColor;public int getPlaceHolderColor(){return placeHolderColor;}public void setPlaceHolderColor(int c){placeHolderColor=c;}
  private float mirrorScale=1; private boolean alphaWithBlurAmount;
  public float getMirrorScale(){return mirrorScale;}
  public void setMirrorScale(float value){mirrorScale=value;}

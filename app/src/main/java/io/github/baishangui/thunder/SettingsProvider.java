@@ -10,8 +10,9 @@ import android.os.Binder;
 import android.os.Bundle;
 import android.os.Process;
 
-/** Small, device-protected IPC surface. Only this app, SystemUI and its plugin may call it. */
+/** Small, device-protected IPC surface. Only this app, SystemUI, its plugin and system UID may call it. */
 public final class SettingsProvider extends ContentProvider {
+    private static volatile android.os.IBinder overlayEndpoint;
     public static final String AUTHORITY = BuildConfig.APPLICATION_ID + ".settings";
     public static SharedPreferences preferences(Context context) {
         return context.createDeviceProtectedStorageContext().getSharedPreferences("settings", Context.MODE_PRIVATE);
@@ -27,19 +28,49 @@ public final class SettingsProvider extends ContentProvider {
         boolean plugin = false;
         try { plugin = uid == context.getPackageManager().getPackageUid("com.oplus.systemui.plugins", 0); }
         catch (Exception ignored) { }
-        if (!own && !systemUi && !plugin) throw new SecurityException("SystemUI/plugin only");
+        boolean systemServer = uid == 1000;
+        boolean launcher = false;
+        try { launcher = uid == context.getPackageManager().getPackageUid("com.android.launcher", 0); }
+        catch (Exception ignored) { }
+        if ("overlay-register".equals(method)) {
+            if (!systemServer) throw new SecurityException("System UID required");
+            android.os.IBinder endpoint = extras == null ? null : extras.getBinder("endpoint");
+            if (endpoint == null || !endpoint.isBinderAlive()) throw new IllegalArgumentException("Live endpoint required");
+            overlayEndpoint = endpoint;
+            return Bundle.EMPTY;
+        }
+        if ("overlay-endpoint".equals(method)) {
+            if (!launcher && !own) throw new SecurityException("Launcher UID required");
+            Bundle result = new Bundle();
+            android.os.IBinder endpoint = overlayEndpoint;
+            if (endpoint != null && endpoint.isBinderAlive()) result.putBinder("endpoint", endpoint);
+            return result;
+        }
+        if (!own && !systemUi && !plugin && !systemServer && !(launcher && "report".equals(method)))
+            throw new SecurityException("Module/system interfaces only");
         SharedPreferences prefs = preferences(context);
         if ("settings".equals(method)) {
             Bundle result = new Bundle();
+            for (String key : new String[]{"volume_size","volume_compact","volume_button_size"})
+                result.putBoolean(key,prefs.getBoolean(key,false));
+            result.putInt("volume_width",Math.max(32,Math.min(96,prefs.getInt("volume_width",56))));
+            result.putInt("volume_height",Math.max(120,Math.min(400,prefs.getInt("volume_height",240))));
+            result.putInt("volume_button",Math.max(36,Math.min(72,prefs.getInt("volume_button",48))));
             result.putBoolean("enabled", prefs.getBoolean("enabled", true));
+            result.putBoolean("gesture_bar_hidden", prefs.getBoolean("gesture_bar_hidden", false));
+            result.putBoolean("gesture_bar_remove_inset", prefs.getBoolean("gesture_bar_remove_inset", false));
+            result.putBoolean("status_bar_follow_app", prefs.getBoolean("status_bar_follow_app", false));
+            result.putBoolean("status_bar_stack_signals", prefs.getBoolean("status_bar_stack_signals", false));
+            result.putInt("status_bar_icon_style", prefs.getInt("status_bar_icon_style", 0) == 1 ? 1 : 0);
             result.putInt("status_bar_hidden_icons", prefs.getInt("status_bar_hidden_icons", 0) & StatusBarIcons.ALL);
             result.putBoolean("qs_card_tint", prefs.getBoolean("qs_card_tint", false));
             result.putInt("qs_card_color", prefs.getInt("qs_card_color", 0x33ffffff));
-            for (String area : new String[]{"panel", "banner"}) {
+            for (String area : new String[]{"panel", "banner", "notification_card", "cloud_card", "volume_bar", "volume_buttons", "volume_panel"}) {
+                if ("notification_card".equals(area) && !prefs.contains("notification_card_radius")) continue;
                 result.putBoolean(area+"_blur", prefs.getBoolean(area+"_blur", "panel".equals(area) && prefs.getBoolean("shade_blur", false)));
                 result.putInt(area+"_radius", Math.max(0, Math.min(200, prefs.getInt(area+"_radius", "panel".equals(area) ? prefs.getInt("shade_radius", 100) : 100))));
                 result.putBoolean(area+"_tint", prefs.getBoolean(area+"_tint", "panel".equals(area) && prefs.getBoolean("shade_tint", false)));
-                result.putInt(area+"_color", prefs.getInt(area+"_color", "panel".equals(area) ? prefs.getInt("shade_color", 0x92000000) : 0x33000000));
+                result.putInt(area+"_color", prefs.getInt(area+"_color", "panel".equals(area) ? prefs.getInt("shade_color", 0x92000000) : "notification_card".equals(area)?0x33ffffff:"cloud_card".equals(area)?0x20282828:0x33000000));
             }
             result.putBoolean("notification_margins", prefs.getBoolean("notification_margins", false));
             result.putInt("notification_margin", Math.max(0, Math.min(64, prefs.getInt("notification_margin", 30))));
@@ -52,14 +83,45 @@ public final class SettingsProvider extends ContentProvider {
             result.putInt("cloud_radius",prefs.getInt("cloud_radius",100));
             result.putBoolean("cloud_tint",prefs.getBoolean("cloud_tint",false));
             result.putInt("cloud_color",prefs.getInt("cloud_color",0x20282828));
+            for(String key:new String[]{"qs_card","banner","notification_card","cloud_card","volume_bar","volume_buttons","volume_panel"}) {
+                if ("notification_card".equals(key) && !prefs.contains("notification_card_radius")) continue;
+                result.putBoolean(key+"_corner_enabled",prefs.getBoolean(key+"_corner_enabled",
+                    "cloud_card".equals(key)&&prefs.getBoolean("cloud_corner_enabled",false)));
+                result.putInt(key+"_corner",Math.max(0,Math.min(64,prefs.getInt(key+"_corner",
+                    "cloud_card".equals(key)?prefs.getInt("cloud_corner",20):28))));
+            }
+            if(!prefs.contains("cloud_card_color")) {
+                for(String suffix:new String[]{"blur","tint"})result.putBoolean("cloud_card_"+suffix,prefs.getBoolean("cloud_"+suffix,false));
+                result.putInt("cloud_card_radius",prefs.getInt("cloud_radius",100));
+                result.putInt("cloud_card_color",prefs.getInt("cloud_color",0x20282828));
+            }
+            if(prefs.contains("qs_card_radius")) {
+                result.putBoolean("qs_card_blur",prefs.getBoolean("qs_card_blur",false));
+                result.putInt("qs_card_radius",prefs.getInt("qs_card_radius",100));
+            }
+            HookConfig config = new HookConfig(result);
+            HookConfig.Area cards = config.qsCards;
+            result.putBoolean("qs_card_blur",cards.blur); result.putInt("qs_card_radius",cards.radius);
+            result.putBoolean("qs_card_tint",cards.tint); result.putInt("qs_card_color",cards.color);
+            result.putBoolean("qs_card_corner_enabled",cards.cornerEnabled); result.putInt("qs_card_corner",cards.corner);
+            HookConfig.Area rows = config.notificationCard;
+            result.putBoolean("notification_card_blur",rows.blur); result.putInt("notification_card_radius",rows.radius);
+            result.putBoolean("notification_card_tint",rows.tint); result.putInt("notification_card_color",rows.color);
+            result.putBoolean("notification_card_corner_enabled",rows.cornerEnabled); result.putInt("notification_card_corner",rows.corner);
             result.putLong("revision", prefs.getLong("revision", 0));
             return result;
         }
-        if ("report".equals(method) && extras != null && (systemUi || plugin)) {
+        if ("report".equals(method) && extras != null && (systemUi || plugin || systemServer || launcher)) {
+            boolean systemProcess = "system_server".equals(extras.getString("process", ""));
+            if (systemProcess && !systemServer) throw new SecurityException("System UID required for system_server report");
+            boolean launcherProcess = "com.android.launcher".equals(extras.getString("process", ""));
+            if (launcherProcess && !launcher) throw new SecurityException("Launcher UID required");
+            if (launcher && !systemUi && !plugin && !systemServer && !launcherProcess)
+                throw new SecurityException("Launcher report requires its process name");
             boolean cloudProcess = "com.oplus.systemui.plugins".equals(extras.getString("process", ""));
-            if (!systemUi && !cloudProcess) throw new IllegalArgumentException("Plugin report requires its process name");
+            if (!systemProcess && !systemUi && !cloudProcess && !launcherProcess) throw new IllegalArgumentException("Plugin report requires its process name");
             // The caller cannot change user settings or supply arbitrary preference keys.
-            context.createDeviceProtectedStorageContext().getSharedPreferences(cloudProcess ? "runtime_cloud" : "runtime", 0).edit()
+            context.createDeviceProtectedStorageContext().getSharedPreferences(systemProcess ? "runtime_system" : launcherProcess ? "runtime_launcher" : cloudProcess ? "runtime_cloud" : "runtime", 0).edit()
                 .putString("hooks", extras.getString("hooks", ""))
                 .putString("hits", extras.getString("hits", ""))
                 .putString("error", extras.getString("error", ""))

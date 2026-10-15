@@ -1,0 +1,1 @@
+package androidx.appcompat.content.res;public class AppCompatResources {public static android.graphics.drawable.Drawable getDrawable(android.content.Context c,int id){return new android.graphics.drawable.Drawable();}}

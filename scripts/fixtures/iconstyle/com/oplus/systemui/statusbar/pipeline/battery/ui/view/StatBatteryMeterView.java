@@ -1,0 +1,1 @@
+package com.oplus.systemui.statusbar.pipeline.battery.ui.view;public class StatBatteryMeterView extends android.view.View {public Object batteryStyleDrawable=new com.oplus.systemui.statusbar.pipeline.battery.ui.drawable.HorizontalBatteryContentDrawable();}

@@ -16,21 +16,16 @@ internal object RemoteSettings {
         private set
     var scopeStatus by mutableStateOf("作用域：等待 LSPosed 连接")
         private set
-    private val recommendedScope = linkedMapOf(
-        "com.android.systemui" to "系统界面",
-        "com.oplus.systemui.plugins" to "系统界面插件"
-    )
+    @Volatile private var needsSystemScope = false
     fun refreshScope() {
         val framework = service ?: return
         Thread({ updateScope(framework) }, "Thunder-scope-check").start()
     }
     private fun updateScope(framework: XposedService) {
         scopeStatus = runCatching {
-            val actual = framework.scope.toSet()
-            val missing = recommendedScope.filterKeys { it !in actual }.values
-            if (missing.isEmpty()) "作用域已完整：系统界面、系统界面插件"
-            else "作用域缺少：${missing.joinToString("、")}。请在 LSPosed 的 thunder 作用域中勾选，升级不会自动启用新增作用域；勾选后重启手机。"
-        }.getOrElse { "无法读取实际作用域：${it.message}。请在 LSPosed 手动确认系统界面和系统界面插件均已勾选。" }
+            ModuleScope.describe(framework.scope.toSet(), needsSystemScope,
+                framework.frameworkProperties and XposedService.PROP_CAP_SYSTEM != 0L)
+        }.getOrElse { "无法读取实际作用域：${it.message}。请在 LSPosed 手动确认系统界面、系统界面插件；应用过渡需要 system（system_server）与系统桌面（com.android.launcher）作用域并重启手机，android 不能替代。" }
     }
     fun connect(context: Context) {
         val app = context.applicationContext
@@ -48,9 +43,10 @@ internal object RemoteSettings {
     }
     @Synchronized fun publish(context: Context): Boolean {
         val framework = service ?: return false
-        updateScope(framework)
         return runCatching {
             val values = SettingsProvider.preferences(context).all
+            needsSystemScope = values["status_bar_follow_app"] == true
+            updateScope(framework)
             val bundle = Bundle().apply { values.forEach { (k,v) -> when(v) {
                 is Boolean -> putBoolean(k,v); is Int -> putInt(k,v)
             } } }

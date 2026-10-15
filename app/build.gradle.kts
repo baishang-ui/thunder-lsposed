@@ -11,7 +11,7 @@ android {
   minSdk = 37
   targetSdk = 37
   versionCode = 11
-  versionName = "v5.0"
+  versionName = "6.0"
  }
  buildFeatures { compose = true; buildConfig = true }
  compileOptions {
@@ -32,6 +32,7 @@ dependencies {
  implementation("io.github.kyant0:backdrop:1.0.6")
  implementation("io.github.kyant0:shapes:1.2.0")
  implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.0")
+ implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.0")
  compileOnly("io.github.libxposed:api:102.0.0")
  testImplementation("io.github.libxposed:api:102.0.0")
  implementation("io.github.libxposed:service:102.0.0")
