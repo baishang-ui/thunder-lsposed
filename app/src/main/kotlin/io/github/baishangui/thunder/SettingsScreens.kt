@@ -19,7 +19,6 @@ internal enum class SettingsPage(val title: String, val category: String) {
     CloudCard("卡片状态", "流体云"),
     StatusIcons("图标显示", "状态栏"),
     StatusStyle("图标样式", "状态栏"),
-    StatusMotion("应用过渡", "状态栏"),
     GestureBar("手势条", "手势导航"),
     Appearance("界面外观", "设置"),
     Configuration("配置管理", "设置"),
@@ -51,7 +50,6 @@ private fun Area.summary(corner: Boolean = true, relativeCorners: Boolean = fals
     }
     SettingsMenuGroup("状态栏") {
         SettingsMenuItem("图标样式", if (settings.statusIconStyle == 1) "iOS 风格 · 电池内数字" else "系统默认", MiuixIcons.Regular.Theme) { open(SettingsPage.StatusStyle) }
-        SettingsMenuItem("应用过渡", if (settings.statusBarFollowApp) "实验性跟随已开启" else "跟随应用窗口缩放与移动", MiuixIcons.Regular.Layers) { open(SettingsPage.StatusMotion) }
         SettingsMenuItem("图标显示", if (settings.hiddenStatusIcons == 0) "全部跟随系统" else "已隐藏 ${Integer.bitCount(settings.hiddenStatusIcons)} 项图标", MiuixIcons.Regular.Hide) { open(SettingsPage.StatusIcons) }
     }
     SettingsMenuGroup("手势导航") {
@@ -118,14 +116,6 @@ private fun Area.summary(corner: Boolean = true, relativeCorners: Boolean = fals
                 } else AreaControls("展开卡片材质", settings.cloudCardArea) { change(settings.copy(cloudCardArea = it)) }
                 UiText("胶囊与展开卡片独立保存。混色会处理模糊、填色及额外背景层；卡片模糊随展开动画变化。", 12, muted = true)
             } else UiText("开启后可调节当前形态的外观，已保存的参数会继续保留。", 13, muted = true)
-        }
-        SettingsPage.StatusMotion -> {
-            SettingsGroup {
-                LiquidSwitchRow("状态栏跟随应用", "实验性 · 默认关闭", settings.statusBarFollowApp) { change(settings.copy(statusBarFollowApp = it)) }
-            }
-            UiText("竖屏全屏应用从桌面打开，以及符合条件的上滑返回、进入最近任务手势中，状态栏沿应用实际路径缩放和移动，显示在应用遮罩上方，展开全屏时归位。两个应用直接切换、横屏、分屏、小窗、锁屏、下拉面板和流体云活动期间暂不接管。", 13, muted = true)
-            UiText("API 102 需要 system，android 不能替代。首次使用：在 LSPosed 的 thunder 作用域中勾选“系统框架（system / system_server）”与“系统桌面（com.android.launcher）”，然后重启手机。仅重启系统界面无法加载此功能。运行报告应同时出现系统框架与桌面动画两部分。加载后开关实时生效，关闭会恢复状态栏。", 13, muted = true)
-            UiText("当前适配 ColorOS 17 / Android 17；动画打断或超过 6 秒时自动恢复，可在运行报告查看跟随次数和跳过原因。", 12, muted = true)
         }
         SettingsPage.GestureBar -> {
             SettingsGroup {

@@ -1,1 +1,0 @@
-package android.app;public class Application extends android.content.Context{public void attach(android.content.Context base){}}

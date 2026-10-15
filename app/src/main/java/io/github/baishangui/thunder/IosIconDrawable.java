@@ -35,6 +35,25 @@ final class IosIconDrawable extends Drawable {
         }
         return shapes;
     }
+    private static final float GAP=3f, HEIGHT=20f;
+    private static final Map<IosStatusIcons.Kind,float[]> INK=new EnumMap<>(IosStatusIcons.Kind.class);
+    static { for(var kind:IosStatusIcons.Kind.values())INK.put(kind,IosIconAssets.bounds(kind)); }
+    static float cellWidth(IosStatusIcons.Symbol symbol) {
+        if(symbol.kind()==IosStatusIcons.Kind.BATTERY)return 30f;
+        if(symbol.kind()==IosStatusIcons.Kind.LABEL)return Math.max(9f,Math.min(52f,symbol.label().length()*6.3f))+GAP;
+        float[] ink=ink(symbol);float w=ink[2]-ink[0],h=ink[3]-ink[1];
+        return w*Math.min(18f/w,inkHeight(symbol)/h)+GAP;
+    }
+    private static float inkHeight(IosStatusIcons.Symbol symbol) {
+        return switch(symbol.kind()) {case ACTIVITY, ACTIVITY_IN, ACTIVITY_OUT -> 12f;default -> 16f;};
+    }
+    static float cellHeight() { return HEIGHT; }
+    private static float[] ink(IosStatusIcons.Symbol symbol) {
+        return symbol.row()>0?STACKED_INK:symbol.flags()!=0?BADGE_INK:INK.get(symbol.kind());
+    }
+    private static final float[] BADGE_INK={1,1,23,22};
+    private static final float[] STACKED_INK={1,3.75f,23,20.25f};
+    IosStatusIcons.Symbol symbol() { return symbol; }
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final IosStatusIcons.Symbol symbol;
     private int color = Color.WHITE, alpha = 255;
@@ -51,36 +70,77 @@ final class IosIconDrawable extends Drawable {
         if(b.isEmpty())return;
         int save=canvas.save();
         try {
+            float scale;
+            if(symbol.kind()==IosStatusIcons.Kind.BATTERY) {
+                scale=Math.min(b.width()/30f,b.height()/20f);
+                canvas.translate(b.exactCenterX()-13.5f*scale,b.exactCenterY()-12*scale);
+            } else if(symbol.kind()==IosStatusIcons.Kind.LABEL) {
+                scale=Math.min(b.width()/cellWidth(symbol),b.height()/HEIGHT);
+                canvas.translate(b.exactCenterX()-cellWidth(symbol)*scale/2,b.exactCenterY()-10*scale);
+            } else {
+                float[] ink=ink(symbol);float w=ink[2]-ink[0],h=ink[3]-ink[1];
+                scale=Math.min(b.width()/cellWidth(symbol),b.height()/HEIGHT)*Math.min(18f/w,inkHeight(symbol)/h);
+                canvas.translate(b.exactCenterX()-(ink[0]+ink[2])*scale/2,b.exactCenterY()-(ink[1]+ink[3])*scale/2);
+            }
+            canvas.scale(scale,scale);
             if(symbol.row()>0) {
-                // C17 overlays both painters in one Box: each uses the entire viewport.
-                float scale=Math.min(b.width()/24f,b.height()/24f);
-                canvas.translate(b.exactCenterX()-12*scale,b.exactCenterY()-12*scale);canvas.scale(scale,scale);
                 paint.setColor(color);paint.setStyle(Paint.Style.FILL);
                 Shape[] bars=STACKED[symbol.row()-1];
                 for(int i=0;i<bars.length;i++) {
-                    opacity(symbol.level()*4f/symbol.maximum()>=i+1?1:.24f);
+                    opacity(symbol.kind()!=IosStatusIcons.Kind.NO_SERVICE && symbol.level()*4f/symbol.maximum()>=i+1?1:.24f);
                     canvas.drawPath(bars[i].path(),paint);
+                }
+                float rowY=symbol.row()==1?9:18;
+                if(symbol.kind()==IosStatusIcons.Kind.NO_SERVICE || symbol.flags()!=0) {
+                    opacity(1);paint.setTextSize(5.5f);paint.setTypeface(NUMERALS);
+                    centeredText(canvas,symbol.kind()==IosStatusIcons.Kind.NO_SERVICE?"×":(symbol.flags()&IosStatusIcons.ROAMING)!=0?"R":"!",22,rowY);
                 }
                 return;
             }
-            float width=symbol.kind()==IosStatusIcons.Kind.BATTERY?27f:24f;
-            float scale=Math.min(b.width()/width,b.height()/(symbol.kind()==IosStatusIcons.Kind.BATTERY?13f:24f));
-            canvas.translate(b.exactCenterX()-(symbol.kind()==IosStatusIcons.Kind.BATTERY?width/2:12f)*scale,b.exactCenterY()-12*scale);
-            canvas.scale(scale,scale);
             paint.setColor(color);paint.setAlpha(alpha*Color.alpha(color)/255);
             paint.setStrokeCap(Paint.Cap.ROUND);paint.setStrokeJoin(Paint.Join.ROUND);
             switch(symbol.kind()) {
                 case WIFI -> wifi(canvas);
                 case CELLULAR -> cellular(canvas);
                 case BATTERY -> battery(canvas);
+                case LABEL -> {
+                    paint.setStyle(Paint.Style.FILL);paint.setTypeface(NUMERALS);
+                    paint.setTextSize(Math.min(10f,10f*(cellWidth(symbol)-GAP)/Math.max(1f,symbol.label().length()*6.3f)));
+                    centeredText(canvas,symbol.label(),cellWidth(symbol)/2,10);
+                }
+                case ACTIVITY -> {
+                    paint.setStyle(Paint.Style.STROKE);paint.setStrokeCap(Paint.Cap.ROUND);paint.setStrokeJoin(Paint.Join.ROUND);
+                    Shape[] shapes=SHAPES.get(symbol.kind());
+                    for(int i=0;i<shapes.length;i++) {
+                        opacity((symbol.level()&(1<<i))!=0?1:.2f);paint.setStrokeWidth(shapes[i].width());canvas.drawPath(shapes[i].path(),paint);
+                    }
+                }
                 default -> {
                     for(Shape shape:SHAPES.get(symbol.kind())) {
+                        opacity(symbol.kind()==IosStatusIcons.Kind.NO_SERVICE && shape.width()==0?.24f:1f);
                         paint.setStyle(shape.width()==0?Paint.Style.FILL:Paint.Style.STROKE);
                         paint.setStrokeWidth(shape.width());canvas.drawPath(shape.path(),paint);
                     }
                 }
             }
+            if(symbol.flags()!=0)badge(canvas);
         } finally { canvas.restoreToCount(save); }
+    }
+    private void centeredText(Canvas canvas,String text,float cx,float cy) {
+        paint.setTextAlign(Paint.Align.LEFT);paint.getTextBounds(text,0,text.length(),numeralBounds);
+        canvas.drawText(text,cx-(numeralBounds.left+numeralBounds.right)/2f,cy-(numeralBounds.top+numeralBounds.bottom)/2f,paint);
+    }
+    private static final Path SLASH=PathParser.createPathFromPathData("M3,3 L21,21");
+    private void badge(Canvas canvas) {
+        opacity(1);paint.setStyle(Paint.Style.FILL);paint.setTypeface(NUMERALS);paint.setTextSize(8f);
+        if((symbol.flags()&IosStatusIcons.ROAMING)!=0)centeredText(canvas,"R",3.5f,6);
+        if((symbol.flags()&IosStatusIcons.WARNING)!=0)centeredText(canvas,"!",21,17);
+        if((symbol.flags()&IosStatusIcons.NO_VOICE)!=0) {
+            paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1.5f);canvas.drawPath(SLASH,paint);
+        }
+        if((symbol.flags()&IosStatusIcons.CONNECTING)!=0) {
+            paint.setStyle(Paint.Style.FILL);canvas.drawCircle(20,20,1.2f,paint);
+        }
     }
     private void opacity(float fraction) { paint.setAlpha(Math.round(alpha*Color.alpha(color)/255f*fraction)); }
     private void wifi(Canvas canvas) {
@@ -136,16 +196,20 @@ final class IosIconDrawable extends Drawable {
     @Override public int getIntrinsicHeight() { return 24; }
 
     /** Retain the native drawable and its metrics/state so switching off is exact and immediate. */
-    static final class Replacement extends DrawableWrapper {
+    static final class Replacement extends DrawableWrapper implements android.graphics.drawable.Animatable {
         private IosIconDrawable icon;
         private final String hit;
-        private final int stackedSize;
+        private int densitySize;
+        boolean density(float density) { int pixels=Math.round(20*density);boolean changed=pixels!=densitySize;densitySize=pixels;return changed; }
+        @Override public void start() { if(getDrawable() instanceof android.graphics.drawable.Animatable animation)animation.start(); }
+        @Override public void stop() { if(getDrawable() instanceof android.graphics.drawable.Animatable animation)animation.stop(); }
+        @Override public boolean isRunning() { return getDrawable() instanceof android.graphics.drawable.Animatable animation && animation.isRunning(); }
         Replacement(Drawable nativeIcon, IosStatusIcons.Symbol symbol) {
             this(nativeIcon,symbol,0);
         }
         Replacement(Drawable nativeIcon, IosStatusIcons.Symbol symbol,int stackedSize) {
             super(nativeIcon);icon=new IosIconDrawable(symbol);
-            this.stackedSize=stackedSize;
+            this.densitySize=stackedSize;
             hit=symbol.row()>0?"stacked":symbol.kind().name().toLowerCase(java.util.Locale.ROOT);
             icon.setAlpha(nativeIcon.getAlpha());icon.setColorFilter(nativeIcon.getColorFilter());
         }
@@ -160,8 +224,9 @@ final class IosIconDrawable extends Drawable {
         @Override public void setTintList(ColorStateList tint) { super.setTintList(tint);if(icon!=null)icon.setTintList(tint); }
         @Override protected boolean onStateChange(int[] state) { boolean changed=super.onStateChange(state);return (icon!=null&&icon.setState(state))||changed; }
         @Override public boolean isStateful() { return super.isStateful() || (icon!=null&&icon.isStateful()); }
-        @Override public int getIntrinsicWidth() { return stackedSize>0&&IosStatusIcons.active(ShadeHook.snapshot())?stackedSize:super.getIntrinsicWidth(); }
-        @Override public int getIntrinsicHeight() { return stackedSize>0&&IosStatusIcons.active(ShadeHook.snapshot())?stackedSize:super.getIntrinsicHeight(); }
+        @Override public int getIntrinsicWidth() { return densitySize>0&&IosStatusIcons.active(ShadeHook.snapshot())?Math.round(cellWidth(icon.symbol)*densitySize/20f):super.getIntrinsicWidth(); }
+        @Override public int getIntrinsicHeight() { return densitySize>0&&IosStatusIcons.active(ShadeHook.snapshot())?densitySize:super.getIntrinsicHeight(); }
+        IosStatusIcons.Symbol symbol() { return icon.symbol; }
         @Override public ConstantState getConstantState() { return null; }
     }
 }

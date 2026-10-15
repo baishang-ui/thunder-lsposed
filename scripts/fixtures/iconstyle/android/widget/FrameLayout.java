@@ -1,1 +1,1 @@
-package android.widget;public class FrameLayout extends android.view.ViewGroup {public static class LayoutParams extends android.view.ViewGroup.LayoutParams {public int gravity;public LayoutParams(int w,int h,int gravity){super(w,h);this.gravity=gravity;}}}
+package android.widget;public class FrameLayout extends android.view.ViewGroup {public static class LayoutParams extends android.view.ViewGroup.MarginLayoutParams {public int gravity;public LayoutParams(int w,int h,int gravity){super(w,h);this.gravity=gravity;}}}

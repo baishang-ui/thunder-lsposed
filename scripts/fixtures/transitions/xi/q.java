@@ -1,1 +1,0 @@
-package xi;import android.view.SurfaceControl;import android.graphics.Matrix;public class q{public SurfaceControl.Transaction a=new SurfaceControl.Transaction();public static class b{public SurfaceControl a;public q b;public b(q owner,SurfaceControl target){a=target;b=owner;}public b i(Matrix m){b.a.setMatrix(a,m,new float[9]);return this;}}}

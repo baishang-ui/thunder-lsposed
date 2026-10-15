@@ -41,6 +41,9 @@ final class IosIconAssets {
             case PERFORMANCE -> new IosStatusIcons.Stroke[] {
                 new IosStatusIcons.Stroke("M13.5,2.5 L5.6,13 L11,13 L10.5,21.5 L18.4,10.5 L13,10.5 Z", 0.0f, 1f, 0f, 0f, true),
             };
+            case REVERSE_CHARGE -> new IosStatusIcons.Stroke[] {
+                new IosStatusIcons.Stroke("M5,8 L19,8 M15,4 L19,8 L15,12 M19,16 L5,16 M9,12 L5,16 L9,20", 1.7f, 1f, 0f, 0f, true),
+            };
             case AIRPLANE -> new IosStatusIcons.Stroke[] {
                 new IosStatusIcons.Stroke("M2,10.5 L9,10.5 L5.5,3 L8,3 L14,10.5 L20,10.5 C22.7,10.5 22.7,13.5 20,13.5 L14,13.5 L8,21 L5.5,21 L9,13.5 L2,13.5 L1,17 L0,17 L0,7 L1,7 Z", 0.0f, 1f, 0f, 0f, true),
             };
@@ -65,7 +68,85 @@ final class IosIconAssets {
                 new IosStatusIcons.Stroke("M3.3,5.5 L21.2,5.5 C23.55,5.5 24.5,6.45 24.5,8.8 L24.5,15.2 C24.5,17.55 23.55,18.5 21.2,18.5 L3.3,18.5 C.95,18.5 0,17.55 0,15.2 L0,8.8 C0,6.45 .95,5.5 3.3,5.5 Z", 0.0f, 1f, 0f, 0f, true),
                 new IosStatusIcons.Stroke("M25.5,9.5 C27.5,9.9 27.5,14.1 25.5,14.5 Z", 0.0f, 1f, 0f, 0f, true),
             };
+            case CAST -> new IosStatusIcons.Stroke[] {
+                new IosStatusIcons.Stroke("M3,5 L21,5 L21,17 L13,17 M3,12 C6.9,12 10,15.1 10,19 M3,15.5 C4.9,15.5 6.5,17.1 6.5,19", 1.7f, 1f, 0f, 0f, true),
+                new IosStatusIcons.Stroke("M3,18 L4,18 L4,19 L3,19 Z", 0.0f, 1f, 0f, 0f, true),
+            };
+            case ETHERNET -> new IosStatusIcons.Stroke[] {
+                new IosStatusIcons.Stroke("M5,4 L19,4 L19,15 L16,15 L16,19 L8,19 L8,15 L5,15 Z M8,7 L8,10 M12,7 L12,10 M16,7 L16,10", 1.6f, 1f, 0f, 0f, true),
+            };
+            case WORK -> new IosStatusIcons.Stroke[] {
+                new IosStatusIcons.Stroke("M8,7 L8,4.5 L16,4.5 L16,7 M3,8 L21,8 L21,19 L3,19 Z M3,12 L21,12 M10,12 L10,14 L14,14 L14,12", 1.6f, 1f, 0f, 0f, true),
+            };
+            case DATA_SAVER -> new IosStatusIcons.Stroke[] {
+                new IosStatusIcons.Stroke("M12,3 C7.03,3 3,7.03 3,12 C3,16.97 7.03,21 12,21 C16.97,21 21,16.97 21,12 C21,7.03 16.97,3 12,3 Z M8,12 L16,12 M12,8 L12,16", 1.7f, 1f, 0f, 0f, true),
+            };
+            case TTY -> new IosStatusIcons.Stroke[] {
+                new IosStatusIcons.Stroke("M4,4 L4,9 C4,11 5,12 7,12 M4,4 L6,4 M7,12 L7,14 M10,5 L20,5 M10,9 L20,9 M4,18 L5,18 M8,18 L9,18 M12,18 L13,18 M16,18 L17,18 M20,18 L21,18", 1.7f, 1f, 0f, 0f, true),
+            };
+            case CAMERA -> new IosStatusIcons.Stroke[] {
+                new IosStatusIcons.Stroke("M3,7 L7,7 L9,4.5 L15,4.5 L17,7 L21,7 L21,19 L3,19 Z M15.5,12.5 C15.5,10.57 13.93,9 12,9 C10.07,9 8.5,10.57 8.5,12.5 C8.5,14.43 10.07,16 12,16 C13.93,16 15.5,14.43 15.5,12.5 Z", 1.7f, 1f, 0f, 0f, true),
+            };
+            case MICROPHONE -> new IosStatusIcons.Stroke[] {
+                new IosStatusIcons.Stroke("M9,5 C9,1.8 15,1.8 15,5 L15,11 C15,14.2 9,14.2 9,11 Z M6,10 L6,11 C6,19 18,19 18,11 L18,10 M12,17 L12,21 M9,21 L15,21", 1.7f, 1f, 0f, 0f, true),
+            };
+            case RECORDING -> new IosStatusIcons.Stroke[] {
+                new IosStatusIcons.Stroke("M12,3 C7.03,3 3,7.03 3,12 C3,16.97 7.03,21 12,21 C16.97,21 21,16.97 21,12 C21,7.03 16.97,3 12,3 Z", 1.7f, 1f, 0f, 0f, true),
+                new IosStatusIcons.Stroke("M12,7 C9.24,7 7,9.24 7,12 C7,14.76 9.24,17 12,17 C14.76,17 17,14.76 17,12 C17,9.24 14.76,7 12,7 Z", 0.0f, 1f, 0f, 0f, true),
+            };
+            case STEALTH -> new IosStatusIcons.Stroke[] {
+                new IosStatusIcons.Stroke("M3,12 C8,4 16,4 21,12 C16,20 8,20 3,12 M10,10 C14,6 18,14 14,14 M3,3 L21,21", 1.7f, 1f, 0f, 0f, true),
+            };
+            case ACTIVITY -> new IosStatusIcons.Stroke[] {
+                new IosStatusIcons.Stroke("M8,5 L8,19 M4.5,15.5 L8,19 L11.5,15.5", 1.65f, 1f, 0f, 0f, true),
+                new IosStatusIcons.Stroke("M16,19 L16,5 M12.5,8.5 L16,5 L19.5,8.5", 1.65f, 1f, 0f, 0f, true),
+            };
+            case ACTIVITY_IN -> new IosStatusIcons.Stroke[] {
+                new IosStatusIcons.Stroke("M8,5 L8,19 M4.5,15.5 L8,19 L11.5,15.5", 1.65f, 1f, 0f, 0f, true),
+            };
+            case ACTIVITY_OUT -> new IosStatusIcons.Stroke[] {
+                new IosStatusIcons.Stroke("M16,19 L16,5 M12.5,8.5 L16,5 L19.5,8.5", 1.65f, 1f, 0f, 0f, true),
+            };
+            case NO_SERVICE -> new IosStatusIcons.Stroke[] {
+                new IosStatusIcons.Stroke("M3,14 L5,14 L5,19 L3,19 Z M8,11 L10,11 L10,19 L8,19 Z M13,8 L15,8 L15,19 L13,19 Z M18,5 L20,5 L20,19 L18,19 Z", 0.0f, 1f, 0f, 0f, true),
+                new IosStatusIcons.Stroke("M2,3 L22,21", 1.7f, 1f, 0f, 0f, true),
+            };
             default -> new IosStatusIcons.Stroke[0];
+        };
+    }
+    static float[] bounds(IosStatusIcons.Kind kind) {
+        return switch(kind) {
+            case BLUETOOTH -> new float[]{6.0750f,2.0750f,17.9250f,21.9250f};
+            case SILENT -> new float[]{3.0000f,3.0000f,21.0000f,21.0000f};
+            case VIBRATE -> new float[]{2.7000f,4.2000f,21.3000f,19.8000f};
+            case NFC -> new float[]{4.1000f,4.1000f,19.9000f,19.9000f};
+            case ALARM -> new float[]{1.4000f,1.0000f,22.6000f,22.0000f};
+            case MOON -> new float[]{2.9000f,2.0000f,20.2000f,21.8000f};
+            case HOTSPOT -> new float[]{1.1000f,5.1000f,22.9000f,18.9000f};
+            case ROTATION -> new float[]{2.5000f,2.4000f,22.0000f,21.3000f};
+            case HEADPHONES -> new float[]{2.5000f,1.9000f,21.5000f,20.0000f};
+            case PERFORMANCE -> new float[]{5.6000f,2.5000f,18.4000f,21.5000f};
+            case REVERSE_CHARGE -> new float[]{4.1500f,3.1500f,19.8500f,20.8500f};
+            case AIRPLANE -> new float[]{0.0000f,3.0000f,22.7000f,21.0000f};
+            case LOCATION -> new float[]{3.1000f,3.2000f,21.3000f,21.5000f};
+            case WIFI -> new float[]{2.0000f,3.3800f,22.0000f,18.7000f};
+            case CELLULAR -> new float[]{1.0000f,5.4000f,23.0000f,18.6000f};
+            case VPN -> new float[]{-0.0035f,6.0319f,24.0319f,17.9799f};
+            case BATTERY -> new float[]{0.0000f,5.5000f,27.5000f,18.5000f};
+            case CAST -> new float[]{2.1500f,4.1500f,21.8500f,19.8500f};
+            case ETHERNET -> new float[]{4.2000f,3.2000f,19.8000f,19.8000f};
+            case WORK -> new float[]{2.2000f,3.7000f,21.8000f,19.8000f};
+            case DATA_SAVER -> new float[]{2.1500f,2.1500f,21.8500f,21.8500f};
+            case TTY -> new float[]{3.1500f,3.1500f,21.8500f,18.8500f};
+            case CAMERA -> new float[]{2.1500f,3.6500f,21.8500f,19.8500f};
+            case MICROPHONE -> new float[]{5.1500f,0.9500f,18.8500f,21.8500f};
+            case RECORDING -> new float[]{2.1500f,2.1500f,21.8500f,21.8500f};
+            case STEALTH -> new float[]{2.1500f,2.1500f,21.8500f,21.8500f};
+            case ACTIVITY -> new float[]{3.6750f,4.1750f,20.3250f,19.8250f};
+            case ACTIVITY_IN -> new float[]{3.6750f,4.1750f,12.3250f,19.8250f};
+            case ACTIVITY_OUT -> new float[]{11.6750f,4.1750f,20.3250f,19.8250f};
+            case NO_SERVICE -> new float[]{1.1500f,2.1500f,22.8500f,21.8500f};
+            default -> new float[]{0,0,24,24};
         };
     }
     static IosStatusIcons.Stroke[] stacked(int row) {

@@ -34,10 +34,10 @@ internal data class VolumeSettings(
 
 @Composable internal fun VolumeSettingsControls(value: VolumeSettings, change: (VolumeSettings) -> Unit) {
     SettingsGroup {
-        LiquidSwitchRow("跟随音量条展开", "从当前音量条旁展开小面板，自动避让屏幕边缘", value.compact) { change(value.copy(compact = it)) }
+        LiquidSwitchRow("跟随音量条展开", "保留系统展开与收起动画，在当前音量条位置向内展开小面板", value.compact) { change(value.copy(compact = it)) }
     }
     SettingsGroup {
-        LiquidSwitchRow("自定义音量条尺寸", "宽度与长度独立调节", value.size) { change(value.copy(size = it)) }
+        LiquidSwitchRow("自定义音量条尺寸", "调节原生音量条宽度与长度，保留按压变形", value.size) { change(value.copy(size = it)) }
         if (value.size) {
             LiquidValueSlider("音量条宽度", value.width, 32..96, " dp") { change(value.copy(width = it)) }
             LiquidValueSlider("音量条长度", value.height, 120..400, " dp") { change(value.copy(height = it)) }
@@ -45,7 +45,7 @@ internal data class VolumeSettings(
     }
     AreaControls("音量条材质", value.bar) { change(value.copy(bar = it)) }
     SettingsGroup {
-        LiquidSwitchRow("自定义按钮尺寸", "展开、应用音量及字幕等侧边按钮", value.buttonSize) { change(value.copy(buttonSize = it)) }
+        LiquidSwitchRow("自定义按钮尺寸", "展开、应用音量、字幕及面板内的设置按钮", value.buttonSize) { change(value.copy(buttonSize = it)) }
         if (value.buttonSize) LiquidValueSlider("按钮大小", value.button, 36..72, " dp") { change(value.copy(button = it)) }
     }
     AreaControls("按钮材质", value.buttons) { change(value.copy(buttons = it)) }

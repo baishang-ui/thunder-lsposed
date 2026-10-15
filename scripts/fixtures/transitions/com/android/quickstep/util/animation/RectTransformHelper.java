@@ -1,1 +1,0 @@
-package com.android.quickstep.util.animation;public class RectTransformHelper{public android.graphics.Rect source=com.android.server.wm.WindowManagerService.bounds();public android.graphics.Rect f(){return source;}}
