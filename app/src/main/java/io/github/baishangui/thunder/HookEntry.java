@@ -10,10 +10,17 @@ public final class HookEntry extends XposedModule {
         processName = param.getProcessName();
     }
     @Override public void onPackageReady(PackageReadyParam param) {
-        if (!"com.android.systemui".equals(processName)
-                || !"com.android.systemui".equals(param.getPackageName())
-                || !param.isFirstPackage() || Build.VERSION.SDK_INT != 37) return;
-        Api102Runtime.bind(this);
-        ShadeHook.install(param.getPackageName(), processName, param.getClassLoader());
+        if (Build.VERSION.SDK_INT != 37) return;
+        String packageName = param.getPackageName();
+        boolean host = "com.android.systemui".equals(processName);
+        boolean plugin = "com.oplus.systemui.plugins".equals(processName);
+        if (host && "com.android.systemui".equals(packageName) && param.isFirstPackage()) {
+            Api102Runtime.bind(this);
+            ShadeHook.install(packageName, processName, param.getClassLoader());
+        } else if ((host || plugin) && "com.oplus.systemui.plugins".equals(packageName)) {
+            // A plugin can be a secondary package in SystemUI or own its process.
+            Api102Runtime.bind(this);
+            ShadeHook.installCloud(packageName, processName, param.getClassLoader());
+        }
     }
 }

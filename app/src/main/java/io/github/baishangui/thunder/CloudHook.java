@@ -1,6 +1,7 @@
 package io.github.baishangui.thunder;
 
 import android.view.View;
+import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import java.util.Collections;
@@ -12,24 +13,38 @@ final class CloudHook {
     private static final String BASE="com.oplus.systemui.plugins.seedling.";
     private static final Map<ClassLoader,Boolean> installed=Collections.synchronizedMap(new WeakHashMap<>());
     static void watch(ClassLoader host) {
-        Api102Runtime.findAndHookMethod("com.android.systemui.shared.plugins.PluginInstance$PluginFactory",host,
+        bind(host,"loader-create", () -> Api102Runtime.findAndHookMethod("com.android.systemui.shared.plugins.PluginInstance$PluginFactory",host,
             "createClassLoader",new HookCallback() {
                 @Override protected void afterHookedMethod(Param p) {
                     if(p.hasThrowable()||!(p.getResult() instanceof ClassLoader))return;
-                    Object app=Reflect.getObjectField(p.thisObject,"pluginAppInfo");
-                    if("com.oplus.systemui.plugins".equals(Reflect.getObjectField(app,"packageName")))install((ClassLoader)p.getResult());
+                    if(isCloudFactory(p.thisObject))install((ClassLoader)p.getResult());
                 }
-            });
+            }));
+        // Firmware can reuse getCacheClassLoader(), bypassing createClassLoader().
+        // PluginContextWrapper exposes that exact loader before plugin views inflate.
+        bind(host,"loader-context", () -> Api102Runtime.findAndHookMethod("com.android.systemui.shared.plugins.PluginInstance$PluginFactory",host,
+            "createPluginContext",new HookCallback() {
+                @Override protected void afterHookedMethod(Param p) {
+                    if(p.hasThrowable()||!(p.getResult() instanceof Context))return;
+                    if(isCloudFactory(p.thisObject))install(((Context)p.getResult()).getClassLoader());
+                }
+            }));
         Api102Runtime.deoptimizeCallers(Reflect.findClass("com.android.systemui.shared.plugins.PluginInstance$PluginFactory",host),"createPlugin","createPluginContext");
     }
-    private static synchronized void install(ClassLoader loader) {
+    private static boolean isCloudFactory(Object factory) {
+        Object app=Reflect.getObjectField(factory,"pluginAppInfo");
+        return app!=null&&"com.oplus.systemui.plugins".equals(Reflect.getObjectField(app,"packageName"));
+    }
+    static synchronized void install(ClassLoader loader) {
         if(installed.containsKey(loader))return;
+        // Do not mark an unrelated/host loader as installed after failed resolution.
+        Reflect.findClass(BASE+"capsule.ui.view.CapsuleContainer",loader);
         installed.put(loader,true);
         bind(loader,"capsule-height",() -> Api102Runtime.findAndHookMethod(BASE+"capsule.ui.view.CapsuleContainer",loader,"getDefaultMaxHeight",new HookCallback() {
             @Override protected void afterHookedMethod(Param p) {
                 HookConfig c=ShadeHook.snapshot();if(p.hasThrowable()||!c.enabled||!c.cloud||!c.cloudHeightEnabled)return;
                 p.setResult(Math.round(c.cloudHeight*((View)p.thisObject).getResources().getDisplayMetrics().density));
-                ShadeHook.resourceHit("cloud-height");
+                ShadeHook.observed("cloud-height",c.cloudHeight+"dp");
             }
         }));
         for(String method:new String[]{"onFinishInflate","onAttachedToWindow"})bind(loader,"capsule-"+method,() ->
@@ -64,7 +79,7 @@ final class CloudHook {
                         applyMaterial(view,manager,c);
                         if(c.cloudArea.blur)Reflect.callMethod(manager,"setBlurRadius",c.cloudArea.radius);
                     } else if(c.cloudCornerEnabled)round(view.getBackground(),c.cloudCorner*view.getResources().getDisplayMetrics().density);
-                    ShadeHook.resourceHit("cloud-card");
+                    ShadeHook.observed("cloud-card","corner="+(c.cloudCornerEnabled?c.cloudCorner:"system")+"dp radius="+(c.cloudArea.blur?c.cloudArea.radius:"system")+" ARGB="+(c.cloudArea.tint?Integer.toHexString(c.cloudArea.color):"system"));
                 }
             };
             bind(loader,"card-"+method,() -> {
@@ -101,6 +116,6 @@ final class CloudHook {
         if(drawable instanceof GradientDrawable)((GradientDrawable)drawable.mutate()).setCornerRadius(radius);
     }
     private static void bind(ClassLoader loader,String key,Runnable action) {
-        try {action.run();}catch(Throwable error){ShadeHook.frameworkFailure("cloud-"+key,error);}
+        try {action.run();ShadeHook.hookRegistered("cloud-"+key);}catch(Throwable error){ShadeHook.frameworkFailure("cloud-"+key,error);}
     }
 }

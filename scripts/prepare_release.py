@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import re
 import sys
+import zipfile
 
 metadata_path = Path(sys.argv[1])
 tag = sys.argv[2]
@@ -18,6 +19,11 @@ assert tag == f'v{version}', f'Tag {tag} does not match APK version v{version}'
 assert isinstance(element['versionCode'], int) and element['versionCode'] > 0
 apk = metadata_path.parent / element['outputFile']
 assert apk.is_file(), 'Built APK is missing'
+with zipfile.ZipFile(apk) as archive:
+    scope = archive.read('META-INF/xposed/scope.list').decode().splitlines()
+    assert set(scope) == {'com.android.systemui', 'com.oplus.systemui.plugins'}, 'APK is missing a required SystemUI scope'
+    entry = archive.read('META-INF/xposed/java_init.list').decode().strip()
+    assert entry == 'io.github.baishangui.thunder.HookEntry', 'Unexpected module entry'
 values = {'version': version, 'version_code': str(element['versionCode']),
           'apk': str(apk), 'asset': f'thunder-{tag}.apk',
           'prerelease': str('-' in version).lower()}
