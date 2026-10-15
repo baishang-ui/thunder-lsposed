@@ -1,0 +1,16 @@
+Kyant0 Backdrop / AndroidLiquidGlass 1.0.6, Shapes 1.2.0 — Copyright Kyant (Kyant0)
+https://github.com/Kyant0/AndroidLiquidGlass
+Apache License 2.0 (backdrop.txt).
+The four Liquid components and their helpers reuse the author's Catalog source,
+with application theme, optical preference and accessibility adaptations.
+Full source provenance and changes: THIRD_PARTY.md in the source release.
+
+Miuix 0.9.0 — Copyright compose-miuix-ui contributors
+https://github.com/compose-miuix-ui/miuix
+Apache License 2.0 (miuix.txt).
+Other dependencies: AndroidX, Kotlin, kotlinx.coroutines.
+
+libxposed API / Service 102.0.0 — Copyright libxposed contributors
+https://github.com/libxposed/api
+https://github.com/libxposed/service
+Apache License 2.0 (libxposed.txt).

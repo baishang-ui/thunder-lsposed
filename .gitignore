@@ -1,0 +1,30 @@
+# Local archives, diagnostics, toolchains and signed outputs
+/.local/
+/archive/
+/dist/
+
+# Android / Gradle / IDE output
+.gradle/
+.kotlin/
+**/build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Signing material must stay local
+*.jks
+*.keystore
+*.pem
+*.p12
+*.pfx
+keystore.properties
+
+# Packaged artifacts (the Gradle wrapper JAR is intentionally tracked)
+*.apk
+*.aab
+*.apks
+*.zip
+*.tar.gz

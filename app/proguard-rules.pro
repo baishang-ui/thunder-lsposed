@@ -1,0 +1,4 @@
+-keep class pui.c17.shade.HookEntry { *; }
+-keep class pui.c17.shade.ShadeHook { *; }
+-keep class pui.c17.shade.ShadeHook$* { *; }
+-keep class pui.c17.shade.SettingsProvider { *; }
