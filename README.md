@@ -2,7 +2,7 @@
 
 适用于 ColorOS 17 的独立 LSPosed 模块，调整 SystemUI 的下拉背景、通知横幅、通知边距、流体云外观与状态栏图标显示。设置自动保存，改动的组件旁可回退。
 
-当前版本 **6.0 / versionCode 11**，应用包名及源码命名空间统一为 `io.github.baishangui.thunder`，配置格式为 `thunder.settings`。
+当前版本 **7.0 / versionCode 12**，应用包名及源码命名空间统一为 `io.github.baishangui.thunder`，配置格式为 `thunder.settings`。
 
 ## 环境要求
 
@@ -101,8 +101,8 @@ tag（标签）用于给某个提交固定版本名，例如 `v4.6`，方便定�
 
 发布步骤：
 
-1. 更新 `app/build.gradle.kts` 中的 `versionName` 与递增的 `versionCode`，提交并推送。`versionName` 不带 `v` 前缀，例如 `"5.0"`。
-2. 创建 `v` + `versionName` 的版本标签，例如 `git tag v5.0`，再执行 `git push origin v5.0`。
+1. 更新 `app/build.gradle.kts` 中的 `versionName` 与递增的 `versionCode`，提交并推送。`versionName` 不带 `v` 前缀，使用 `主版本.次版本` 或 `主版本.次版本.补丁版本` 格式，例如 `"7.0"`。
+2. 在版本更新提交上创建 `v` + `versionName` 的版本标签，例如 `git tag v7.0`，再执行 `git push origin v7.0`。标签必须与 APK 版本完全一致，`v7` 不能替代 `v7.0`；标签指向旧提交时，只更新 `main` 或重新运行旧标签的工作流不会更新其 APK 版本。
 3. 工作流核对包名、APK 版本与标签，全部检查通过后使用正式密钥签名、验证签名及 16 KB 对齐，并发布 [GitHub Release](../../releases)，包含 APK 和 SHA-256 校验文件。
 
 也可以在已有标签上手动运行工作流。带 `-` 的版本标记为预发布；已发布的版本不覆盖，应递增版本后发布。发布失败留下的草稿可以通过重新运行工作流继续上传并发布。

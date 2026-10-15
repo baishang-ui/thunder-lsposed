@@ -24,7 +24,15 @@ def paths(kind):
 
 
 def bounds(kind):
-    # All project paths use absolute M/L/C/H/V/Z; control hull matches Android Path bounds.
+    # True cubic extrema, rather than the (often much taller) control-point hull.
+    def extrema(p0,p1,p2,p3):
+        a=-p0+3*p1-3*p2+p3; b=2*(p0-2*p1+p2); c=p1-p0
+        roots=[]
+        if abs(a)<1e-9:
+            if abs(b)>1e-9: roots=[-c/b]
+        elif b*b-4*a*c>=0:
+            d=(b*b-4*a*c)**.5; roots=[(-b+d)/(2*a),(-b-d)/(2*a)]
+        return [p0,p3]+[(1-t)**3*p0+3*(1-t)**2*t*p1+3*(1-t)*t*t*p2+t**3*p3 for t in roots if 0<t<1]
     points = []
     for data, width, scale, dx, dy, _ in paths(kind):
         tokens = re.findall(r'[MLCHVZ]|[-+]?(?:\d*\.)?\d+(?:[eE][-+]?\d+)?', data)
@@ -37,6 +45,9 @@ def bounds(kind):
             coords = [float(v) for v in tokens[i:i+count]]; i += count
             if command == 'H': x = coords[0]; pairs = [(x,y)]
             elif command == 'V': y = coords[0]; pairs = [(x,y)]
+            elif command == 'C':
+                xs=extrema(x,coords[0],coords[2],coords[4]);ys=extrema(y,coords[1],coords[3],coords[5])
+                pairs=[(min(xs),min(ys)),(max(xs),max(ys))];x,y=coords[-2:]
             else:
                 pairs = list(zip(coords[::2],coords[1::2])); x,y = pairs[-1]
             for px,py in pairs:
@@ -44,6 +55,14 @@ def bounds(kind):
                 points += [(px*scale+dx-radius,py*scale+dy-radius),(px*scale+dx+radius,py*scale+dy+radius)]
     if not points: return (0,0,24,24)
     return (min(p[0] for p in points),min(p[1] for p in points),max(p[0] for p in points),max(p[1] for p in points))
+
+
+def metrics(kind, stacked=False):
+    # One fixed design scale per family. States never participate in measurement.
+    x1,y1,x2,y2=(1,3.75,23,20.25) if stacked else bounds(kind)
+    scale=18/22 if stacked or kind in ('CELLULAR','NO_SERVICE') else .9 if kind=='WIFI' else .62 if kind.startswith('ACTIVITY') else .8
+    cy=12 if stacked else 10.65 if kind in ('CELLULAR','NO_SERVICE') else 12.0
+    return ((x2-x1)*scale+3,scale,(x1+x2)/2,cy)
 
 
 def generate_java():
@@ -62,6 +81,13 @@ def generate_java():
         values = ','.join(f'{v:.4f}f' for v in bounds(kind))
         lines.append(f'            case {kind} -> new float[]{{{values}}};')
     lines += ['            default -> new float[]{0,0,24,24};', '        };', '    }',
+              '    /** Cell width, design scale, optical center x/y. Independent of level and badges. */',
+              '    static float[] metrics(IosStatusIcons.Kind kind, boolean stacked) {',
+              '        if(stacked)return new float[]{21f,0.8181818f,12f,12f};', '        return switch(kind) {']
+    for kind in ICONS:
+        values=','.join(f'{v:.6f}f' for v in metrics(kind))
+        lines.append(f'            case {kind} -> new float[]{{{values}}};')
+    lines += ['            default -> new float[]{21f,.8f,12f,12f};', '        };', '    }',
               '    static IosStatusIcons.Stroke[] stacked(int row) {', '        return switch(row) {']
     for row in [1,2]:
         lines.append(f'            case {row} -> new IosStatusIcons.Stroke[] {{')
@@ -98,36 +124,35 @@ def stacked_signal(primary=3, secondary=2):
 
 
 def battery(level=75, charging=False, name='battery', dark=False):
-    ink = '#17191d' if dark or charging else '#fff'
-    font_size = (9.4 if level == 100 else 10.6) if charging else (11.2 if level == 100 else 12)
-    center = 10.6 if charging else 12.25
+    ink = '#17191d' if dark else '#fff'
+    font_size = (8.2 if level == 100 else 9.6) if charging else (9.5 if level == 100 else 10.4)
+    center = 10.3 if charging else 12.25
     shape_paths=paths('BATTERY')
     body=''.join(f'<path d="{data}" fill="currentColor" opacity="{1 if index==0 else .5}"/>' for index,(data,*_) in enumerate(shape_paths))
     body+=f'<text x="{center}" y="{12 + font_size * .355}" text-anchor="middle" font-family="Arial,sans-serif" font-size="{font_size}" font-weight="700" fill="{ink}">{level}</text>'
     if charging:
-        body += f'<g transform="translate(19.4 8.3) scale(.18 .31)" color="{ink}">' + symbol('PERFORMANCE') + '</g>'
+        body += f'<g transform="translate(18.6 7.1) scale(.24 .45)" color="{ink}">' + symbol('PERFORMANCE') + '</g>'
     return body
 
 
 def cell_width(kind, stacked=False, flags=0, text=''):
     if kind == 'BATTERY': return 30
     if kind == 'LABEL': return max(9,min(52,len(text)*6.3))+3
-    x1,y1,x2,y2 = (1,3.75,23,20.25) if stacked else (1,1,23,22) if flags else bounds(kind)
-    return (x2-x1)*min(18/(x2-x1),(12 if kind.startswith('ACTIVITY') else 16)/(y2-y1))+3
+    return metrics(kind,stacked)[0]
 
 
 def cell(kind, level=4, stacked=False, flags=0, text='', charging=False, dark=False):
     width=cell_width(kind,stacked,flags,text)
     if kind == 'BATTERY': return f'<g transform="translate(1.5 -2)">{battery(level,charging,dark=dark)}</g>'
     if kind == 'LABEL': return f'<text x="{width/2}" y="13.55" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" font-weight="700" fill="currentColor">{html.escape(text)}</text>'
-    x1,y1,x2,y2=(1,3.75,23,20.25) if stacked else (1,1,23,22) if flags else bounds(kind)
-    scale=min(18/(x2-x1),(12 if kind.startswith('ACTIVITY') else 16)/(y2-y1))
+    _,scale,cx,cy=metrics(kind,stacked)
     content=stacked_signal() if stacked else symbol(kind,level)
-    if flags & 1: content+='<text x="21" y="20" text-anchor="middle" font-size="8" font-weight="700" fill="currentColor">!</text>'
-    if flags & 2: content+='<text x="3.5" y="9" text-anchor="middle" font-size="8" font-weight="700" fill="currentColor">R</text>'
-    if flags & 4: content+='<path d="M3,3 L21,21" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'
-    if flags & 8: content+='<circle cx="20" cy="20" r="1.2" fill="currentColor"/>'
-    return f'<g transform="translate({width/2-(x1+x2)*scale/2} {10-(y1+y2)*scale/2}) scale({scale})">{content}</g>'
+    x1,_,x2,_=bounds(kind)
+    if flags & 1: content+=f'<text x="{x2-.5}" y="21" text-anchor="middle" font-size="8" font-weight="700" fill="currentColor">!</text>'
+    if flags & 2: content+=f'<text x="{x1+2.5}" y="9" text-anchor="middle" font-size="8" font-weight="700" fill="currentColor">R</text>'
+    if flags & 4: content+=f'<path d="M{x1},3 L{x2},21" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'
+    if flags & 8: content+=f'<circle cx="{x2}" cy="20" r="1.2" fill="currentColor"/>'
+    return f'<g transform="translate({width/2-cx*scale} {10-cy*scale}) scale({scale})">{content}</g>'
 
 
 def generate_preview():

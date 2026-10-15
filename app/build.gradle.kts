@@ -10,8 +10,8 @@ android {
   applicationId = "io.github.baishangui.thunder"
   minSdk = 37
   targetSdk = 37
-  versionCode = 11
-  versionName = "6.0"
+  versionCode = 13
+  versionName = "8.0"
  }
  buildFeatures { compose = true; buildConfig = true }
  compileOptions {

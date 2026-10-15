@@ -20,6 +20,15 @@ public final class IosCoverageCheck {
    check(c.depth==0 && (!c.operations.isEmpty() || n.contains("activity_")),"drawable geometry exists: "+n);
   }
   float previousRight=Float.NaN,x=0;
+  for(var kind:new IosStatusIcons.Kind[]{IosStatusIcons.Kind.WIFI,IosStatusIcons.Kind.CELLULAR,IosStatusIcons.Kind.BLUETOOTH}) {
+   var plain=new IosStatusIcons.Symbol(kind);var original=new IosIconDrawable(plain);original.setBounds(0,0,210,200);
+   Canvas before=new Canvas();original.draw(before);
+   for(int flag:new int[]{IosStatusIcons.WARNING,IosStatusIcons.ROAMING,IosStatusIcons.NO_VOICE,IosStatusIcons.CONNECTING}) {
+    var marked=plain.marked(flag);var changed=new IosIconDrawable(marked);changed.setBounds(0,0,210,200);Canvas after=new Canvas();changed.draw(after);
+    check(IosIconDrawable.cellWidth(plain)==IosIconDrawable.cellWidth(marked),"status changes keep cell width: "+kind+"/"+flag);
+    check(java.util.Arrays.equals(before.pathBounds.get(0),after.pathBounds.get(0)),"status changes keep base glyph position and size: "+kind+"/"+flag);
+   }
+  }
   for(var kind:new IosStatusIcons.Kind[]{IosStatusIcons.Kind.CELLULAR,IosStatusIcons.Kind.WIFI,IosStatusIcons.Kind.BATTERY}){
    var symbol=new IosStatusIcons.Symbol(kind);float w=IosIconDrawable.cellWidth(symbol);
    var drawable=new IosIconDrawable(symbol);drawable.setBounds(0,0,Math.round(w*10),200);Canvas canvas=new Canvas();drawable.draw(canvas);
@@ -92,6 +101,12 @@ public final class IosCoverageCheck {
   prepare.before(param(statusContainer,0,0));
   check(marker.getTextSize()==27.5f && marker.getGravity()==android.view.Gravity.CENTER,"native text network badge follows common type and baseline");
   check(((FrameLayout.LayoutParams)marker.layout).getMarginStart()>=base.layout.width && spacer.layout.width==0,"text badge receives its own cell and redundant spacer is removed");
+  base.setVisibility(android.view.View.GONE);activity.setVisibility(android.view.View.GONE);
+  prepare.before(param(statusContainer,0,0));
+  check(((FrameLayout.LayoutParams)marker.layout).getMarginStart()==0,"last visible overlay starts at zero after signal and activity disappear");
+  base.setVisibility(android.view.View.VISIBLE);activity.setVisibility(android.view.View.VISIBLE);
+  prepare.before(param(statusContainer,0,0));
+  check(((FrameLayout.LayoutParams)marker.layout).getMarginStart()>=base.layout.width,"returning signal rebuilds adjacent spacing");
   IosRenderPathCheck.config(false);IosStatusBarHook.refresh();
   check(marker.getTextSize()==14 && marker.getTypeface()==originalTypeface && marker.getGravity()==85 && marker.layout.width==7 && spacer.layout.width==12,"native text badge and spacers restored");
   IosRenderPathCheck.config(true);

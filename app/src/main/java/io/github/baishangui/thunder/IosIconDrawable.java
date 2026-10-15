@@ -37,22 +37,22 @@ final class IosIconDrawable extends Drawable {
     }
     private static final float GAP=3f, HEIGHT=20f;
     private static final Map<IosStatusIcons.Kind,float[]> INK=new EnumMap<>(IosStatusIcons.Kind.class);
-    static { for(var kind:IosStatusIcons.Kind.values())INK.put(kind,IosIconAssets.bounds(kind)); }
+    private static final Map<IosStatusIcons.Kind,float[]> METRICS=new EnumMap<>(IosStatusIcons.Kind.class);
+    private static final Map<IosStatusIcons.Kind,Path> SLASHES=new EnumMap<>(IosStatusIcons.Kind.class);
+    private static final float[] STACKED_METRICS=IosIconAssets.metrics(IosStatusIcons.Kind.CELLULAR,true);
+    static { for(var kind:IosStatusIcons.Kind.values()) {
+        INK.put(kind,IosIconAssets.bounds(kind));METRICS.put(kind,IosIconAssets.metrics(kind,false));
+        float[] ink=INK.get(kind);SLASHES.put(kind,PathParser.createPathFromPathData("M"+ink[0]+",3 L"+ink[2]+",21"));
+    } }
     static float cellWidth(IosStatusIcons.Symbol symbol) {
         if(symbol.kind()==IosStatusIcons.Kind.BATTERY)return 30f;
         if(symbol.kind()==IosStatusIcons.Kind.LABEL)return Math.max(9f,Math.min(52f,symbol.label().length()*6.3f))+GAP;
-        float[] ink=ink(symbol);float w=ink[2]-ink[0],h=ink[3]-ink[1];
-        return w*Math.min(18f/w,inkHeight(symbol)/h)+GAP;
-    }
-    private static float inkHeight(IosStatusIcons.Symbol symbol) {
-        return switch(symbol.kind()) {case ACTIVITY, ACTIVITY_IN, ACTIVITY_OUT -> 12f;default -> 16f;};
+        return metrics(symbol)[0];
     }
     static float cellHeight() { return HEIGHT; }
-    private static float[] ink(IosStatusIcons.Symbol symbol) {
-        return symbol.row()>0?STACKED_INK:symbol.flags()!=0?BADGE_INK:INK.get(symbol.kind());
+    private static float[] metrics(IosStatusIcons.Symbol symbol) {
+        return symbol.row()>0?STACKED_METRICS:METRICS.get(symbol.kind());
     }
-    private static final float[] BADGE_INK={1,1,23,22};
-    private static final float[] STACKED_INK={1,3.75f,23,20.25f};
     IosStatusIcons.Symbol symbol() { return symbol; }
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final IosStatusIcons.Symbol symbol;
@@ -78,9 +78,9 @@ final class IosIconDrawable extends Drawable {
                 scale=Math.min(b.width()/cellWidth(symbol),b.height()/HEIGHT);
                 canvas.translate(b.exactCenterX()-cellWidth(symbol)*scale/2,b.exactCenterY()-10*scale);
             } else {
-                float[] ink=ink(symbol);float w=ink[2]-ink[0],h=ink[3]-ink[1];
-                scale=Math.min(b.width()/cellWidth(symbol),b.height()/HEIGHT)*Math.min(18f/w,inkHeight(symbol)/h);
-                canvas.translate(b.exactCenterX()-(ink[0]+ink[2])*scale/2,b.exactCenterY()-(ink[1]+ink[3])*scale/2);
+                float[] metrics=metrics(symbol);
+                scale=Math.min(b.width()/cellWidth(symbol),b.height()/HEIGHT)*metrics[1];
+                canvas.translate(b.exactCenterX()-metrics[2]*scale,b.exactCenterY()-metrics[3]*scale);
             }
             canvas.scale(scale,scale);
             if(symbol.row()>0) {
@@ -130,16 +130,17 @@ final class IosIconDrawable extends Drawable {
         paint.setTextAlign(Paint.Align.LEFT);paint.getTextBounds(text,0,text.length(),numeralBounds);
         canvas.drawText(text,cx-(numeralBounds.left+numeralBounds.right)/2f,cy-(numeralBounds.top+numeralBounds.bottom)/2f,paint);
     }
-    private static final Path SLASH=PathParser.createPathFromPathData("M3,3 L21,21");
     private void badge(Canvas canvas) {
         opacity(1);paint.setStyle(Paint.Style.FILL);paint.setTypeface(NUMERALS);paint.setTextSize(8f);
-        if((symbol.flags()&IosStatusIcons.ROAMING)!=0)centeredText(canvas,"R",3.5f,6);
-        if((symbol.flags()&IosStatusIcons.WARNING)!=0)centeredText(canvas,"!",21,17);
+        float[] ink=INK.get(symbol.kind());
+        if((symbol.flags()&IosStatusIcons.ROAMING)!=0)centeredText(canvas,"R",ink[0]+2.5f,6);
+        if((symbol.flags()&IosStatusIcons.WARNING)!=0)centeredText(canvas,"!",ink[2]-.5f,18);
         if((symbol.flags()&IosStatusIcons.NO_VOICE)!=0) {
-            paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1.5f);canvas.drawPath(SLASH,paint);
+            paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1.5f);
+            canvas.drawPath(SLASHES.get(symbol.kind()),paint);
         }
         if((symbol.flags()&IosStatusIcons.CONNECTING)!=0) {
-            paint.setStyle(Paint.Style.FILL);canvas.drawCircle(20,20,1.2f,paint);
+            paint.setStyle(Paint.Style.FILL);canvas.drawCircle(ink[2],20,1.2f,paint);
         }
     }
     private void opacity(float fraction) { paint.setAlpha(Math.round(alpha*Color.alpha(color)/255f*fraction)); }
@@ -169,18 +170,18 @@ final class IosIconDrawable extends Drawable {
         paint.setColor(color);opacity(.5f);
         c.drawPath(silhouette[1].path(),paint);
         paint.setColor(contrast(batteryColor));paint.setAlpha(alpha);
-        paint.setTypeface(NUMERALS);paint.setTextSize(charging?(symbol.level()==100?9.4f:10.6f):(symbol.level()==100?11.2f:12f));
+        paint.setTypeface(NUMERALS);paint.setTextSize(charging?(symbol.level()==100?8.2f:9.6f):(symbol.level()==100?9.5f:10.4f));
         paint.setTextAlign(Paint.Align.LEFT);
-        // Larger numerals sit optically centered in the filled body, including 0 and 100.
+        // Leave a visible inner inset around the numbers, including 100 and charging.
         String numerals=Integer.toString(symbol.level());
         paint.getTextBounds(numerals,0,numerals.length(),numeralBounds);
         float baseline=12-(numeralBounds.top+numeralBounds.bottom)/2f;
-        float centeredX=(charging?10.6f:12.25f)-(numeralBounds.left+numeralBounds.right)/2f;
+        float centeredX=(charging?10.3f:12.25f)-(numeralBounds.left+numeralBounds.right)/2f;
         c.drawText(numerals,centeredX,baseline,paint);
         if(charging) {
             // Keep the same body width while charging; place the mark inside the silhouette.
             paint.setColor(contrast(batteryColor));paint.setAlpha(alpha);
-            int save=c.save();c.translate(19.4f,8.3f);c.scale(.18f,.31f);
+            int save=c.save();c.translate(18.6f,7.1f);c.scale(.24f,.45f);
             c.drawPath(SHAPES.get(IosStatusIcons.Kind.PERFORMANCE)[0].path(),paint);c.restoreToCount(save);
         }
     }

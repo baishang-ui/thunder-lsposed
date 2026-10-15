@@ -98,7 +98,6 @@ final class IosStatusBarMetrics {
             else if(child instanceof TextView label && metadata.containsKey(label) && label.getVisibility()==View.VISIBLE && label.getText().length()>0)
                 participants.add(label);
         }
-        if(participants.size()<2)return;
         participants.sort(java.util.Comparator.comparingInt(view->{
             if(!(view instanceof ImageView image))return 1;
             var kind=((IosIconDrawable.Replacement)image.getDrawable()).symbol().kind();
