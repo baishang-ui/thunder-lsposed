@@ -29,7 +29,7 @@ class SettingsTest {
     }
     @Test fun wrongVersionOrForeignFormatFails() {
         val root=JSONObject(Settings().json())
-        root.put("version",6)
+        root.put("version",7)
         assertThrows(IllegalArgumentException::class.java) { Settings.parse(root.toString()) }
         root.put("version",3).put("format","other")
         assertThrows(IllegalArgumentException::class.java) { Settings.parse(root.toString()) }
@@ -62,7 +62,8 @@ class SettingsTest {
         val old = JSONObject(Settings(panel=Area(true,78,true,0x557799aa)).json()).put("version",3)
         val data=old.getJSONObject("settings")
         listOf("cloud_height_enabled","cloud_height","cloud_corner_enabled","cloud_corner",
-            "cloud_blur","cloud_radius","cloud_tint","cloud_color","status_bar_hidden_icons").forEach(data::remove)
+            "cloud_blur","cloud_radius","cloud_tint","cloud_color","status_bar_hidden_icons",
+            "qs_card_tint","qs_card_color").forEach(data::remove)
         val migrated=Settings.parse(old.toString())
         assertEquals(78,migrated.panel.radius)
         assertFalse(migrated.cloudHeightEnabled)
@@ -74,6 +75,7 @@ class SettingsTest {
         val settings=Settings(cloudHeightEnabled=true,cloudHeight=41,hiddenStatusIcons=StatusBarIcons.ALL)
         val old=JSONObject(settings.json()).put("version",4)
         old.getJSONObject("settings").remove("status_bar_hidden_icons")
+        old.getJSONObject("settings").apply { remove("qs_card_tint");remove("qs_card_color") }
         assertEquals(settings.copy(hiddenStatusIcons=0),Settings.parse(old.toString()))
     }
     @Test fun statusIconMaskRejectsNegativeAndWrongType() {

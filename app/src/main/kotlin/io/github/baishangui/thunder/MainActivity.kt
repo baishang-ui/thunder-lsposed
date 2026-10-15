@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
             var draft by rememberSaveable(stateSaver=Settings.saver) { mutableStateOf(SettingsWriter.latest ?: saved) }
             var page by rememberSaveable { mutableIntStateOf(0) }
             var section by rememberSaveable { mutableIntStateOf(0) }
-            var restart by rememberSaveable { mutableStateOf(false) }
+            var syncSettings by rememberSaveable { mutableStateOf(false) }
             var reset by rememberSaveable { mutableStateOf(false) }
             var imported by rememberSaveable(stateSaver=Settings.saver) { mutableStateOf(Settings()) }
             var importConfirm by rememberSaveable { mutableStateOf(false) }
@@ -101,7 +101,7 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(writeResult) {
                 writeResult.settings?.let { saved = it }
                 if (writeResult.error != null) message = "自动保存失败：${writeResult.error}"
-                else if (writeResult.settings != null) message = if(writeResult.synced) "已自动保存并同步，重启系统界面后应用" else "已自动保存在本地；${RemoteSettings.status}"
+                else if (writeResult.settings != null) message = if(writeResult.synced) "已自动保存并同步，系统界面将读取新配置" else "已自动保存在本地；${RemoteSettings.status}"
             }
             BackHandler(enabled=page!=0) { page=0 }
             val notificationPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -152,7 +152,7 @@ class MainActivity : ComponentActivity() {
                                             UiText(status.first,17,bold=true)
                                         }
                                         LiquidSwitchRow("启用效果调整","ColorOS 17 · SystemUI",draft.enabled) { draft=draft.copy(enabled=it) }
-                                        UiText(if(message.isNotEmpty()) message else "交互会自动保存，重启系统界面后应用系统效果。",13,muted=true)
+                                        UiText(if(message.isNotEmpty()) message else "交互会自动保存并同步，缓存的界面参数可能需重新展开或重启手机。",13,muted=true)
                                         UiText(if(runtimeDetails) "收起运行报告" else "查看运行报告",13,color=style.accent,
                                             modifier=Modifier.clickable { runtimeDetails=!runtimeDetails })
                                         if(runtimeDetails) {
@@ -175,6 +175,8 @@ class MainActivity : ComponentActivity() {
                                         UiText("当前配置",17,bold=true)
                                         Summary("下拉背景模糊",if(draft.panel.blur) "${draft.panel.radius} px" else "系统默认")
                                         Summary("下拉压暗 / 混色",if(draft.panel.tint) "${alphaPercent(draft.panel.color)}%" else "系统默认")
+                                        Summary("横幅背景混色",if(draft.banner.tint) "${alphaPercent(draft.banner.color)}%" else "系统默认")
+                                        Summary("控制中心卡片混色",if(draft.qsCardTint) "${alphaPercent(draft.qsCardColor)}%" else "系统默认")
                                         Summary("通知左右边距",if(draft.margins) "${draft.margin} dp" else "系统默认")
                                         Summary("流体云",if(draft.cloud) "已启用" else "系统默认")
                                         Summary("状态栏图标",if(draft.hiddenStatusIcons==0) "跟随系统" else "隐藏 ${Integer.bitCount(draft.hiddenStatusIcons)} 项")
@@ -194,7 +196,7 @@ class MainActivity : ComponentActivity() {
                                                 if(area.blur) LiquidValueSlider("模糊半径",area.radius,0..200," px") { change(area.copy(radius=it)) }
                                             }
                                             SettingsGroup {
-                                                LiquidSwitchRow(if(section==0) "调节原有压暗 / 混色" else "自定义横幅混色",
+                                                LiquidSwitchRow(if(section==0) "自定义下拉背景混色" else "自定义横幅背景混色",
                                                     "关闭后恢复系统原有混色",area.tint) { change(area.copy(tint=it)) }
                                                 if(area.tint) {
                                                     LiquidValueSlider(if(section==0) "压暗 / 混色程度" else "混色程度",alphaPercent(area.color),0..100,"%") {
@@ -202,6 +204,20 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                     LiquidColorSetting("混色颜色",area.color) { change(area.copy(color=it)) }
                                                     UiText("黑色用于压暗；透明度为 0% 时无混色。选择其他颜色可改变遮罩色调。",12,muted=true)
+                                                }
+                                            }
+                                            if(section==0) {
+                                                SettingsGroup {
+                                                    UiText("控制中心卡片背景",18,bold=true)
+                                                    LiquidSwitchRow("自定义卡片背景混色","独立于下拉背景和通知横幅",draft.qsCardTint) { draft=draft.copy(qsCardTint=it) }
+                                                    if(draft.qsCardTint) {
+                                                        LiquidValueSlider("卡片混色程度",alphaPercent(draft.qsCardColor),0..100,"%") {
+                                                            draft=draft.copy(qsCardColor=TintColor.withPercent(draft.qsCardColor,it))
+                                                        }
+                                                        LiquidColorSetting("卡片混色颜色",draft.qsCardColor) { draft=draft.copy(qsCardColor=it) }
+                                                        UiText("调整控制中心快捷开关和媒体等卡片的背景。0% 时清除混色，图标仍跟随系统状态显示。",12,muted=true)
+                                                    }
+                                                    LiquidAction("恢复卡片系统背景",Modifier.fillMaxWidth()) { draft=draft.copy(qsCardTint=false) }
                                                 }
                                             }
                                             if(section==1) {
@@ -220,11 +236,11 @@ class MainActivity : ComponentActivity() {
                                             }
                                             SettingsGroup {
                                                 UiText("流体云",18,bold=true)
-                                                LiquidSwitchRow("流体云外观调节","使用 ColorOS 17 原生背景接口",draft.cloud) { draft=draft.copy(cloud=it) }
+                                                LiquidSwitchRow("流体云外观调节","状态栏与锁屏共用外观设置",draft.cloud) { draft=draft.copy(cloud=it) }
                                                 if(draft.cloud) {
                                                     LiquidSwitchRow("自定义流体云高度","关闭时保留融合高度 34 dp",draft.cloudHeightEnabled) { draft=draft.copy(cloudHeightEnabled=it) }
                                                     if(draft.cloudHeightEnabled) LiquidValueSlider("流体云高度",draft.cloudHeight,20..64," dp") { draft=draft.copy(cloudHeight=it) }
-                                                    LiquidSwitchRow("自定义流体云圆角","胶囊和展开卡片的圆角",draft.cloudCornerEnabled) { draft=draft.copy(cloudCornerEnabled=it) }
+                                                    LiquidSwitchRow("自定义流体云圆角","同步胶囊、展开卡片及半透明背景层",draft.cloudCornerEnabled) { draft=draft.copy(cloudCornerEnabled=it) }
                                                     if(draft.cloudCornerEnabled) LiquidValueSlider("流体云圆角",draft.cloudCorner,0..48," dp") { draft=draft.copy(cloudCorner=it) }
                                                     LiquidSwitchRow("自定义流体云模糊","胶囊及展开卡片使用原生背景模糊",draft.cloudArea.blur) { draft=draft.copy(cloudArea=draft.cloudArea.copy(blur=it)) }
                                                     if(draft.cloudArea.blur) LiquidValueSlider("流体云模糊半径",draft.cloudArea.radius,0..200," px") { draft=draft.copy(cloudArea=draft.cloudArea.copy(radius=it)) }
@@ -234,7 +250,7 @@ class MainActivity : ComponentActivity() {
                                                         LiquidColorSetting("流体云混色颜色",draft.cloudArea.color) { draft=draft.copy(cloudArea=draft.cloudArea.copy(color=it)) }
                                                     }
                                                 }
-                                                UiText("自动保存后点击右上角重启系统界面。展开卡片的模糊随系统透明度动画变化。",12,muted=true)
+                                                UiText("自动保存后同步到系统界面。展开卡片的模糊随系统透明度动画变化。",12,muted=true)
                                             }
                                         }
                                         else -> {
@@ -261,7 +277,7 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                             LiquidAction("全部恢复为跟随系统",Modifier.fillMaxWidth()) { draft=draft.copy(hiddenStatusIcons=0) }
-                                            UiText("自动保存后点击右上角重启系统界面生效。锁屏及下拉区域中由系统共用的同类图标也可能随之隐藏。",12,muted=true)
+                                            UiText("自动保存后同步到系统界面。锁屏及下拉区域中由系统共用的同类图标也可能随之隐藏。",12,muted=true)
                                         }
                                     }
                                 }
@@ -300,18 +316,19 @@ class MainActivity : ComponentActivity() {
                             UiText(listOf("主页","调节","设置")[page],24,bold=true)
                             UiText(if(dirty) "正在自动保存…" else "已自动保存",11,muted=true)
                         }
-                        LiquidAction("重启系统界面",Modifier.size(56.dp,48.dp),enabled=!busy,selected=true,icon=R.drawable.ic_restart) { restart=true }
+                        LiquidAction("同步配置",Modifier.size(56.dp,48.dp),enabled=!busy,selected=true,icon=R.drawable.ic_restart) { syncSettings=true }
                     }
                     CompositionLocalProvider(LocalGlass provides style.copy(source=overlaySource)) {
                         FloatingNav(page,{ page=it },Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(horizontal=28.dp,vertical=14.dp))
                     }
-                    if(restart) SettingsDialog("重启系统界面",{restart=false}) {
-                        UiText("状态栏、控制中心与通知会短暂消失，然后恢复。需要授予此应用 Root 权限。",14,muted=true)
+                    if(syncSettings) SettingsDialog("同步配置",{syncSettings=false}) {
+                        UiText("保存当前设置并等待系统界面确认。缓存的界面参数可能需重新展开；首次安装或升级请重启手机。",14,muted=true)
                         Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                            LiquidAction("取消",Modifier.weight(1f)) { restart=false }
-                            LiquidAction("重启",Modifier.weight(1f),selected=true) { restart=false;busy=true;scope.launch { val pending=SettingsWriter.submit(this@MainActivity,draft,immediate=true).await()
-                                message=if(pending.settings==null) "配置保存失败：${pending.error}" else if(!pending.synced) "已保存在本地；${RemoteSettings.status}" else SystemUiRestarter.restart(this@MainActivity) { message=it }
-                                busy=false;refresh++ } }
+                            LiquidAction("取消",Modifier.weight(1f)) { syncSettings=false }
+                            LiquidAction("同步",Modifier.weight(1f),selected=true) { syncSettings=false;busy=true;scope.launch {
+                                try { message=SystemUiSettings.apply(this@MainActivity,draft) { message=it } }
+                                finally { busy=false;refresh++ }
+                            } }
                         }
                     }
                     if(reset) SettingsDialog("恢复默认设置",{reset=false}) {
@@ -325,6 +342,8 @@ class MainActivity : ComponentActivity() {
                         UiText("导入后会替换当前配置并自动保存。",14,muted=true)
                         Summary("下拉模糊",if(imported.panel.blur) "${imported.panel.radius} px" else "系统默认")
                         Summary("压暗 / 混色",if(imported.panel.tint) "${alphaPercent(imported.panel.color)}%" else "系统默认")
+                        Summary("横幅背景混色",if(imported.banner.tint) "${alphaPercent(imported.banner.color)}%" else "系统默认")
+                        Summary("控制中心卡片混色",if(imported.qsCardTint) "${alphaPercent(imported.qsCardColor)}%" else "系统默认")
                         Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                             LiquidAction("取消",Modifier.weight(1f)) { importConfirm=false }
                             LiquidAction("导入",Modifier.weight(1f),selected=true) { draft=imported;importConfirm=false;message="已导入，正在自动保存" }
@@ -345,11 +364,11 @@ class MainActivity : ComponentActivity() {
         val time=r.getLong("time",0)
         val hookVersion=r.getInt("hook_version",0)
         val reportElapsed=r.getLong("elapsed",-1)
-        if(reportElapsed>android.os.SystemClock.elapsedRealtime()) return "等待本次开机报告" to "当前记录来自上次开机，请重启系统界面并刷新。"
+        if(reportElapsed>android.os.SystemClock.elapsedRealtime()) return "等待本次开机报告" to "当前记录来自上次开机，请同步配置并刷新。"
         if(time==0L) return "等待系统界面报告" to "$frameworkReport$cloudReport\n启用 LSPosed 模块并重启后，下拉通知或触发横幅，再刷新查看。"
         val error=r.getString("error","").orEmpty()
         val pending=r.getLong("revision",-1)!=SettingsProvider.preferences(this).getLong("revision",0)
-        val title=when { hookVersion!=BuildConfig.VERSION_CODE->"等待本版 Hook 启动"; error.isNotEmpty()->"部分接口需要检查";pending->"等待重启应用设置";else->"已收到系统界面报告" }
+        val title=when { hookVersion!=BuildConfig.VERSION_CODE->"等待本版 Hook 启动"; error.isNotEmpty()->"部分接口需要检查";pending->"等待系统界面读取配置";else->"已收到系统界面报告" }
         val hits=r.getString("hits","").orEmpty().ifEmpty { "尚未触发" }
         return title to "$frameworkReport\nSystemUI PID ${r.getInt("pid",-1)} · Hook $hookVersion · 配置 ${r.getLong("revision",-1)}\n最近报告 ${SimpleDateFormat("MM-dd HH:mm:ss",Locale.CHINA).format(Date(time))}\n命中：$hits\n实际参数：${r.getString("effective", "尚未触发绘制")}"+(if(error.isNotEmpty()) "\n异常：$error" else "")+cloudReport
     }

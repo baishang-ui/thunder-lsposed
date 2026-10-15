@@ -16,7 +16,6 @@ import android.os.Process;
 import android.view.View;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import android.content.SharedPreferences;
 import android.graphics.Canvas;
 
 /** SystemUI effect handlers installed via libxposed API 102; Compose stays in the app process. */
@@ -28,6 +27,7 @@ public final class ShadeHook {
     private static volatile Object qsManager;
     private static volatile Context context;
     private static Handler worker, main;
+    private static LiveSettings liveSettings;
     private static volatile boolean qsVisible;
     private static final Map<Object, Boolean> proxies = Collections.synchronizedMap(new WeakHashMap<>());
     private static boolean installed, initialized;
@@ -39,7 +39,7 @@ public final class ShadeHook {
     private static final Map<String,String> effective = new ConcurrentHashMap<>();
     private static final ThreadLocal<Integer> livePanelDepth = ThreadLocal.withInitial(() -> 0);
     private static String settingsSource = "unavailable";
-    private static Class<?> shaderClass, shaderConfigClass, mixClass, motionConfigClass;
+    private static Class<?> shaderClass, shaderConfigClass, multiShaderConfigClass, mixClass, motionConfigClass;
 
     public static void install(String packageName, String processName, ClassLoader loader) {
         if (!"com.android.systemui".equals(packageName)
@@ -48,6 +48,7 @@ public final class ShadeHook {
         installed = true;
         initialize(processName);
         install("status-bar-icons", () -> StatusBarIconHook.install(loader));
+        install("qs-card-backgrounds", () -> QsCardHook.install(loader));
         install("cloud-plugin-loader", () -> CloudHook.watch(loader));
         install("qs", () -> Api102Runtime.hookAllConstructors(Reflect.findClass(
             "com.oplus.systemui.separate.OplusSeparateQSManager", loader), new HookCallback() {
@@ -67,6 +68,7 @@ public final class ShadeHook {
         install("mix-api", () -> {
             shaderClass = Reflect.findClass(BLUR+"MixColorWithShader", loader);
             shaderConfigClass = Reflect.findClass(BLUR+"BlurMixConfig$BlurMixSingleWithShader", loader);
+            multiShaderConfigClass = Reflect.findClass(BLUR+"BlurMixConfig$BlurMixMultiWithShader", loader);
             mixClass = Reflect.findClass(BLUR+"MixColor", loader);
             motionConfigClass = Reflect.findClass(BLUR+"BlurMixConfig$BlurMixSingle", loader);
         });
@@ -210,7 +212,8 @@ public final class ShadeHook {
                     }
                     if(area.tint) {
                         Object platform=Reflect.getObjectField(blur,"platformMixConfig");
-                        temporary(p,blur,"platformMixConfig","panel".equals(role)?panelMix(platform,area):bannerMix(platform,area));
+                        temporary(p,blur,"platformMixConfig","panel".equals(role)?panelMix(platform,area):
+                            backgroundMix(platform,area));
                         if("banner".equals(role))temporary(p,blur,"motionBlurMixConfig",motionMix(Reflect.getObjectField(blur,"motionBlurMixConfig"),area));
                     }
                     observed(role+"-native",backend+" radius="+(area.blur?area.radius:"system")+" ARGB="+(area.tint?Integer.toHexString(area.color):"system"));
@@ -308,11 +311,12 @@ public final class ShadeHook {
                 if(p.hasThrowable())return;
                 try {
                     HookConfig.Area area=area(p.thisObject);
-                    if(area!=null && area.tint && "panel".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE))) {
+                    Object role=Reflect.getAdditionalInstanceField(p.thisObject,ROLE);
+                    if(area!=null && area.tint && ("panel".equals(role)||"qs-card".equals(role))) {
                         // The chosen native mix is the dim layer; avoid an independent opaque mask on top.
                         Object backend=Reflect.getAdditionalInstanceField(p.thisObject,"thunder-backend");
                         boolean mask="BlurTypeMotion".equals(backend)||"BlurTypeStatic".equals(backend);
-                        p.setResult(mask?area.color:0);hit("panel-dim");
+                        p.setResult(mask?area.color:0);hit("panel".equals(role)?"panel-dim":"qs-card-dim");
                     }
                 } catch(Throwable error) { failed("panel-mask",error); }
             }
@@ -325,7 +329,9 @@ public final class ShadeHook {
                     if (area == null || !area.tint) return;
                     Object replacement;
                     if("banner".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE))) {
-                        replacement=bannerMix(p.getResult(),area);
+                        replacement=backgroundMix(p.getResult(),area);
+                    } else if("qs-card".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE))) {
+                        replacement=backgroundMix(p.getResult(),area);
                     } else replacement=panelMix(p.getResult(),area);
                     p.setResult(replacement); hit("color");
                 } catch (Throwable error) { failed("color", error); }
@@ -348,6 +354,7 @@ public final class ShadeHook {
         if (!snapshot.enabled) return null;
         Object role = Reflect.getAdditionalInstanceField(blur, ROLE);
         if ("banner".equals(role)) return snapshot.banner;
+        if ("qs-card".equals(role)) return snapshot.qsCards;
         if (!"panel".equals(role)) return null;
         Object nativeMix = Reflect.getObjectField(blur, "platformMixConfig");
         // Bouncer and global themes use other config types; leave those paths to the system.
@@ -363,16 +370,23 @@ public final class ShadeHook {
         // Framework-owned storage is available before the target Application exists.
         // This avoids the old provider startup race and stale dimension caches.
         install("remote-settings", () -> {
-            SharedPreferences prefs=Api102Runtime.remotePreferences();
-            Bundle data=new Bundle();
-            for(Map.Entry<String,?> entry:prefs.getAll().entrySet()) {
-                Object value=entry.getValue(); String key=entry.getKey();
-                if(value instanceof Boolean)data.putBoolean(key,(Boolean)value);
-                else if(value instanceof Integer)data.putInt(key,(Integer)value);
-                else if(value instanceof Long)data.putLong(key,(Long)value);
-            }
-            if(!data.containsKey("revision"))throw new IllegalStateException("Open module app to sync API 102 settings");
-            config=new HookConfig(data); settingsSource="API102 remote";
+            liveSettings = new LiveSettings(Api102Runtime.remotePreferences(), worker, values -> {
+                Bundle data = new Bundle();
+                for (Map.Entry<String, ?> entry : values.entrySet()) {
+                    Object value = entry.getValue(); String key = entry.getKey();
+                    if (value instanceof Boolean) data.putBoolean(key, (Boolean) value);
+                    else if (value instanceof Integer) data.putInt(key, (Integer) value);
+                    else if (value instanceof Long) data.putLong(key, (Long) value);
+                }
+                config = new HookConfig(data); settingsSource = "API102 live";
+                failures.remove("remote-settings"); failureDetails.remove("remote-settings");
+                main.post(() -> {
+                    refreshProxies();
+                    StatusBarIconHook.refresh();
+                    worker.post(ShadeHook::report);
+                });
+            }, error -> failed("remote-settings", error));
+            liveSettings.start();
         });
         install("settings", () -> Api102Runtime.findAndHookMethod(Application.class, "attach", Context.class,
             new HookCallback() {
@@ -398,6 +412,11 @@ public final class ShadeHook {
         if (hooks.add(key) && worker != null) worker.postDelayed(ShadeHook::report, 500);
     }
     static HookConfig snapshot() { return config; }
+    static void trackQsCard(Object proxy) {
+        Reflect.setAdditionalInstanceField(Reflect.callMethod(proxy,"getBlurConfig"),ROLE,"qs-card");
+        proxies.put(proxy,true);
+        Reflect.callMethod(proxy,"applyBlurConfig");
+    }
     static void resourceHit(String key) { hit(key); }
     static void statusIconsObserved(String slots) {
         observed("status-bar-icons", slots.isEmpty() ? "system" : "hidden="+slots);
@@ -469,14 +488,31 @@ public final class ShadeHook {
         p.setObjectExtra(field,new Object[]{Reflect.getObjectField(object,field)});
         Reflect.setObjectField(object,field,value);
     }
-    private static Object bannerMix(Object original,HookConfig.Area area) {
+    private static Object backgroundMix(Object original,HookConfig.Area area) {
         if(original==null)return null;
-        // Match the native shader's blend mode; mode=0 is EMPTY, not a colored overlay.
-        if(!shaderConfigClass.isInstance(original))return original;
-        Object nativeShader=Reflect.callMethod(original,"getBackgroundShaderParam");
-        int mode=area.color>>>24==0?0:(Integer)Reflect.callMethod(nativeShader,"getTopMode");
-        Object shader=Reflect.newInstance(shaderClass,mode,area.color>>>24==0?0:area.color,0,0);
-        Object result=Reflect.newInstance(shaderConfigClass,shader);copyFlags(original,result);return result;
+        boolean multi=multiShaderConfigClass!=null&&multiShaderConfigClass.isInstance(original);
+        if(!multi&&!shaderConfigClass.isInstance(original))return original;
+        Object ref=Reflect.getAdditionalInstanceField(original,"thunder-background-mix");
+        Object cached=ref instanceof WeakReference ? ((WeakReference<?>)ref).get() : null;
+        if(cached!=null&&Reflect.getAdditionalInstanceField(original,"thunder-background-area")==area) {
+            copyFlags(original,cached);return cached;
+        }
+        Object nativeShader=Reflect.callMethod(original,multi?"getForegroundShaderParam":"getBackgroundShaderParam");
+        int color=area.color>>>24==0?0:area.color;
+        int mode=color==0?0:(Integer)Reflect.callMethod(nativeShader,"getTopMode");
+        // EMPTY cannot display a chosen color; use the native card overlay mode in that case.
+        if(color!=0&&mode==0)mode=4;
+        Object tint=Reflect.newInstance(shaderClass,mode,color,0,0);
+        Object result;
+        if(multi) {
+            Object empty=Reflect.newInstance(shaderClass,0,0,0,0);
+            result=Reflect.newInstance(multiShaderConfigClass,tint,empty);
+            Reflect.callMethod(result,"setPlaceHolderColor",color);
+        } else result=Reflect.newInstance(shaderConfigClass,tint);
+        copyFlags(original,result);
+        Reflect.setAdditionalInstanceField(original,"thunder-background-area",area);
+        Reflect.setAdditionalInstanceField(original,"thunder-background-mix",new WeakReference<>(result));
+        return result;
     }
     private static Object motionMix(Object original,HookConfig.Area area) {
         if(original==null)return null;
@@ -512,6 +548,7 @@ public final class ShadeHook {
             try { Reflect.callMethod(proxy, "applyBlurConfig"); }
             catch (Throwable error) { failed("refresh", error); }
         }
+        QsCardHook.refresh();
     }
     private interface Install { void run() throws Throwable; }
     private static void install(String key, Install action) {

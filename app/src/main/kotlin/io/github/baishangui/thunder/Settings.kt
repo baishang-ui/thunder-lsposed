@@ -15,11 +15,13 @@ internal data class Settings(
     val cloudHeightEnabled: Boolean = false, val cloudHeight: Int = 34,
     val cloudCornerEnabled: Boolean = false, val cloudCorner: Int = 20,
     val cloudArea: Area = Area(color = 0x20282828),
-    val hiddenStatusIcons: Int = 0
+    val hiddenStatusIcons: Int = 0,
+    val qsCardTint: Boolean = false, val qsCardColor: Int = 0x33ffffff
 ) {
     fun bundle() = Bundle().apply {
         putBoolean("enabled", enabled); putInt("theme", theme)
         putInt("status_bar_hidden_icons", hiddenStatusIcons)
+        putBoolean("qs_card_tint", qsCardTint); putInt("qs_card_color", qsCardColor)
         putInt("accent", accent); putInt("backdrop_color", backdropColor)
         putInt("glass_strength", glassStrength); putInt("refraction", refraction); putInt("roundness", roundness)
         listOf("panel" to panel, "banner" to banner).forEach { (k, a) ->
@@ -36,7 +38,7 @@ internal data class Settings(
     fun json(): String {
         val data = JSONObject()
         bundle().let { b -> b.keySet().sorted().forEach { k -> @Suppress("DEPRECATION") data.put(k, b.get(k)) } }
-        return JSONObject().put("format", "thunder.settings").put("version", 5).put("settings", data).toString(2)
+        return JSONObject().put("format", "thunder.settings").put("version", 6).put("settings", data).toString(2)
     }
     companion object {
         fun from(b: Bundle): Settings {
@@ -53,19 +55,21 @@ internal data class Settings(
                 b.getBoolean("cloud_enabled", true),
                 b.getBoolean("cloud_height_enabled", false), b.getInt("cloud_height",34).coerceIn(20,64),
                 b.getBoolean("cloud_corner_enabled", false), b.getInt("cloud_corner",20).coerceIn(0,48),
-                a("cloud",0x20282828), b.getInt("status_bar_hidden_icons",0) and StatusBarIcons.ALL)
+                a("cloud",0x20282828), b.getInt("status_bar_hidden_icons",0) and StatusBarIcons.ALL,
+                b.getBoolean("qs_card_tint",false), b.getInt("qs_card_color",0x33ffffff))
         }
         fun parse(text: String): Settings {
             require(text.toByteArray(Charsets.UTF_8).size <= 65536) { "配置不能超过 64 KB" }
             val root = JSONObject(text)
             val version = root.opt("version")
-            require(root.opt("format") == "thunder.settings" && (version == 3 || version == 4 || version == 5)) { "不是受支持的 thunder 配置" }
+            require(root.opt("format") == "thunder.settings" && version in setOf(3,4,5,6)) { "不是受支持的 thunder 配置" }
             val data = root.getJSONObject("settings")
             val defaults = Settings().bundle()
             val added = setOf("cloud_height_enabled","cloud_height","cloud_corner_enabled","cloud_corner",
                 "cloud_blur","cloud_radius","cloud_tint","cloud_color")
             val expected = defaults.keySet() - (if (version == 3) added else emptySet()) -
-                (if (version == 3 || version == 4) setOf("status_bar_hidden_icons") else emptySet())
+                (if (version == 3 || version == 4) setOf("status_bar_hidden_icons") else emptySet()) -
+                (if (version != 6) setOf("qs_card_tint","qs_card_color") else emptySet())
             require(data.keys().asSequence().toSet() == expected) { "配置字段不完整或包含未知字段" }
             val b = Bundle()
             expected.forEach { k ->

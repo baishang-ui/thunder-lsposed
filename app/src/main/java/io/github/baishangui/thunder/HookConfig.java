@@ -6,7 +6,7 @@ import android.os.Bundle;
 final class HookConfig {
     final boolean enabled;
     final long revision;
-    final Area qs, shade, banner, cloudArea;
+    final Area qs, shade, banner, cloudArea, qsCards;
     final boolean cloudHeightEnabled, cloudCornerEnabled;
     final int cloudHeight, cloudCorner;
     final boolean margins, cloud;
@@ -18,6 +18,7 @@ final class HookConfig {
         hiddenStatusIcons = data == null ? 0 : data.getInt("status_bar_hidden_icons", 0) & StatusBarIcons.ALL;
         shade = new Area(data, data != null && data.containsKey("panel_radius") ? "panel" : "shade");
         qs = shade; banner = new Area(data, "banner");
+        qsCards = new Area(data, "qs_card");
         margins = data != null && data.getBoolean("notification_margins", false);
         margin = Math.max(0, Math.min(64, data == null ? 30 : data.getInt("notification_margin", 30)));
         cloud = data != null && data.getBoolean("cloud_enabled", true);

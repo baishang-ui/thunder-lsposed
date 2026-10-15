@@ -84,10 +84,11 @@ jobs:
       - name: Install Android SDK
         run: sdkmanager 'platforms;android-37.0' 'build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
-      - name: Check module handlers and restart script
+      - name: Check module handlers and live settings
         run: |
           python3 scripts/check_effects.py
           python3 scripts/check_systemui_restart.py
+          python3 scripts/check_live_settings.py
       - name: Test, lint and assemble release APK
         run: ./gradlew --no-daemon :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease
       - name: Validate release version
