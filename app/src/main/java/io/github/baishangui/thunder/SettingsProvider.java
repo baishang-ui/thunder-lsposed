@@ -32,11 +32,10 @@ public final class SettingsProvider extends ContentProvider {
         SharedPreferences prefs = preferences(context);
         if ("settings".equals(method)) {
             Bundle result = new Bundle();
-            for (String key : new String[]{"volume_size","volume_compact","volume_button_size"})
+            for (String key : new String[]{"volume_size","volume_compact"})
                 result.putBoolean(key,prefs.getBoolean(key,false));
             result.putInt("volume_width",Math.max(32,Math.min(96,prefs.getInt("volume_width",56))));
             result.putInt("volume_height",Math.max(120,Math.min(400,prefs.getInt("volume_height",240))));
-            result.putInt("volume_button",Math.max(36,Math.min(72,prefs.getInt("volume_button",48))));
             result.putBoolean("enabled", prefs.getBoolean("enabled", true));
             result.putBoolean("gesture_bar_hidden", prefs.getBoolean("gesture_bar_hidden", false));
             result.putBoolean("gesture_bar_remove_inset", prefs.getBoolean("gesture_bar_remove_inset", false));
@@ -45,7 +44,7 @@ public final class SettingsProvider extends ContentProvider {
             result.putInt("status_bar_hidden_icons", prefs.getInt("status_bar_hidden_icons", 0) & StatusBarIcons.ALL);
             result.putBoolean("qs_card_tint", prefs.getBoolean("qs_card_tint", false));
             result.putInt("qs_card_color", prefs.getInt("qs_card_color", 0x33ffffff));
-            for (String area : new String[]{"panel", "banner", "notification_card", "cloud_card", "volume_bar", "volume_buttons", "volume_panel"}) {
+            for (String area : new String[]{"panel", "banner", "notification_card", "cloud_card", "volume_bar", "volume_panel"}) {
                 if ("notification_card".equals(area) && !prefs.contains("notification_card_radius")) continue;
                 result.putBoolean(area+"_blur", prefs.getBoolean(area+"_blur", "panel".equals(area) && prefs.getBoolean("shade_blur", false)));
                 result.putInt(area+"_radius", Math.max(0, Math.min(200, prefs.getInt(area+"_radius", "panel".equals(area) ? prefs.getInt("shade_radius", 100) : 100))));
@@ -63,7 +62,7 @@ public final class SettingsProvider extends ContentProvider {
             result.putInt("cloud_radius",prefs.getInt("cloud_radius",100));
             result.putBoolean("cloud_tint",prefs.getBoolean("cloud_tint",false));
             result.putInt("cloud_color",prefs.getInt("cloud_color",0x20282828));
-            for(String key:new String[]{"qs_card","banner","notification_card","cloud_card","volume_bar","volume_buttons","volume_panel"}) {
+            for(String key:new String[]{"qs_card","banner","notification_card","cloud_card","volume_bar","volume_panel"}) {
                 if ("notification_card".equals(key) && !prefs.contains("notification_card_radius")) continue;
                 result.putBoolean(key+"_corner_enabled",prefs.getBoolean(key+"_corner_enabled",
                     "cloud_card".equals(key)&&prefs.getBoolean("cloud_corner_enabled",false)));

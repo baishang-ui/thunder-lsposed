@@ -36,6 +36,7 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -72,8 +73,8 @@ class MainActivity : ComponentActivity() {
             var draft by rememberSaveable(stateSaver=Settings.saver) { mutableStateOf(SettingsWriter.latest ?: saved) }
             var page by rememberSaveable { mutableIntStateOf(0) }
             var detail by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
-            var restartSystemUi by rememberSaveable { mutableStateOf(false) }
             var restartFeedback by rememberSaveable { mutableStateOf(false) }
+            var restartRequested by rememberSaveable { mutableStateOf(false) }
             var reset by rememberSaveable { mutableStateOf(false) }
             var imported by rememberSaveable(stateSaver=Settings.saver) { mutableStateOf(Settings()) }
             var importConfirm by rememberSaveable { mutableStateOf(false) }
@@ -221,7 +222,7 @@ class MainActivity : ComponentActivity() {
                                                 Summary("状态栏图标", "${if(draft.statusIconStyle == 1) "iOS 风格" else "系统默认"} · ${if(draft.hiddenStatusIcons == 0) "跟随系统显示" else "隐藏 ${Integer.bitCount(draft.hiddenStatusIcons)} 项"}")
                                                 LiquidAction("前往调节", Modifier.fillMaxWidth(), selected = true) { page = 1 }
                                             }
-                                            UiText("首次使用：在 LSPosed 启用模块，作用域同时勾选系统界面和系统界面插件，再点击右上角重启系统界面。", 12, muted = true)
+                                            UiText("首次使用：在 LSPosed 启用模块，作用域同时勾选系统界面和系统界面插件，然后正常重启手机。后续修改自动同步；需要重新加载时，可点击右上角重启系统界面。", 12, muted = true)
                                         }
                                         1 -> AdjustmentMenu(draft) { detail = it }
                                         else -> PreferencesMenu(draft) { detail = it }
@@ -242,7 +243,10 @@ class MainActivity : ComponentActivity() {
                                 UiText((destination.detail?.let { "${it.category} · " } ?: "") + if(dirty) "正在自动保存…" else "已自动保存",11,muted=true)
                             }
                         }
-                        LiquidAction("重启系统界面",Modifier.size(48.dp),enabled=!busy && !restartState.running,selected=true,icon=MiuixIcons.Regular.Refresh) { restartSystemUi=true }
+                        LiquidAction("重启系统界面",Modifier.size(48.dp),enabled=!busy,selected=true,icon=MiuixIcons.Regular.Refresh) {
+                            restartRequested=restartState.running
+                            restartFeedback=true
+                        }
                     }
                     AnimatedVisibility(visible = detail == null, modifier = Modifier.align(Alignment.BottomCenter),
                         enter = fadeIn(tween(220)) + slideInVertically(tween(280)) { it / 2 },
@@ -251,23 +255,29 @@ class MainActivity : ComponentActivity() {
                             FloatingNav(page,{ if (detail == null) page=it },Modifier.navigationBarsPadding().padding(horizontal=28.dp,vertical=14.dp))
                         }
                     }
-                    if(restartSystemUi) SettingsDialog("重启系统界面",{restartSystemUi=false}) {
-                        UiText("普通修改会自动实时应用。重启将先保存并同步当前设置，再重新加载系统界面；状态栏和通知栏会短暂消失，需要 Root 授权。",14,muted=true)
-                        Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                            LiquidAction("取消",Modifier.weight(1f)) { restartSystemUi=false }
-                            LiquidAction("重启",Modifier.weight(1f),enabled=!restartState.running,selected=true) {
-                                restartSystemUi=false
-                                SystemUiSettings.restart(this@MainActivity,draft)
-                                restartFeedback=true
-                            }
-                        }
-                    }
-                    if(restartState.running || restartFeedback) SettingsDialog(
-                        if(restartState.running) "正在重启系统界面" else "重启系统界面",
-                        { if(!restartState.running) restartFeedback=false }
+                    if(restartFeedback) SettingsDialog(
+                        if(!restartRequested) "重启系统界面" else if(restartState.running) "正在重启系统界面" else "重启结果",
+                        {restartFeedback=false}
                     ) {
-                        UiText(restartState.message,14,muted=true)
-                        if(!restartState.running) LiquidAction("知道了",Modifier.fillMaxWidth(),selected=true) { restartFeedback=false }
+                        if(!restartRequested) {
+                            UiText("重新加载状态栏与通知栏",16,bold=true)
+                            UiText("先保存配置并检查运行状态，等待系统界面稳定后再重启。过程需要 Root 授权，状态栏和通知栏会短暂消失。",14,muted=true)
+                            UiText("普通参数修改会自动应用，无需重启。",12,muted=true)
+                            Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                                LiquidAction("取消",Modifier.weight(1f)) { restartFeedback=false }
+                                LiquidAction("重启",Modifier.weight(1f),enabled=!restartState.running,selected=true) {
+                                    restartRequested=true
+                                    SystemUiSettings.restart(this@MainActivity,draft)
+                                }
+                            }
+                        } else {
+                            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)) {
+                                if(restartState.running) InfiniteProgressIndicator(Modifier.size(24.dp))
+                                UiText(restartState.message,14,modifier=Modifier.weight(1f))
+                            }
+                            if(restartState.running) UiText("收起后继续处理，可从右上角查看进度。",12,muted=true)
+                            LiquidAction(if(restartState.running) "后台继续" else "完成",Modifier.fillMaxWidth(),selected=true) { restartFeedback=false }
+                        }
                     }
                     if(reset) SettingsDialog("恢复默认设置",{reset=false}) {
                         UiText("将界面外观和效果参数恢复为默认值，并自动保存。",14,muted=true)
@@ -304,7 +314,7 @@ class MainActivity : ComponentActivity() {
         val hookVersion=r.getInt("hook_version",0)
         val reportElapsed=r.getLong("elapsed",-1)
         if(reportElapsed>android.os.SystemClock.elapsedRealtime()) return "等待本次开机报告" to "$frameworkReport\n系统界面记录来自上次开机，请同步配置并刷新。"
-        if(time==0L) return "等待系统界面报告" to "$frameworkReport$cloudReport\n启用 LSPosed 模块并重启系统界面后，下拉通知或触发横幅，再刷新查看。"
+        if(time==0L) return "等待系统界面报告" to "$frameworkReport$cloudReport\n首次启用或升级模块后请正常重启手机，然后下拉通知或触发横幅，再刷新查看。"
         val error=r.getString("error","").orEmpty()
         val pending=r.getLong("revision",-1)!=SettingsProvider.preferences(this).getLong("revision",0)
         val title=when { hookVersion!=BuildConfig.VERSION_CODE->"等待本版 Hook 启动"; error.isNotEmpty()->"部分接口需要检查";pending->"等待系统界面读取配置";else->"已收到系统界面报告" }

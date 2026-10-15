@@ -90,7 +90,13 @@ jobs:
           python3 scripts/check_systemui_restart.py
           python3 scripts/check_live_settings.py
       - name: Test, lint and assemble release APK
-        run: ./gradlew --no-daemon :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease
+        # Full lintRelease includes fatal checks, so assemble does not need a second lint pass.
+        run: >-
+          ./gradlew --no-daemon
+          :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease
+          -x :app:lintVitalRelease
+          -x :app:lintVitalReportRelease
+          -x :app:lintVitalAnalyzeRelease
       - name: Validate release version
         if: github.ref_type == 'tag'
         env:
@@ -104,6 +110,7 @@ jobs:
             app/build/outputs/apk/release/app-release-unsigned.apk
             app/build/outputs/apk/release/output-metadata.json
           if-no-files-found: error
+          compression-level: 0 # APKs are already compressed.
           retention-days: 7
       - name: Upload test and lint reports
         if: always()
@@ -181,6 +188,7 @@ jobs:
           name: thunder-${{ github.ref_name }}
           path: release/*
           if-no-files-found: error
+          compression-level: 0 # APKs are already compressed.
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}

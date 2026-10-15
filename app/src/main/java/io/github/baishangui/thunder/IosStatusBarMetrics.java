@@ -20,7 +20,12 @@ final class IosStatusBarMetrics {
     private static final Typeface CLOCK_TYPE=Typeface.create("sans-serif-medium",Typeface.NORMAL);
     private record Size(int width,int height,ImageView.ScaleType scaleType,int gravity) { }
     private record Spacing(int left,int top,int right,int bottom,int width,int height,
-        int marginLeft,int marginTop,int marginRight,int marginBottom,int start,int end) { }
+        int marginLeft,int marginTop,int marginRight,int marginBottom,int start,int end,int gravity) { }
+    private record Overlay(View view,int priority,int width) { }
+    private static final String[] CONSTRAINT_ANCHORS={"leftToLeft","leftToRight","rightToLeft","rightToRight",
+        "startToStart","startToEnd","endToStart","endToEnd","topToTop","topToBottom","bottomToTop","bottomToBottom"};
+    private record Constraints(int[] anchors,float verticalBias) { }
+    private static final Map<View,Constraints> constraints=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View,Integer> overlayOffsets=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View,Spacing> spacing=Collections.synchronizedMap(new WeakHashMap<>());
     private record Metadata(float pixels,Typeface face,int gravity,int layoutGravity) { }
@@ -87,32 +92,99 @@ final class IosStatusBarMetrics {
         int width=(int)Math.ceil(Layout.getDesiredWidth(label.getText(),label.getPaint())+3*density),height=Math.round(20*density);
         if(layout.width!=width || layout.height!=height){layout.width=width;layout.height=height;label.setLayoutParams(layout);}
     }
-    private static void arrangeOverlays(ViewGroup group) {
-        if(!(group instanceof FrameLayout) || IosStatusBarHook.signalOwner(group)==null)return;
-        ArrayList<View> participants=new ArrayList<>();
-        for(int i=0;i<group.getChildCount();i++) {
-            View child=group.getChildAt(i);
-            if(child instanceof ImageView image && image.getVisibility()==View.VISIBLE
-                && image.getDrawable() instanceof IosIconDrawable.Replacement replacement && replacement.symbol().row()==0)
-                participants.add(image);
-            else if(child instanceof TextView label && metadata.containsKey(label) && label.getVisibility()==View.VISIBLE && label.getText().length()>0)
-                participants.add(label);
+    private static boolean constraintGroup(View view) {
+        for(Class<?> type=view.getClass();type!=null;type=type.getSuperclass())
+            if(type.getName().equals("androidx.constraintlayout.widget.ConstraintLayout"))return true;
+        return false;
+    }
+    private static Overlay overlay(View view,int depth) {
+        if(view.getVisibility()!=View.VISIBLE)return null;
+        ViewGroup.LayoutParams layout=view.getLayoutParams();if(layout==null)return null;
+        if(view instanceof ImageView image) {
+            IosStatusIcons.Kind kind=overlayKind(image);if(kind==null)return null;
+            int priority=switch(kind){case WIFI,CELLULAR,NO_SERVICE -> 0;case LABEL -> 1;default -> 2;};
+            return new Overlay(view,priority,Math.max(0,layout.width));
         }
-        participants.sort(java.util.Comparator.comparingInt(view->{
-            if(!(view instanceof ImageView image))return 1;
-            var kind=((IosIconDrawable.Replacement)image.getDrawable()).symbol().kind();
-            return switch(kind){case WIFI,CELLULAR,NO_SERVICE -> 0;case LABEL -> 1;default -> 2;};
-        }));
-        int offset=0;
-        for(View image:participants) {
-            if(!(image.getLayoutParams() instanceof FrameLayout.LayoutParams frame))continue;
-            overlayOffsets.put(image,offset);
-            int gravity=Gravity.START|Gravity.CENTER_VERTICAL;
-            if(frame.getMarginStart()!=offset || frame.getMarginEnd()!=0 || frame.gravity!=gravity) {
-                frame.setMarginStart(offset);frame.setMarginEnd(0);frame.gravity=gravity;image.setLayoutParams(frame);
+        if(view instanceof TextView label && metadata.containsKey(label) && label.getText().length()>0)
+            return new Overlay(view,1,Math.max(0,layout.width));
+        // ColorOS nests signal + activity in a frame beside bottom-anchored 5G text.
+        // Use the cells prepared below that frame, never its stale measured width.
+        if(depth<6 && view instanceof ViewGroup nested && (view instanceof FrameLayout || constraintGroup(view))) {
+            int priority=3,width=0;
+            for(int i=0;i<nested.getChildCount();i++) {
+                Overlay child=overlay(nested.getChildAt(i),depth+1);if(child==null)continue;
+                priority=Math.min(priority,child.priority);
+                width=Math.max(width,overlayOffsets.getOrDefault(child.view,0)+child.width);
             }
-            offset+=frame.width;
+            if(priority<3)return new Overlay(view,priority,width);
         }
+        return null;
+    }
+    private static void clearOffset(View view) {
+        if(overlayOffsets.remove(view)==null)return;
+        if(view.getLayoutParams() instanceof ViewGroup.MarginLayoutParams margin
+                && (margin.getMarginStart()!=0 || margin.getMarginEnd()!=0)) {
+            margin.setMarginStart(0);margin.setMarginEnd(0);view.setLayoutParams(margin);
+        }
+    }
+    private static void arrangeOverlays(ViewGroup group) {
+        boolean constrained=constraintGroup(group);
+        if((!(group instanceof FrameLayout) && !constrained) || IosStatusBarHook.signalOwner(group)==null)return;
+        ArrayList<Overlay> participants=new ArrayList<>();
+        boolean primary=false,previouslyArranged=false;
+        for(int i=0;i<group.getChildCount();i++) {
+            View child=group.getChildAt(i);Overlay cell=overlay(child,0);
+            previouslyArranged|=constraints.containsKey(child);
+            if(cell!=null){participants.add(cell);primary|=cell.priority==0;}
+            else clearOffset(child);
+        }
+        // Leave unrelated host constraints alone, but still close gaps when a known signal disappears.
+        if(constrained && !primary && !previouslyArranged)return;
+        participants.sort(java.util.Comparator.comparingInt(Overlay::priority));
+        int offset=0;
+        for(Overlay cell:participants) {
+            View view=cell.view;
+            if(!(view.getLayoutParams() instanceof ViewGroup.MarginLayoutParams margin))continue;
+            if(!spacing.containsKey(view))normalizeSpacing(view,false);
+            overlayOffsets.put(view,offset);
+            boolean changed=margin.getMarginStart()!=offset || margin.getMarginEnd()!=0;
+            margin.setMarginStart(offset);margin.setMarginEnd(0);
+            if(constrained)changed|=positionConstraints(view,margin);
+            else if(margin instanceof FrameLayout.LayoutParams frame) {
+                int gravity=Gravity.START|Gravity.CENTER_VERTICAL;
+                changed|=frame.gravity!=gravity;frame.gravity=gravity;
+            }
+            if(changed)view.setLayoutParams(margin);
+            offset+=cell.width;
+        }
+    }
+    private static boolean positionConstraints(View view,ViewGroup.LayoutParams layout) {
+        if(!constraints.containsKey(view)) {
+            int[] anchors=new int[CONSTRAINT_ANCHORS.length];
+            for(int i=0;i<anchors.length;i++)anchors[i]=Reflect.getIntField(layout,CONSTRAINT_ANCHORS[i]);
+            constraints.put(view,new Constraints(anchors,(Float)Reflect.getObjectField(layout,"verticalBias")));
+        }
+        boolean changed=false;
+        for(String anchor:CONSTRAINT_ANCHORS) {
+            int value=anchor.equals("startToStart") || anchor.equals("topToTop") || anchor.equals("bottomToBottom")?0:-1;
+            if(Reflect.getIntField(layout,anchor)!=value){Reflect.setIntField(layout,anchor,value);changed=true;}
+        }
+        if((Float)Reflect.getObjectField(layout,"verticalBias")!=.5f) {
+            Reflect.setObjectField(layout,"verticalBias",.5f);changed=true;
+        }
+        return changed;
+    }
+    private static IosStatusIcons.Kind overlayKind(ImageView image) {
+        Drawable drawable=image.getDrawable();
+        if(drawable instanceof IosIconDrawable.Replacement replacement)
+            return replacement.symbol().row()==0?replacement.symbol().kind():null;
+        // AOSP signals are intercepted in draw(), so their ImageView still holds SignalDrawable.
+        return dynamicSignal(image)?IosStatusIcons.Kind.CELLULAR:null;
+    }
+    private static boolean dynamicSignal(ImageView image) {
+        Drawable drawable=image.getDrawable();
+        return drawable!=null && drawable.getClass().getName().equals("com.android.settingslib.graph.SignalDrawable")
+            && Boolean.FALSE.equals(IosStatusBarHook.signalOwner(image));
     }
     private static HookCallback legacyScale(String field) {
         return new HookCallback() {
@@ -135,8 +207,7 @@ final class IosStatusBarMetrics {
         if(drawable==null)return;
         boolean battery=drawable.getClass().getName().equals(
             "com.oplus.systemui.statusbar.pipeline.battery.ui.drawable.HorizontalBatteryContentDrawable");
-        boolean dynamicSignal=drawable.getClass().getName().equals("com.android.settingslib.graph.SignalDrawable")
-            && Boolean.FALSE.equals(IosStatusBarHook.signalOwner(image));
+        boolean dynamicSignal=dynamicSignal(image);
         if(!(drawable instanceof IosIconDrawable.Replacement) && !battery && !dynamicSignal) {
             restore(image);images.remove(image);return;
         }
@@ -195,7 +266,8 @@ final class IosStatusBarMetrics {
         spacing.putIfAbsent(view,new Spacing(view.getPaddingLeft(),view.getPaddingTop(),view.getPaddingRight(),view.getPaddingBottom(),
             layout.width,layout.height,margin==null?0:margin.leftMargin,margin==null?0:margin.topMargin,
             margin==null?0:margin.rightMargin,margin==null?0:margin.bottomMargin,
-            margin==null?0:margin.getMarginStart(),margin==null?0:margin.getMarginEnd()));
+            margin==null?0:margin.getMarginStart(),margin==null?0:margin.getMarginEnd(),
+            layout instanceof FrameLayout.LayoutParams frame?frame.gravity:0));
         if(view.getPaddingLeft()!=0 || view.getPaddingTop()!=0 || view.getPaddingRight()!=0 || view.getPaddingBottom()!=0)view.setPadding(0,0,0,0);
         boolean changed=false;
         if(margin!=null && !overlayOffsets.containsKey(view)) {
@@ -213,10 +285,19 @@ final class IosStatusBarMetrics {
     }
     private static void restoreSpacing(View view) {
         overlayOffsets.remove(view);
-        Spacing state=spacing.remove(view);if(state==null)return;
+        Spacing state=spacing.remove(view);
+        Constraints nativeConstraints=constraints.remove(view);
+        ViewGroup.LayoutParams layout=view.getLayoutParams();
+        if(nativeConstraints!=null && layout!=null) {
+            for(int i=0;i<CONSTRAINT_ANCHORS.length;i++)Reflect.setIntField(layout,CONSTRAINT_ANCHORS[i],nativeConstraints.anchors[i]);
+            Reflect.setObjectField(layout,"verticalBias",nativeConstraints.verticalBias);
+            view.setLayoutParams(layout);
+        }
+        if(state==null)return;
         view.setPadding(state.left,state.top,state.right,state.bottom);
-        ViewGroup.LayoutParams layout=view.getLayoutParams();if(layout==null)return;
+        if(layout==null)return;
         layout.width=state.width;layout.height=state.height;
+        if(layout instanceof FrameLayout.LayoutParams frame)frame.gravity=state.gravity;
         if(layout instanceof ViewGroup.MarginLayoutParams m) {
             m.leftMargin=state.marginLeft;m.topMargin=state.marginTop;m.rightMargin=state.marginRight;m.bottomMargin=state.marginBottom;
             m.setMarginStart(state.start);m.setMarginEnd(state.end);

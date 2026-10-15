@@ -6,19 +6,37 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class VolumeSettingsTest {
-    @Test fun allVolumeAreasAndGeometryRoundTripIndependently() {
-        val volume=VolumeSettings(true,76,320,true,true,60,
-            Area(true,150,true,0x40557799,true,18),Area(true,40,true,0x668899aa,true,24),
+    @Test fun sharedBarAndButtonsRoundTripWithIndependentPanel() {
+        val volume=VolumeSettings(true,76,320,true,
+            Area(true,150,true,0x40557799,true,18),
             Area(true,90,true,0x88994433.toInt(),true,32))
         val s=Settings(volume=volume)
         assertEquals(s,Settings.parse(s.json()))
         assertEquals(s,Settings.from(s.bundle()))
         val c=HookConfig(s.bundle())
-        assertTrue(c.volumeCompact);assertTrue(c.volumeSize);assertTrue(c.volumeButtonSize)
-        assertEquals(76,c.volumeWidth);assertEquals(320,c.volumeHeight);assertEquals(60,c.volumeButton)
-        assertEquals(150,c.volumeBar.radius);assertEquals(40,c.volumeButtons.radius);assertEquals(90,c.volumePanel.radius)
-        assertEquals(18,c.volumeBar.corner);assertEquals(24,c.volumeButtons.corner);assertEquals(32,c.volumePanel.corner)
+        assertTrue(c.volumeCompact);assertTrue(c.volumeSize)
+        assertEquals(76,c.volumeWidth);assertEquals(320,c.volumeHeight)
+        assertEquals(150,c.volumeBar.radius);assertEquals(90,c.volumePanel.radius)
+        assertEquals(18,c.volumeBar.corner);assertEquals(32,c.volumePanel.corner)
         assertFalse(c.qsCards.tint);assertFalse(c.banner.tint)
+    }
+    @Test fun legacyIndependentButtonsMigrateToSharedBar() {
+        val settings=Settings(volume=VolumeSettings(size=true,width=96,bar=Area(true,150,true,0x40557799,true,18)))
+        for(version in listOf(13,14)) {
+            val old=JSONObject(settings.json()).put("version",version)
+            old.getJSONObject("settings").apply {
+                put("volume_button_size",true);put("volume_button",36)
+                put("volume_buttons_blur",false);put("volume_buttons_radius",40)
+                put("volume_buttons_tint",true);put("volume_buttons_color",0x668899aa)
+                put("volume_buttons_corner_enabled",true);put("volume_buttons_corner",24)
+            }
+            val migrated=Settings.parse(old.toString())
+            assertEquals(settings,migrated)
+            assertFalse(migrated.bundle().keySet().any { it.startsWith("volume_button") })
+            assertEquals(15,JSONObject(migrated.json()).getInt("version"))
+            old.getJSONObject("settings").put("volume_buttons_blur","false")
+            assertThrows(IllegalArgumentException::class.java) { Settings.parse(old.toString()) }
+        }
     }
     @Test fun legacyDefaultsDoNotTakeOverNativeVolume() {
         val old=JSONObject(Settings().json()).put("version",12).removeV13Fields()
@@ -37,8 +55,8 @@ class VolumeSettingsTest {
         assertThrows(IllegalArgumentException::class.java) {Settings.parse(root.toString())}
         root.getJSONObject("settings").remove("volume_compact")
         assertThrows(IllegalArgumentException::class.java) {Settings.parse(root.toString())}
-        val runtime=HookConfig(Bundle().apply {putInt("volume_width",-1);putInt("volume_height",10000);putInt("volume_button",-100)})
-        assertEquals(32,runtime.volumeWidth);assertEquals(400,runtime.volumeHeight);assertEquals(36,runtime.volumeButton)
+        val runtime=HookConfig(Bundle().apply {putInt("volume_width",-1);putInt("volume_height",10000)})
+        assertEquals(32,runtime.volumeWidth);assertEquals(400,runtime.volumeHeight);assertFalse(runtime.volumeSize)
     }
     @Test fun nativePanelEnclosesSidebarAndClampsToUsableScreen() {
         val right=VolumePanelGeometry.place(8,40,392,780,330,240,386,480,280,400,20)

@@ -23,6 +23,7 @@ public final class VolumePanelCheck {
     static Bundle config() {
         Bundle b=new Bundle();b.putBoolean("enabled",true);b.putBoolean("volume_compact",true);b.putBoolean("volume_size",true);b.putInt("volume_width",76);b.putInt("volume_height",320);
         b.putBoolean("volume_button_size",true);b.putInt("volume_button",60);
+        b.putBoolean("volume_buttons_tint",true);b.putInt("volume_buttons_color",0xff010203);b.putInt("volume_buttons_radius",7);b.putInt("volume_buttons_corner",40);
         b.putBoolean("volume_bar_tint",true);b.putInt("volume_bar_color",0x4188aacc);b.putBoolean("volume_bar_blur",true);b.putInt("volume_bar_radius",123);
         b.putBoolean("volume_bar_corner_enabled",true);b.putInt("volume_bar_corner",18);b.putBoolean("volume_panel_blur",true);b.putInt("volume_panel_radius",80);return b;
     }
@@ -42,6 +43,9 @@ public final class VolumePanelCheck {
         OplusVolumeRow row=new OplusVolumeRow();owner.mRows.add(row);d.volumeListAdapter.rows.add(row);
         RecyclerView.ViewHolder h=holder(d,0,900,300);((ViewGroup)h.itemView).addView(row.view);row.sliderFrame.parent=row.view;row.slider.parent=row.sliderFrame;
         d.mSettingsButton.layout.width=96;
+        // Native title text can still be empty when expandPanel's before callback runs.
+        d.mVolumePanelTitleText=new View() { @Override public void measure(int w,int height) {measuredWidth=0;measuredHeight=24;} };
+        d.mVolumePanelTitleText.layout=new LayoutParams(-2,24);d.mDialogView.addView(d.mVolumePanelTitleText);
         CloudCheck.config(config());
         row.slider.mCurBackgroundWidth=67.2f;row.slider.mCurBackgroundRadius=33.6f;
         CloudCheck.after(VIEW+"#updateRowsH",d,null);
@@ -54,8 +58,8 @@ public final class VolumePanelCheck {
         int recalculations=row.slider.ensured;
         before(BAR+"#onMeasure",row.slider,0,0);before(BAR+"#onMeasure",row.slider,0,0);
         check(row.slider.ensured==recalculations,"unchanged measurements never reset native animation state");
-        check(d.mMoreRowStreamLl.layout.width==165&&d.mSettingsButton.layout.height==165&&d.mSettingsButton.layout.width==330,"sidebar and native settings button use independent button sizing");
-        check(((Number)CloudCheck.after(VIEW+"#getIconHalfDelta",d,24f)).floatValue()==82.5f,"native sidebar button animation offsets follow custom height");
+        check(d.mMoreRowStreamLl.layout.width==209&&d.mSettingsButton.layout.height==209&&d.mSettingsButton.layout.width==209,"all native buttons are square and share the bar width, ignoring retired button size");
+        check(((Number)CloudCheck.after(VIEW+"#getIconHalfDelta",d,24f)).floatValue()==104.5f,"native sidebar button animation offsets follow shared bar width");
         HookCallback.Param draw=before(BAR+"#onDraw",row.slider,new Canvas());
         check(row.slider.mBackgroundColor==0&&Math.abs(row.slider.mCurBackgroundRadius-60)<.01f,"native material owns tint once; drawing does not replace animated geometry");
         draw.failure=new IllegalStateException("draw failure");QsTintCheck.after(BAR+"#onDraw",draw);
@@ -72,6 +76,20 @@ public final class VolumePanelCheck {
         QsTintCheck.after(QsTintCheck.B+"ViewBlurProxy#applyConfigToPlatformBlur",draw);
         check(blur.platformMixConfig==nativeMix,"material backend submission restores native mix state");
 
+        for(String buttonFactory:new String[]{"getVolumeSettingsButtonBackground","getVolumeSideAccessoryBackground"}) {
+            View buttonHost=d.mMoreRowStreamLl;buttonHost.actualWidth=buttonHost.layout.width;buttonHost.actualHeight=buttonHost.layout.height;
+            BlurConfig buttonBlur=new BlurConfig();buttonBlur.platformMixConfig=QsTintCheck.multi(0xff112233);Object buttonNativeMix=buttonBlur.platformMixConfig;
+            AutoBlurDrawable buttonAuto=new AutoBlurDrawable(new ViewBlurProxy(buttonBlur));
+            HookCallback.Param buttonMaterial=CloudCheck.param(null,buttonAuto,new android.content.Context(),d.mDialogView,buttonHost,true);
+            Api102Runtime.callbacks.get(BASE+"utils.material.VolumeBlurManager#"+buttonFactory).after(buttonMaterial);
+            HookCallback.Param submission=before(QsTintCheck.B+"ViewBlurProxy#applyConfigToPlatformBlur",buttonAuto.proxy);
+            BlurMixConfig.BlurMixMultiWithShader mix=(BlurMixConfig.BlurMixMultiWithShader)buttonBlur.platformMixConfig;
+            check(buttonMaterial.getResult()==buttonAuto&&buttonBlur.blurRadius==123&&buttonBlur.cornerRadius==50&&mix.foregroundShaderParam.topLayerColor==0x4188aacc,
+                    buttonFactory+" shares the bar blur, corner and ARGB, ignoring retired material");
+            QsTintCheck.after(QsTintCheck.B+"ViewBlurProxy#applyConfigToPlatformBlur",submission);
+            check(buttonBlur.platformMixConfig==buttonNativeMix,"button material preserves native backend state after submission");
+        }
+
         Object controller=owner.mController,adapter=d.volumeListAdapter,nativeAnimator=d.volumeListAdapter.nativeAnimator;
         HookCallback.Param expand=before(VIEW+"#expandPanel",d);
         check(!expand.returnEarly,"native expand method is allowed to execute");
@@ -84,9 +102,11 @@ public final class VolumePanelCheck {
         before(VIEW+"#expandPanel",d);
         check(d.mDialogView.getBackground()==bounded,"repeated expansion keeps the existing transition geometry and captured anchor");
         check(bounded instanceof DrawableWrapper&&((DrawableWrapper)bounded).getDrawable()==original,"only background bounds are wrapped; native animated drawable stays the same");
-        check(panel.width()<1080&&panel.height()<1920&&panel.right<=1072&&panel.top>=24,"actual drawable bounds form a compact card inside the visible screen");
+        check(panel.width()<=880&&panel.height()<=990&&panel.right<=1072&&panel.top>=24,"compact card is at most 320 dp wide and 360 dp tall, including all accessories");
         before(BAR+"#onMeasure",row.slider,0,0);
         check(row.slider.layout.width>0&&row.slider.layout.width<209,"compact row width fits the card when configured bars are too wide");
+        check(d.mSettingsButton.layout.width==row.slider.layout.width&&d.mSettingsButton.layout.height==row.slider.layout.width,"compact settings button stays square and follows the fitted bar width");
+        check(d.mVolumeRecyclerview.layout.height<=550,"compact native row viewport is capped at 200 dp even with a 320 dp sidebar");
         check(d.mDialogView.layout.width==37&&d.mVolumeRecyclerview.parent==d.mDialogView,"native root and recycler hierarchy remain untouched during transition");
         VolumeItemAnimator animator=new VolumeItemAnimator(d.volumeListAdapter);
         float previous=-1;
@@ -97,12 +117,18 @@ public final class VolumePanelCheck {
             item.itemView.translationX=25;item.itemView.screenX+=25;
             float x=item.itemView.screenX-item.itemView.translationX+endpoint("getEndX",animator,item);
             float y=item.itemView.screenY+endpoint("getTranslationY",animator,item);
-            check(x>=panel.left&&x+item.itemView.layout.width<=panel.right&&x>previous&&y>=panel.top&&y+300<=panel.bottom,"native row "+i+" animation endpoint fits card and preserves physical order");previous=x;
+            check(x>=panel.left&&x+item.itemView.layout.width<=panel.right&&x>previous&&y>=panel.top&&y+d.mVolumeRecyclerview.layout.height<=panel.bottom,"native row "+i+" animation endpoint fits card and preserves physical order");previous=x;
             float start=item.itemView.screenX-item.itemView.translationX+endpoint("resolvePanelStartTranslationX",animator,item);
             check(start==900,"native expand/collapse returns row "+i+" to captured sidebar anchor");
         }
+        LayoutParams title=(LayoutParams)d.mVolumePanelTitleText.layout;
+        check(title.width>66&&title.leftMargin>=panel.left&&title.leftMargin+title.width<=panel.right,"native title receives space before the expansion assigns its text");
+        LayoutParams titleIcon=(LayoutParams)d.mVolumePanelTitleIcon.layout;
+        check(Math.abs((titleIcon.topMargin+titleIcon.height/2f)-(title.topMargin+title.height/2f))<=1&&title.leftMargin>titleIcon.leftMargin,"title and icon use one compact horizontal row");
         LayoutParams button=(LayoutParams)d.mSettingsButton.layout;
         check(button.leftToLeft==0&&button.topToTop==0&&button.leftMargin>=panel.left&&button.topMargin<panel.bottom,"native title/settings constraints are positioned within the card");
+        LayoutParams settingsLabel=(LayoutParams)d.mVolumeSettingText.layout;
+        check(settingsLabel.leftMargin>=button.leftMargin+button.width&&settingsLabel.topMargin<button.topMargin+button.height&&settingsLabel.leftMargin+settingsLabel.width<=panel.right,"native settings label sits beside the square button inside the card");
         OplusVolumeDialogView.CustomDialog nativeDialog=new OplusVolumeDialogView.CustomDialog(d);
         HookCallback.Param inside=before(VIEW+"$CustomDialog#dispatchTouchEvent",nativeDialog,new MotionEvent(0,panel.left+5,panel.top+5));
         check(!inside.returnEarly&&owner.dismissals==0,"inside touch continues through native dialog dispatch");
@@ -111,13 +137,14 @@ public final class VolumePanelCheck {
         check(outsideUp.returnEarly,"outside gesture remains consumed until release");
         check(outside.returnEarly&&owner.dismissals==1,"outside tap requests native dismiss rather than destroying transition state");
         check(d.mDialogView.getBackground()==bounded,"compact surface remains through native collapse");
-        int oldWidth=button.width;CloudCheck.after(VIEW+"#resetSliderState",d,null);
-        check(d.mDialogView.getBackground()==original&&button.leftToLeft==-1&&button.topMargin==0&&button.width==oldWidth,"native terminal reset restores original background and all accessory constraints");
+        CloudCheck.after(VIEW+"#resetSliderState",d,null);
+        check(d.mDialogView.getBackground()==original&&button.leftToLeft==-1&&button.topMargin==0&&button.width==209&&button.height==209,"native terminal reset restores background, constraints and configured sidebar button size");
+        check(d.mVolumeRecyclerview.layout.height==940,"native terminal reset restores the full configured sidebar length");
         float nativeEnd=endpoint("getEndX",animator,h);
         check(nativeEnd==999,"completed transitions no longer override native animator endpoints");
         Bundle off=config();off.putBoolean("enabled",false);CloudCheck.config(off);VolumeHook.refresh();
         check(row.slider.layout.width==37&&row.slider.mBackgroundWidth==56&&row.slider.mBackgroundRadius==28&&row.slider.mPaddingVertical==28,"turning customization off restores native layout, geometry and padding");
-        check(d.mMoreRowStreamLl.layout.width==37&&d.mSettingsButton.layout.width==96,"button dimensions restore independently");
+        check(d.mMoreRowStreamLl.layout.width==37&&d.mSettingsButton.layout.width==96,"turning shared sizing off restores original native button dimensions");
         expand=before(VIEW+"#expandPanel",d);check(!expand.returnEarly,"disabled mode preserves native expansion");
         Bundle defaults=new Bundle();defaults.putBoolean("enabled",true);defaults.putBoolean("volume_compact",true);CloudCheck.config(defaults);
         h.itemView.screenX=12;h.itemView.translationX=0;owner.mExpanded=false;
@@ -133,6 +160,11 @@ public final class VolumePanelCheck {
         d.mDialogView.getBackground().draw(new Canvas());
         check(panelAuto.getBounds().left==22,"left sidebar expands inward from its physical position");
         before(BAR+"#onMeasure",row.slider,0,0);check(row.slider.mBackgroundRadius<=row.slider.mBackgroundWidth/2,"compact sizing without custom corners keeps native radius within track width");
+        d.volumeListAdapter.count=1;CloudCheck.after(BASE+"VolumeListAdapter#switchToDataSourcePanel",d.volumeListAdapter,null,false);
+        d.mDialogView.getBackground().draw(new Canvas());
+        check(panelAuto.getBounds().width()>=550&&panelAuto.getBounds().width()<=880,"single-stream panel still reserves readable space for native title and settings");
+        LayoutParams oneButton=(LayoutParams)d.mSettingsButton.layout,oneLabel=(LayoutParams)d.mVolumeSettingText.layout;
+        check(oneLabel.width>=132&&oneLabel.leftMargin>=oneButton.leftMargin+oneButton.width,"single-stream settings label retains space beside the shared square button");
         Drawable during=d.mDialogView.getBackground();CloudCheck.config(off);VolumeHook.refresh();
         check(d.mDialogView.getBackground()==during,"settings refresh requests native collapse without stripping its compact background");
         CloudCheck.after(VIEW+"#resetSliderState",d,null);VolumeHook.refresh();

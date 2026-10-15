@@ -123,7 +123,7 @@ private fun Area.summary(corner: Boolean = true, relativeCorners: Boolean = fals
                 LiquidSwitchRow("取消底部抬高", "移除手势导航的底部占位，让应用内容延伸到底边", settings.removeGestureBarInset) { change(settings.copy(removeGestureBarInset = it)) }
             }
             UiText("适用于全面屏手势导航，两个开关可分别使用。上滑返回、最近任务和侧边返回手势保留；关闭开关恢复系统显示与占位。", 13, muted = true)
-            UiText("首次升级后需重启系统界面加载，之后修改自动同步。应用自行添加的底部留白不会被移除，键盘自身的底部空间仍由输入法和系统控制。", 12, muted = true)
+            UiText("升级后需正常重启手机加载，之后修改自动同步。应用自行添加的底部留白不会被移除，键盘自身的底部空间仍由输入法和系统控制。", 12, muted = true)
         }
         SettingsPage.StatusStyle -> StatusIconStyleSettings(settings, change)
         SettingsPage.StatusIcons -> {

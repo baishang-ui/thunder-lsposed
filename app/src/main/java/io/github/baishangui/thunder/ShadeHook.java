@@ -395,7 +395,7 @@ public final class ShadeHook {
         if (!snapshot.enabled) return null;
         Object role = Reflect.getAdditionalInstanceField(blur, ROLE);
         if ("volume-bar".equals(role)) return snapshot.volumeBar;
-        if ("volume-buttons".equals(role)) return snapshot.volumeButtons;
+        if ("volume-buttons".equals(role)) return snapshot.volumeBar;
         if ("volume-panel".equals(role)) return snapshot.volumePanel;
         if ("banner".equals(role)) return snapshot.banner;
         if ("qs-card".equals(role)) return snapshot.qsCards;

@@ -43,7 +43,8 @@ final class VolumeHook {
             @Override protected void afterHookedMethod(Param p) {
                 Compact panel=panels.get(p.thisObject);HookConfig c=panel==null?ShadeHook.snapshot():panel.config;
                 View button=view(p.thisObject,"mMoreRowStreamLl");
-                if(c.enabled&&c.volumeButtonSize&&button!=null)p.setResult(dp(button,c.volumeButton)/2f);
+                if(button!=null&&(panel!=null||(c.enabled&&c.volumeSize)))
+                    p.setResult((panel==null?dp(button,c.volumeWidth):panel.barWidth())/2f);
             }
         });
         // Never cancel either expandPanel method. mExpanded, controller flags, row adapter,
@@ -121,7 +122,7 @@ final class VolumeHook {
         });
         // Keep compact geometry until native terminal hide, including interrupted collapse.
         hook(loader,BASE+"view.OplusVolumeDialogView",new String[]{"resetSliderState"},new HookCallback() {
-            @Override protected void afterHookedMethod(Param p) { restorePanel(p.thisObject); }
+            @Override protected void afterHookedMethod(Param p) { restorePanel(p.thisObject);updateDialog(p.thisObject); }
         });
         hook(loader,BASE+"OplusVolumeDialogImpl",new String[]{"destroy","onConfigChanged","onThemeChanged","onUiModeChanged"},new HookCallback() {
             @Override protected void beforeHookedMethod(Param p) { restorePanel(Reflect.getObjectField(p.thisObject,"mOplusVolumeDialogView")); }
@@ -291,15 +292,17 @@ final class VolumeHook {
             }
             if(overhead!=null)size(recycler,0,dp(recycler,c.volumeHeight)+(Integer)overhead,custom,false,true);
         }
+        styleButtons(dialog,c,panel);
+        if(panel!=null) {panel.arrange(Reflect.getObjectField(dialog,"volumeListAdapter"));panel.mount();}
+    }
+
+    private static void styleButtons(Object dialog,HookConfig c,Compact panel) {
         for(String key:new String[]{"mMoreRowStreamLl","mAppVolumeAdjustFl","mODICaptionsView","mSettingsButton"}) {
             View button=view(dialog,key);if(button==null)continue;
-            int h=dp(button,c.volumeButton),w=h;
-            int[] original=layouts.get(button);int ow=original==null?button.getLayoutParams().width:original[0],oh=original==null?button.getLayoutParams().height:original[1];
-            if(key.equals("mSettingsButton")&&ow>0&&oh>0)w=Math.round(h*(float)ow/oh);
-            size(button,w,h,c.enabled&&c.volumeButtonSize,true,true);
+            int side=panel==null?dp(button,c.volumeWidth):panel.barWidth();
+            size(button,side,side,panel!=null||(c.enabled&&c.volumeSize),true,true);
             button.invalidate();button.invalidateOutline();
         }
-        if(panel!=null) {panel.arrange(Reflect.getObjectField(dialog,"volumeListAdapter"));panel.mount();}
     }
 
     private static void preparePanel(Object dialog) {
@@ -352,7 +355,8 @@ final class VolumeHook {
         final WeakReference<View> root,recycler;
         final Map<View,Map<String,Object>> accessories=new WeakHashMap<>();
         final Rect usable=new Rect();
-        final int anchorX,anchorY,anchorRight,inset,gap,header,footer,rowHeight;
+        final int anchorX,anchorY,anchorRight,inset,gap,sourceHeight;
+        int header,footer,rowHeight;
         VolumePanelGeometry.Bounds bounds;
         int rowTop,count,arrangedCount=-1;
         NativePanelSurface surface;
@@ -364,53 +368,67 @@ final class VolumeHook {
             r.getWindowVisibleDisplayFrame(usable);int[] origin=location(r);
             usable.left=Math.max(usable.left,origin[0]);usable.top=Math.max(usable.top,origin[1]);
             usable.right=Math.min(usable.right,origin[0]+r.getWidth());usable.bottom=Math.min(usable.bottom,origin[1]+r.getHeight());
-            inset=dp(r,20);gap=dp(r,12);header=dp(r,116);
-            View button=view(d,"mSettingsButton"),label=view(d,"mVolumeSettingText");
-            footer=Math.max(dp(r,88),height(button)+height(label)+dp(r,28));
-            rowHeight=list.getHeight();
+            inset=dp(r,12);gap=dp(r,8);sourceHeight=height(list);
         }
         void arrange(Object adapter) {
             View r=root.get(),list=recycler.get();Object d=dialog.get();if(r==null||list==null||d==null)return;
             int n=((java.util.List<?>)Reflect.callMethod(adapter,"getPanelShowList")).size();
             if(n==0)n=((Number)Reflect.callMethod(adapter,"getItemCount")).intValue();
             n=Math.max(1,n);if(arrangedCount==n)return;arrangedCount=n;count=n;
-            HookConfig c=config;rowWidth=c.enabled&&c.volumeSize?dp(r,c.volumeWidth+10):dp(r,56);
-            int usableWidth=Math.max(1,usable.width()-dp(r,16));
+            // Cap both dimensions, even if the sidebar is configured very wide or long.
+            rowWidth=Math.min(dp(r,66),config.volumeSize?dp(r,config.volumeWidth+10):dp(r,56));
+            int margin=dp(r,8),usableWidth=Math.min(dp(r,320),Math.max(1,usable.width()-2*margin));
             rowWidth=Math.min(rowWidth,Math.max(1,(usableWidth-2*inset-(count-1)*gap)/count));
-            int margin=dp(r,8),available=Math.max(1,usable.height()-2*margin);
-            bounds=VolumePanelGeometry.place(usable.left+margin,usable.top+margin,usable.right-margin,usable.bottom-margin,anchorX,anchorY-header+inset+dp(r,16),anchorRight,anchorY+rowHeight,
-                    count*rowWidth+(count-1)*gap+2*inset,Math.min(available,header+rowHeight+footer),inset);
-            rowTop=Math.min(Math.max(bounds.y()+header,anchorY+dp(r,16)),bounds.y()+bounds.height()-footer-rowHeight);
-            // Very short landscape windows need a shorter native row viewport.
-            int fit=Math.max(dp(r,64),bounds.height()-header-footer);
-            if(fit<rowHeight){size(list,0,fit,true,false,true);rowTop=bounds.y()+header;}
+            int cardWidth=Math.min(usableWidth,Math.max(dp(r,200),count*rowWidth+(count-1)*gap+2*inset)),contentWidth=cardWidth-2*inset;
+            styleButtons(d,config,this);
+            View icon=view(d,ACCESSORIES[0]),title=view(d,ACCESSORIES[1]),tips=view(d,ACCESSORIES[2]);
+            View button=view(d,ACCESSORIES[3]),label=view(d,ACCESSORIES[4]);
+            int iconSide=icon==null?0:dp(r,24),titleGap=icon==null?0:gap;
+            int titleWidth=title==null?0:Math.max(1,Math.min(dp(r,128),contentWidth-iconSide-titleGap));
+            measureAccessory(title,titleWidth);
+            measureAccessory(tips,contentWidth);
+            measureAccessory(label,contentWidth-(button==null?0:height(button)+gap));
+            int titleHeight=Math.max(iconSide,height(title));
+            header=inset+titleHeight+dp(r,4)+height(tips)+gap;
+            footer=2*inset+Math.max(height(button),height(label));
+            int available=Math.min(dp(r,360),Math.max(1,usable.height()-2*margin));
+            rowHeight=Math.max(1,Math.min(Math.min(sourceHeight,dp(r,200)),available-header-footer));
+            bounds=VolumePanelGeometry.place(usable.left+margin,usable.top+margin,usable.right-margin,usable.bottom-margin,
+                    anchorX,anchorY-header+inset,anchorRight,anchorY+sourceHeight,
+                    cardWidth,Math.min(available,header+rowHeight+footer),inset);
+            rowTop=bounds.y()+header;
+            size(list,0,rowHeight,true,false,true);
             int[] origin=location(r);
-            int titleTop=bounds.y()+dp(r,16),settingsTop=bounds.y()+bounds.height()-footer;
-            placeAccessory(d,ACCESSORIES[0],titleTop,origin);
-            View titleIcon=view(d,ACCESSORIES[0]);titleTop+=(titleIcon==null?dp(r,24):height(titleIcon))+dp(r,4);
-            placeAccessory(d,ACCESSORIES[1],titleTop,origin);
-            View title=view(d,ACCESSORIES[1]);placeAccessory(d,ACCESSORIES[2],titleTop+height(title)+dp(r,2),origin);
-            placeAccessory(d,ACCESSORIES[3],settingsTop,origin);
-            View button=view(d,ACCESSORIES[3]);placeAccessory(d,ACCESSORIES[4],settingsTop+height(button)+dp(r,6),origin);
+            // Native title text is assigned during expansion; reserve its width even when still empty.
+            int titleGroup=iconSide+titleGap+titleWidth;
+            int titleLeft=bounds.x()+(bounds.width()-titleGroup)/2,titleTop=bounds.y()+inset;
+            placeAccessory(d,ACCESSORIES[0],titleLeft,titleTop+(titleHeight-iconSide)/2,iconSide,iconSide,origin);
+            placeAccessory(d,ACCESSORIES[1],titleLeft+iconSide+titleGap,titleTop+(titleHeight-height(title))/2,titleWidth,height(title),origin);
+            placeAccessory(d,ACCESSORIES[2],bounds.x()+inset,titleTop+titleHeight+dp(r,4),contentWidth,height(tips),origin);
+            int buttonSide=height(button),labelWidth=accessoryWidth(label),settingsHeight=Math.max(buttonSide,height(label));
+            int settingsGroup=buttonSide+(button==null?0:gap)+labelWidth;
+            int settingsLeft=bounds.x()+(bounds.width()-settingsGroup)/2,settingsTop=bounds.y()+bounds.height()-footer+inset;
+            placeAccessory(d,ACCESSORIES[3],settingsLeft,settingsTop+(settingsHeight-buttonSide)/2,buttonSide,buttonSide,origin);
+            placeAccessory(d,ACCESSORIES[4],settingsLeft+buttonSide+(button==null?0:gap),settingsTop+(settingsHeight-height(label))/2,labelWidth,height(label),origin);
             if(surface!=null)surface.invalidateSelf();
         }
-        void placeAccessory(Object d,String key,int top,int[] origin) {
+        int barWidth() {View r=root.get();return r==null?1:Math.max(1,rowWidth-dp(r,10));}
+        void measureAccessory(View v,int width) {
+            if(v==null)return;
+            v.measure(View.MeasureSpec.makeMeasureSpec(Math.max(1,width),View.MeasureSpec.AT_MOST),
+                    View.MeasureSpec.makeMeasureSpec(dp(v,72),View.MeasureSpec.AT_MOST));
+        }
+        int accessoryWidth(View v) {return v==null?0:v.getMeasuredWidth();}
+        void placeAccessory(Object d,String key,int left,int top,int width,int height,int[] origin) {
             View v=view(d,key);if(v==null)return;Object lp=v.getLayoutParams();if(lp==null)return;
-            Map<String,Object> saved=accessories.computeIfAbsent(v,k->{
+            accessories.computeIfAbsent(v,k->{
                 Map<String,Object> values=new LinkedHashMap<>();for(String field:CONSTRAINTS)values.put(field,Reflect.getObjectField(lp,field));
                 values.put("relativeMargins",Reflect.callMethod(lp,"isMarginRelative"));values.put("marginStart",Reflect.callMethod(lp,"getMarginStart"));values.put("marginEnd",Reflect.callMethod(lp,"getMarginEnd"));return values;
             });
             for(String keyField:CONSTRAINTS)if(keyField.contains("To"))Reflect.setIntField(lp,keyField,-1);
             Reflect.setIntField(lp,"leftToLeft",0);Reflect.setIntField(lp,"topToTop",0);
-            int width=((Number)saved.get("width")).intValue();
-            if(width<=0) {
-                v.measure(View.MeasureSpec.makeMeasureSpec(Math.max(1,bounds.width()-2*inset),View.MeasureSpec.AT_MOST),View.MeasureSpec.makeMeasureSpec(header,View.MeasureSpec.AT_MOST));
-                width=v.getMeasuredWidth();
-            }
-            width=Math.min(Math.max(1,width),bounds.width()-2*inset);
-            Reflect.setIntField(lp,"width",width);
-            Reflect.setIntField(lp,"leftMargin",bounds.x()-origin[0]+(bounds.width()-width)/2);
-            Reflect.setIntField(lp,"topMargin",top-origin[1]);
+            Reflect.setIntField(lp,"width",Math.max(1,width));Reflect.setIntField(lp,"height",Math.max(1,height));
+            Reflect.setIntField(lp,"leftMargin",left-origin[0]);Reflect.setIntField(lp,"topMargin",top-origin[1]);
             Reflect.setIntField(lp,"rightMargin",0);Reflect.setIntField(lp,"bottomMargin",0);
             Reflect.callMethod(lp,"setMarginStart",Integer.MIN_VALUE);Reflect.callMethod(lp,"setMarginEnd",Integer.MIN_VALUE);
             v.setLayoutParams((ViewGroup.LayoutParams)lp);
@@ -464,7 +482,7 @@ final class VolumeHook {
         final Context context;final String role;final Path clip=new Path();final GradientDrawable fill=new GradientDrawable();
         FlatSurface(Drawable nativeDrawable,Context ctx,String r){super(nativeDrawable);context=ctx;role=r;}
         HookConfig.Area area() {
-            HookConfig c=ShadeHook.snapshot();return !c.enabled?null:role.equals("volume-bar")?c.volumeBar:role.equals("volume-panel")?c.volumePanel:c.volumeButtons;
+            HookConfig c=ShadeHook.snapshot();return !c.enabled?null:role.equals("volume-panel")?c.volumePanel:c.volumeBar;
         }
         float radius(HookConfig.Area a) {
             Outline nativeOutline=new Outline();getDrawable().getOutline(nativeOutline);

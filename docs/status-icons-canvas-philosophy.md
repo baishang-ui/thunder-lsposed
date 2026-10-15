@@ -1,6 +1,6 @@
 # Optical Quiet
 
-Form begins with its smallest readable silhouette. Curves should feel continuous, terminals intentional, and counters open. Every contour deserves the painstaking attention of a miniature engraving: no accidental corners, no noisy tracing, no decorative detail that disappears at the intended scale.
+Form begins with its smallest readable silhouette. Curves should feel continuous, terminals intentional, and counters open. Rectangular forms ease into each corner with continuous curvature; their inner contours deserve the same softness as their outer edges. Every contour deserves the painstaking attention of a miniature engraving: no accidental corners, no noisy tracing, no decorative detail that disappears at the intended scale.
 
 Space supplies the rhythm. Narrow forms retain their narrowness; broad forms receive room without growing heavier. A common interval links neighboring silhouettes, while carefully judged optical centers make unlike shapes belong to the same line. This balance is the product of meticulous refinement, not mechanical enlargement.
 

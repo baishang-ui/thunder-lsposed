@@ -51,7 +51,7 @@ internal data class Settings(
     fun json(): String {
         val data = JSONObject()
         bundle().let { b -> b.keySet().sorted().forEach { k -> @Suppress("DEPRECATION") data.put(k, b.get(k)) } }
-        return JSONObject().put("format", "thunder.settings").put("version", 14).put("settings", data).toString(2)
+        return JSONObject().put("format", "thunder.settings").put("version", 15).put("settings", data).toString(2)
     }
     companion object {
         fun from(b: Bundle): Settings {
@@ -87,12 +87,25 @@ internal data class Settings(
             require(text.toByteArray(Charsets.UTF_8).size <= 65536) { "配置不能超过 64 KB" }
             val root = JSONObject(text)
             val version = root.opt("version")
-            require(root.opt("format") == "thunder.settings" && version in setOf(3,4,5,6,7,8,9,10,11,12,13,14)) { "不是受支持的 thunder 配置" }
+            require(root.opt("format") == "thunder.settings" && version in setOf(3,4,5,6,7,8,9,10,11,12,13,14,15)) { "不是受支持的 thunder 配置" }
             val data = root.getJSONObject("settings")
             // Retired transition setting in old exports: validate, then discard it.
             if (version in setOf(10,11,12,13) && data.has("status_bar_follow_app")) {
                 require(data.get("status_bar_follow_app") is Boolean) { "status_bar_follow_app 必须是布尔值" }
                 data.remove("status_bar_follow_app")
+            }
+            // v13/v14 had separate button controls. The bar is now the shared source.
+            if (version in setOf(13,14)) {
+                val retiredBooleans = setOf("volume_button_size", "volume_buttons_blur", "volume_buttons_tint", "volume_buttons_corner_enabled")
+                val retiredRanges = mapOf("volume_button" to 36..72, "volume_buttons_radius" to 0..200, "volume_buttons_corner" to 0..64)
+                (retiredBooleans + retiredRanges.keys + "volume_buttons_color").forEach { key ->
+                    if (data.has(key)) {
+                        val value = data.get(key)
+                        require(if (key in retiredBooleans) value is Boolean else value is Int) { "$key 类型错误" }
+                        retiredRanges[key]?.let { require(value is Int && value in it) { "$key 超出允许范围" } }
+                        data.remove(key)
+                    }
+                }
             }
             val defaults = Settings().bundle().apply {
                 // v7 and v12 serialize rows separately; v8–v11 seed them from the shared material.
@@ -115,7 +128,7 @@ internal data class Settings(
                 listOf("notification_card","cloud_card").flatMap { k ->
                     listOf("blur","radius","tint","color","corner_enabled","corner").map { "${k}_$it" }
                 }
-            val expected = defaults.keySet() - (if (version !in setOf(13,14)) VolumeSettings.keys else emptySet()) - (if (version !in setOf(13,14)) setOf("gesture_bar_hidden", "gesture_bar_remove_inset") else emptySet()) - (if (version !in setOf(11,12,13,14)) setOf("status_bar_stack_signals") else emptySet()) - (if (version !in setOf(9,10,11,12,13,14)) setOf("status_bar_icon_style") else emptySet()) - (if (version in setOf(3,4,5,6)) v7 else emptySet()) - (if (version == 3) added else emptySet()) -
+            val expected = defaults.keySet() - (if (version !in setOf(13,14,15)) VolumeSettings.keys else emptySet()) - (if (version !in setOf(13,14,15)) setOf("gesture_bar_hidden", "gesture_bar_remove_inset") else emptySet()) - (if (version !in setOf(11,12,13,14,15)) setOf("status_bar_stack_signals") else emptySet()) - (if (version !in setOf(9,10,11,12,13,14,15)) setOf("status_bar_icon_style") else emptySet()) - (if (version in setOf(3,4,5,6)) v7 else emptySet()) - (if (version == 3) added else emptySet()) -
                 (if (version == 3 || version == 4) setOf("status_bar_hidden_icons") else emptySet()) -
                 (if (version in setOf(3,4,5)) setOf("qs_card_tint","qs_card_color") else emptySet())
             require(data.keys().asSequence().toSet() == expected) { "配置字段不完整或包含未知字段" }

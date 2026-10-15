@@ -5,9 +5,9 @@ import android.os.Bundle;
 /** Immutable snapshot: no disk or Binder work in drawing callbacks. */
 final class HookConfig {
     final boolean enabled;
-    final boolean volumeSize, volumeCompact, volumeButtonSize;
-    final int volumeWidth, volumeHeight, volumeButton;
-    final Area volumeBar, volumeButtons, volumePanel;
+    final boolean volumeSize, volumeCompact;
+    final int volumeWidth, volumeHeight;
+    final Area volumeBar, volumePanel;
     final long revision;
     final Area qs, shade, banner, cloudArea, cloudCardArea, notificationCard, qsCards, qsProgress;
     final boolean cloudHeightEnabled, cloudCornerEnabled;
@@ -20,11 +20,9 @@ final class HookConfig {
     HookConfig(Bundle data) {
         volumeSize = data != null && data.getBoolean("volume_size",false);
         volumeCompact = data != null && data.getBoolean("volume_compact",false);
-        volumeButtonSize = data != null && data.getBoolean("volume_button_size",false);
         volumeWidth = bounded(data,"volume_width",56,32,96);
         volumeHeight = bounded(data,"volume_height",240,120,400);
-        volumeButton = bounded(data,"volume_button",48,36,72);
-        volumeBar = new Area(data,"volume_bar"); volumeButtons = new Area(data,"volume_buttons");
+        volumeBar = new Area(data,"volume_bar");
         volumePanel = new Area(data,"volume_panel");
         enabled = data != null && data.getBoolean("enabled", true);
         revision = data == null ? -1 : data.getLong("revision", 0);

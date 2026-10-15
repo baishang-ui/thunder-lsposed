@@ -6,6 +6,8 @@ This is a geometry proof, not a SystemUI screenshot. Fonts come from canvas-desi
 from pathlib import Path
 import re
 import math
+import argparse
+import xml.etree.ElementTree as ET
 import skia
 from render_status_icons import ROOT, ICONS, paths, metrics, bounds, cell_width
 
@@ -142,6 +144,31 @@ def verify_rasters():
     print('Skia raster bounds verified at 1x, 2x, 2.75x and 3x; device layout and typeface remain unverified.')
 
 
+def corner_study(before):
+    """Same source coordinates at 6x, for judging the contours rather than layout."""
+    kinds=['CELLULAR','BATTERY','VIBRATE','VPN','CAST','WORK','CAMERA','ETHERNET']
+    surface=skia.Surface(1200,1140);c=surface.getCanvas();c.clear(color(PAPER))
+    text(c,'CONTINUOUS CORNERS',40,47,24,face=BOLD)
+    text(c,'Previous / revised   ·   same coordinates at 6x   ·   production paths',40,77,12,MUTED)
+    current=ROOT/'app/src/main/assets/icons/ios-reference'
+    for i,kind in enumerate(kinds):
+        x=40+i%2*580;y=105+i//2*240
+        c.drawRoundRect(skia.Rect.MakeXYWH(x,y,560,222),16,16,paint('#ffffff'))
+        text(c,kind.lower(),x+22,y+27,12,MUTED,MONO)
+        for j,source in enumerate([before,current]):
+            c.save();c.translate(x+142+j*270-12*6,y+111-12*6);c.scale(6,6)
+            nodes=ET.parse(source/(kind.lower()+'.svg')).getroot()
+            for n in nodes:
+                if n.tag.endswith('path'):
+                    c.drawPath(path(n.attrib['d']),paint(INK,stroke=float(n.attrib.get('stroke-width',0))))
+            if kind=='BATTERY':centered(c,'75',12.25,12,10.4,'#ffffff')
+            c.restore()
+            text(c,'previous' if j==0 else 'revised',x+142+j*270,y+203,11,MUTED,MONO,True)
+    text(c,'Two cubic segments per corner · smooth curvature into each straight edge',40,1103,12,MUTED)
+    output=ROOT/'docs/status-icons-rounded-corners.png';surface.makeImageSnapshot().save(str(output),skia.kPNG)
+    print(output)
+
+
 def main():
     verify_rasters()
     surface=skia.Surface(1280,1470);c=surface.getCanvas();c.clear(color(PAPER))
@@ -171,4 +198,9 @@ def main():
     print(output)
 
 
-if __name__=='__main__':main()
+if __name__=='__main__':
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--before',type=Path,help='Optional SVG directory for a corner comparison')
+    args=parser.parse_args()
+    main()
+    if args.before:corner_study(args.before)

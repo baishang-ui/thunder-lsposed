@@ -8,6 +8,8 @@ public final class IosCoverageCheck {
  static int checks,failures;
  static class Animated extends Drawable implements Animatable {boolean running;public void start(){running=true;}public void stop(){running=false;}public boolean isRunning(){return running;}}
  static class CountedImage extends ImageView {int updates;@Override public void setLayoutParams(android.view.ViewGroup.LayoutParams lp){super.setLayoutParams(lp);updates++;}}
+ static class CountedFrame extends FrameLayout {int updates;@Override public void setLayoutParams(android.view.ViewGroup.LayoutParams lp){super.setLayoutParams(lp);updates++;}}
+ static class CountedText extends TextView {int updates;@Override public void setLayoutParams(android.view.ViewGroup.LayoutParams lp){super.setLayoutParams(lp);updates++;}}
  static void check(boolean v,String s){checks++;if(!v){failures++;System.out.println("FAIL: "+s);}}
  static HookCallback.Param param(Object o,Object... args){return StatusBarIconCheck.param(o,args);}
  public static void main(String[] args)throws Throwable{
@@ -107,8 +109,58 @@ public final class IosCoverageCheck {
   base.setVisibility(android.view.View.VISIBLE);activity.setVisibility(android.view.View.VISIBLE);
   prepare.before(param(statusContainer,0,0));
   check(((FrameLayout.LayoutParams)marker.layout).getMarginStart()>=base.layout.width,"returning signal rebuilds adjacent spacing");
+  var mobileRoot=new com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView();statusContainer.addView(mobileRoot);
+  var mobileFrame=new FrameLayout();mobileRoot.addView(mobileFrame);
+  var mobileSignal=new ImageView();mobileSignal.drawable=new com.android.settingslib.graph.SignalDrawable();
+  var mobileType=new ImageView();mobileType.drawable=new IosIconDrawable.Replacement(new Drawable(),new IosStatusIcons.Symbol(IosStatusIcons.Kind.LABEL,0,4,0,0,"5G+"));
+  var mobileActivity=new ImageView();mobileActivity.drawable=new IosIconDrawable.Replacement(new Drawable(),new IosStatusIcons.Symbol(IosStatusIcons.Kind.ACTIVITY,3,3));
+  mobileFrame.addView(mobileSignal,new FrameLayout.LayoutParams(30,18,85));
+  mobileFrame.addView(mobileType,new FrameLayout.LayoutParams(10,12,85));
+  mobileFrame.addView(mobileActivity,new FrameLayout.LayoutParams(8,8,85));
+  prepare.before(param(statusContainer,0,0));
+  check(((FrameLayout.LayoutParams)mobileType.layout).getMarginStart()==mobileSignal.layout.width,"direct SignalDrawable reserves its cell before network label");
+  check(((FrameLayout.LayoutParams)mobileActivity.layout).getMarginStart()==mobileSignal.layout.width+mobileType.layout.width,"direct signal, label and activity do not overlap");
+  mobileType.setVisibility(4);prepare.before(param(statusContainer,0,0));
+  check(((FrameLayout.LayoutParams)mobileType.layout).getMarginStart()==0 && mobileType.getVisibility()==4,"invisible network label drops its old group offset without changing native visibility");
+  mobileType.setVisibility(android.view.View.VISIBLE);prepare.before(param(statusContainer,0,0));
+  check(((FrameLayout.LayoutParams)mobileType.layout).getMarginStart()==mobileSignal.layout.width,"network label restores adjacent position when visible again");
+  var bigRoot=new com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView();statusContainer.addView(bigRoot);
+  var bigCombo=new androidx.constraintlayout.widget.ConstraintLayout();bigRoot.addView(bigCombo);
+  var bigSignalFrame=new CountedFrame();var signalFrameParams=new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(-2,0);
+  signalFrameParams.startToEnd=900;signalFrameParams.endToEnd=0;signalFrameParams.topToTop=0;signalFrameParams.bottomToBottom=0;
+  bigCombo.addView(bigSignalFrame,signalFrameParams);
+  var bigSignal=new ImageView();bigSignal.drawable=new com.android.settingslib.graph.SignalDrawable();bigSignalFrame.addView(bigSignal,new FrameLayout.LayoutParams(19,16,85));
+  var bigType=new CountedText();bigType.id=711;bigType.res.full="com.android.systemui:id/mobile_type_text";bigType.setText("5G+");
+  var bigTypeParams=new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(-2,-2);
+  bigTypeParams.endToEnd=0;bigTypeParams.bottomToBottom=0;bigTypeParams.verticalBias=1;
+  bigCombo.addView(bigType,bigTypeParams);
+  prepare.before(param(statusContainer,0,0));
+  check(signalFrameParams.startToStart==0 && signalFrameParams.startToEnd==-1 && signalFrameParams.endToEnd==-1,"nested native signal frame is the first cell in the ColorOS constraint layout");
+  check(bigTypeParams.startToStart==0 && bigTypeParams.endToEnd==-1 && bigTypeParams.getMarginStart()==bigSignal.layout.width,"large 5G label follows signal instead of overlapping its lower edge");
+  check(bigTypeParams.topToTop==0 && bigTypeParams.bottomToBottom==0 && bigTypeParams.verticalBias==.5f,"ColorOS network label is vertically centered with signal");
+  int originalSignalWidth=bigSignal.layout.width;
+  int bigUpdates=bigSignalFrame.updates+bigType.updates;
+  prepare.before(param(statusContainer,0,0));
+  check(bigTypeParams.getMarginStart()==originalSignalWidth,"repeated constraint arrangement keeps a stable offset");
+  check(bigSignalFrame.updates+bigType.updates==bigUpdates,"constraint cells do not request layout repeatedly");
+  var nestedRoot=new com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView();statusContainer.addView(nestedRoot);
+  var nestedOuter=new FrameLayout();nestedRoot.addView(nestedOuter);
+  var nestedFrame=new FrameLayout();nestedOuter.addView(nestedFrame,new FrameLayout.LayoutParams(40,18,85));
+  var nestedSignal=new ImageView();nestedSignal.drawable=new com.android.settingslib.graph.SignalDrawable();nestedFrame.addView(nestedSignal,new FrameLayout.LayoutParams(19,16,85));
+  prepare.before(param(statusContainer,0,0));
+  check(((FrameLayout.LayoutParams)nestedFrame.layout).gravity==(android.view.Gravity.START|android.view.Gravity.CENTER_VERTICAL),"nested native frame joins adjacent layout");
+  bigSignalFrame.setVisibility(android.view.View.GONE);prepare.before(param(statusContainer,0,0));
+  check(bigTypeParams.getMarginStart()==0,"constraint metadata closes the gap when the entire signal frame disappears");
+  bigSignalFrame.setVisibility(android.view.View.VISIBLE);prepare.before(param(statusContainer,0,0));
+  check(bigTypeParams.getMarginStart()==originalSignalWidth,"constraint metadata follows a returning signal");
+  var nestedActivity=new ImageView();nestedActivity.drawable=new IosIconDrawable.Replacement(new Drawable(),new IosStatusIcons.Symbol(IosStatusIcons.Kind.ACTIVITY,3,3));
+  bigSignalFrame.addView(nestedActivity,new FrameLayout.LayoutParams(8,8,85));prepare.before(param(statusContainer,0,0));
+  check(bigTypeParams.getMarginStart()==bigSignal.layout.width+nestedActivity.layout.width,"outer constraint cell includes nested activity width");
   IosRenderPathCheck.config(false);IosStatusBarHook.refresh();
   check(marker.getTextSize()==14 && marker.getTypeface()==originalTypeface && marker.getGravity()==85 && marker.layout.width==7 && spacer.layout.width==12,"native text badge and spacers restored");
+  check(((FrameLayout.LayoutParams)nestedFrame.layout).gravity==85,"nested native frame gravity restored on disable");
+  check(signalFrameParams.startToEnd==900 && signalFrameParams.startToStart==-1 && signalFrameParams.endToEnd==0 && signalFrameParams.height==0,"native signal constraints restored after disabling");
+  check(bigTypeParams.startToStart==-1 && bigTypeParams.endToEnd==0 && bigTypeParams.topToTop==-1 && bigTypeParams.verticalBias==1,"native bottom-aligned 5G label constraints restored after disabling");
   IosRenderPathCheck.config(true);
   var animated=new Animated();var animatedReplacement=new IosIconDrawable.Replacement(animated,new IosStatusIcons.Symbol(IosStatusIcons.Kind.BLUETOOTH).marked(IosStatusIcons.CONNECTING));
   animatedReplacement.start();check(animated.running && animatedReplacement.isRunning(),"native animation lifecycle forwarded through replacement");
