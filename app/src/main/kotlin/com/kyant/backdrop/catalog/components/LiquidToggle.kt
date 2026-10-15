@@ -5,7 +5,7 @@ package com.kyant.backdrop.catalog.components
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
-import pui.c17.shade.LocalLiquidAppearance
+import io.github.baishangui.thunder.LocalLiquidAppearance
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue

@@ -4,14 +4,14 @@ plugins {
  id("org.jetbrains.kotlin.plugin.compose")
 }
 android {
- namespace = "pui.c17.shade"
+ namespace = "io.github.baishangui.thunder"
  compileSdk = 37
  defaultConfig {
-  applicationId = "pui.c17.shade"
+  applicationId = "io.github.baishangui.thunder"
   minSdk = 37
   targetSdk = 37
-  versionCode = 7
-  versionName = "4.2"
+  versionCode = 8
+  versionName = "4.3"
  }
  buildFeatures { compose = true; buildConfig = true }
  compileOptions {

@@ -1,5 +1,5 @@
 buildscript {
- repositories { maven("https://maven.aliyun.com/repository/google"); mavenCentral() }
+ repositories { google(); maven("https://maven.aliyun.com/repository/google"); mavenCentral() }
  dependencies { classpath("com.android.tools:r8:9.4.28") }
 }
 plugins {

@@ -1,39 +1,39 @@
 #!/system/bin/sh
 # Runs only through su after the user taps Restart. No module files or boot scripts.
 if [ "$(id -u)" != 0 ]; then
-    echo PUI_RESTART_ERROR=ROOT_DENIED
+    echo THUNDER_RESTART_ERROR=ROOT_DENIED
     exit 10
 fi
-pui_old=$(pidof com.android.systemui)
-if [ -z "$pui_old" ]; then
-    echo PUI_RESTART_ERROR=NOT_RUNNING
+thunder_old=$(pidof com.android.systemui)
+if [ -z "$thunder_old" ]; then
+    echo THUNDER_RESTART_ERROR=NOT_RUNNING
     exit 11
 fi
-for pui_pid in $pui_old; do
-    case "$pui_pid" in 0|1|''|*[!0-9]*) echo PUI_RESTART_ERROR=BAD_PID; exit 12;; esac
+for thunder_pid in $thunder_old; do
+    case "$thunder_pid" in 0|1|''|*[!0-9]*) echo THUNDER_RESTART_ERROR=BAD_PID; exit 12;; esac
 done
-echo "PUI_RESTART_OLD=$pui_old"
+echo "THUNDER_RESTART_OLD=$thunder_old"
 # ART can intercept/ignore TERM. KILL forces the framework to start a fresh SystemUI.
-if ! kill -KILL $pui_old; then
-    echo PUI_RESTART_ERROR=KILL_FAILED
+if ! kill -KILL $thunder_old; then
+    echo THUNDER_RESTART_ERROR=KILL_FAILED
     exit 13
 fi
-pui_attempt=0
-while [ "$pui_attempt" -lt 15 ]; do
-    pui_new=$(pidof com.android.systemui)
-    pui_stale=0
-    for pui_pid in $pui_new; do
-        case "$pui_pid" in ''|*[!0-9]*) pui_stale=1;; esac
-        for pui_previous in $pui_old; do
-            [ "$pui_pid" != "$pui_previous" ] || pui_stale=1
+thunder_attempt=0
+while [ "$thunder_attempt" -lt 15 ]; do
+    thunder_new=$(pidof com.android.systemui)
+    thunder_stale=0
+    for thunder_pid in $thunder_new; do
+        case "$thunder_pid" in ''|*[!0-9]*) thunder_stale=1;; esac
+        for thunder_previous in $thunder_old; do
+            [ "$thunder_pid" != "$thunder_previous" ] || thunder_stale=1
         done
     done
-    if [ -n "$pui_new" ] && [ "$pui_stale" = 0 ]; then
-        echo "PUI_RESTART_NEW=$pui_new"
+    if [ -n "$thunder_new" ] && [ "$thunder_stale" = 0 ]; then
+        echo "THUNDER_RESTART_NEW=$thunder_new"
         exit 0
     fi
     sleep 1
-    pui_attempt=$((pui_attempt + 1))
+    thunder_attempt=$((thunder_attempt + 1))
 done
-echo PUI_RESTART_ERROR=NO_NEW_PROCESS
+echo THUNDER_RESTART_ERROR=NO_NEW_PROCESS
 exit 14

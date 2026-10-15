@@ -7,7 +7,7 @@ asset = ROOT/'app/src/main/assets/restart-systemui.sh'
 if asset.exists():
     script = asset.read_text()
 else:
-    source = (ROOT/'app/src/main/kotlin/pui/c17/shade/MainActivity.kt').read_text()
+    source = (ROOT/'app/src/main/kotlin/io/github/baishangui/thunder/MainActivity.kt').read_text()
     script = re.search(r'ProcessBuilder\("su","-c","(.*?)"\)', source).group(1)
     script = script.replace('\\$', '$').replace('\\"', '"')
 
@@ -21,7 +21,7 @@ def child():
 def run_case(mode):
     processes = []
     stop = threading.Event()
-    with tempfile.TemporaryDirectory(prefix='pui-restart-check-') as tmp:
+    with tempfile.TemporaryDirectory(prefix='thunder-restart-check-') as tmp:
         tmp = Path(tmp); pidfile=tmp/'pid'; killfile=tmp/'killed'
         initial = child(); unrelated = child(); processes.extend([initial, unrelated])
         pidfile.write_text(str(initial.pid) if mode != 'missing' else '')
@@ -47,16 +47,16 @@ def run_case(mode):
             if mode == 'normal':
                 assert initial.poll() is not None, 'BUG: TERM returned success while SystemUI process stayed alive'
                 assert result.returncode == 0, result.stdout+result.stderr
-                assert 'PUI_RESTART_OLD='+str(initial.pid) in result.stdout
-                assert len(processes) == 3 and 'PUI_RESTART_NEW='+str(processes[-1].pid) in result.stdout
+                assert 'THUNDER_RESTART_OLD='+str(initial.pid) in result.stdout
+                assert len(processes) == 3 and 'THUNDER_RESTART_NEW='+str(processes[-1].pid) in result.stdout
             elif mode == 'denied':
-                assert result.returncode != 0 and 'PUI_RESTART_ERROR=ROOT_DENIED' in result.stdout
+                assert result.returncode != 0 and 'THUNDER_RESTART_ERROR=ROOT_DENIED' in result.stdout
                 assert initial.poll() is None
             elif mode == 'missing':
-                assert result.returncode != 0 and 'PUI_RESTART_ERROR=NOT_RUNNING' in result.stdout
+                assert result.returncode != 0 and 'THUNDER_RESTART_ERROR=NOT_RUNNING' in result.stdout
                 assert initial.poll() is None
             else:
-                assert result.returncode != 0 and 'PUI_RESTART_ERROR=NO_NEW_PROCESS' in result.stdout
+                assert result.returncode != 0 and 'THUNDER_RESTART_ERROR=NO_NEW_PROCESS' in result.stdout
             print('PASS:',mode,'real process termination / verified replacement / bounded error')
         finally:
             stop.set();watcher.join()

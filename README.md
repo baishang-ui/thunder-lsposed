@@ -2,7 +2,7 @@
 
 适用于 ColorOS 17 的独立 LSPosed 模块，调整 SystemUI 的下拉背景、通知横幅、通知边距与流体云外观。设置自动保存，改动的组件旁可回退。
 
-当前版本 **4.2 / versionCode 7**。应用名称由 PUI · C17 更改为 thunder；保留包名 `pui.c17.shade`、配置格式和签名身份，方便覆盖升级并保留已有设置。
+当前版本 **4.3 / versionCode 8**，应用包名及源码命名空间统一为 `io.github.baishangui.thunder`，配置格式为 `thunder.settings`。
 
 ## 环境要求
 
@@ -17,10 +17,10 @@
 - 控制中心与通知中心共用一组背景模糊、压暗颜色和强度设置。压暗强度为 0% 时清除混色，关闭自定义后恢复系统参数。
 - 通知横幅独立调整模糊、混色颜色与强度。
 - 通知列表左右边距调节，适配单栏、双栏和分屏资源。
-- 融合原 PUI 与 C17 的流体云参数，可独立调整胶囊高度、圆角、背景混色与模糊；未启用自定义圆角时保留 C17。
+- 调整 C17 的流体云参数，可独立调整胶囊高度、圆角、背景混色与模糊；未启用自定义圆角时保留 C17。
 - 主页、调节、设置三页悬浮导航，顶部使用 Kyant0 教程中的透明遮罩渐进模糊，左上角返回、右上角重启均使用 LiquidButton。
 - 滑块在组件内保留连续浮点手势值，松手后提交；开关和颜色确认后自动保存。改过的滑块、开关、颜色和外观选项提供“回退”，返回本次编辑前的值。
-- JSON 配置导入导出、界面配色和玻璃参数调节。v4 配置格式可导入旧版 v3 配置。
+- JSON 配置导入导出、界面配色和玻璃参数调节。使用 `thunder.settings` 配置格式。
 - 通知横幅页提供真实测试通知，首次发送请求通知权限，通知在 15 秒后自动移除。横幅是否显示仍受系统通知渠道、勿扰模式和提醒频率限制。
 - 框架连接、配置同步与 SystemUI 运行报告，以及重启后的新进程和配置版本确认。
 
@@ -28,7 +28,7 @@
 
 ## 安装使用
 
-1. 安装签名后的 thunder APK；已有版本可使用同一签名覆盖升级。
+1. 从 GitHub Releases 安装签名后的 thunder APK。新包名会作为独立应用安装；首次安装需重新启用模块并设置作用域。卸载旧包前先在 LSPosed 中停用，避免两个模块同时修改 SystemUI。后续版本可使用同一包名和签名覆盖升级。
 2. 在 LSPosed 中启用模块，作用域选择 **系统界面 / com.android.systemui**。
 3. 首次安装或从旧式入口升级至 API 102 入口时，先打开应用，再重启手机。
 4. 在“调节”页开启需要的功能。交互会自动保存并同步，不再需要手动点击保存。
@@ -49,11 +49,34 @@ python3 scripts/check_systemui_restart.py
 python3 scripts/check_effects.py
 ```
 
-Windows 使用 `gradlew.bat`。Release 构建输出为 `app/build/outputs/apk/release/app-release-unsigned.apk`，需使用自己的密钥通过 Android Build Tools 的 `apksigner` 签名后安装。已有安装只能使用原签名直接覆盖升级，仓库不包含发布私钥。
+Windows 使用 `gradlew.bat`。本地构建输出为 `app/build/outputs/apk/release/app-release-unsigned.apk`，需签名后安装。仓库不包含发布私钥，正式安装包由 GitHub Actions 签名并发布。
 
 重启脚本检查使用独立的临时进程，不会重启开发电脑的系统界面。效果检查用合成的 Android / Oplus 替身执行实际 Java 处理器，覆盖展开进度、状态恢复与流体云原生接口；不包含采集固件，也不验证手机渲染。
 
 主要依赖：AGP 8.13.2、Kotlin 2.3.20、Compose 1.10.3、Kyant0 Backdrop 1.0.6、Shapes 1.2.0、Miuix 0.9.0，以及 libxposed API / Service 102.0.0。
+
+## GitHub Actions 与发布
+
+[构建工作流](../../actions/workflows/android.yml) 在推送 `main`、提交 Pull Request 或手动运行时执行处理器检查、重启脚本检查、单元测试、Lint 和 Release 构建，保留未签名 APK 及检查报告。普通分支构建不使用发布密钥。
+
+发布步骤：
+
+1. 更新 `app/build.gradle.kts` 中的 `versionName` 与递增的 `versionCode`，提交并推送。
+2. 创建与 `versionName` 一致的版本标签，例如 `git tag v4.3`，再执行 `git push origin v4.3`。
+3. 工作流核对包名、APK 版本与标签，全部检查通过后使用正式密钥签名、验证签名及 16 KB 对齐，并发布 [GitHub Release](../../releases)，包含 APK 和 SHA-256 校验文件。
+
+也可以在已有标签上手动运行工作流。带 `-` 的版本标记为预发布；已发布的版本不覆盖，应递增版本后发布。发布失败留下的草稿可以通过重新运行工作流继续上传并发布。
+
+仓库 Actions Secrets 需要配置：
+
+| 名称 | 内容 |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | thunder 发布 keystore 的 Base64 内容 |
+| `ANDROID_KEYSTORE_PASSWORD` | keystore 密码 |
+| `ANDROID_KEY_ALIAS` | 发布密钥别名 |
+| `ANDROID_KEY_PASSWORD` | 发布密钥密码 |
+
+仓库变量 `ANDROID_SIGNING_CERT_SHA256` 保存签名证书的 SHA-256 指纹（小写、无冒号），工作流用它核对签名身份。已为本仓库配置 thunder 专用发布密钥；请保管密钥备份，后续版本需要使用同一密钥才能覆盖升级。
 
 ## 目录
 
@@ -61,6 +84,7 @@ Windows 使用 `gradlew.bat`。Release 构建输出为 `app/build/outputs/apk/re
 app/                 Android 应用、Hook、配置和单元测试
 gradle/              Gradle Wrapper
 scripts/             可独立执行的检查脚本
+.github/workflows/   自动构建、签名与 Release 发布
 THIRD_PARTY.md       第三方组件来源与许可
 ```
 

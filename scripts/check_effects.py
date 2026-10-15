@@ -24,8 +24,8 @@ with tempfile.TemporaryDirectory(prefix='thunder-effects-') as folder:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(data)
     for name in ['ShadeHook', 'HookConfig', 'SettingsProvider', 'ResourceOverrides', 'Reflect', 'CloudHook']:
-        path = Path('pui/c17/shade') / (name + '.java')
+        path = Path('io/github/baishangui/thunder') / (name + '.java')
         (src / path).write_text((ROOT / 'app/src/main/java' / path).read_text())
     subprocess.run([javac, '-d', str(classes), *map(str, src.rglob('*.java'))], check=True)
     for main in ['HookCheck', 'ProviderCheck', 'CloudCheck']:
-        subprocess.run([java, '-cp', str(classes), 'pui.c17.shade.' + main], check=True)
+        subprocess.run([java, '-cp', str(classes), 'io.github.baishangui.thunder.' + main], check=True)

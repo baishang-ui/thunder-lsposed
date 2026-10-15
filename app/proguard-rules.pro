@@ -1,4 +1,4 @@
--keep class pui.c17.shade.HookEntry { *; }
--keep class pui.c17.shade.ShadeHook { *; }
--keep class pui.c17.shade.ShadeHook$* { *; }
--keep class pui.c17.shade.SettingsProvider { *; }
+-keep class io.github.baishangui.thunder.HookEntry { *; }
+-keep class io.github.baishangui.thunder.ShadeHook { *; }
+-keep class io.github.baishangui.thunder.ShadeHook$* { *; }
+-keep class io.github.baishangui.thunder.SettingsProvider { *; }
