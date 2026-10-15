@@ -7,8 +7,15 @@ import os
 import shutil
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent.parent
+required = {'com.android.systemui', 'com.oplus.systemui.plugins'}
+manifest = ET.parse(ROOT / 'app/src/main/AndroidManifest.xml').getroot()
+visible = {p.attrib['{http://schemas.android.com/apk/res/android}name'] for p in manifest.findall('./queries/package')}
+assert required <= visible, 'SettingsProvider must be able to resolve both target package UIDs'
+scope = set((ROOT / 'app/src/main/resources/META-INF/xposed/scope.list').read_text().splitlines())
+assert scope == required, 'Both target packages must be recommended to LSPosed'
 sources = json.loads((ROOT / 'scripts/fixtures/effect-runtime.json').read_text())
 java_home = os.environ.get('JAVA_HOME')
 java = str(Path(java_home) / 'bin/java') if java_home else shutil.which('java')
