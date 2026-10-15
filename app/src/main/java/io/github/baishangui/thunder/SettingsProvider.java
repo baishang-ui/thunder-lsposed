@@ -29,6 +29,7 @@ public final class SettingsProvider extends ContentProvider {
         if ("settings".equals(method)) {
             Bundle result = new Bundle();
             result.putBoolean("enabled", prefs.getBoolean("enabled", true));
+            result.putInt("status_bar_hidden_icons", prefs.getInt("status_bar_hidden_icons", 0) & StatusBarIcons.ALL);
             for (String area : new String[]{"panel", "banner"}) {
                 result.putBoolean(area+"_blur", prefs.getBoolean(area+"_blur", "panel".equals(area) && prefs.getBoolean("shade_blur", false)));
                 result.putInt(area+"_radius", Math.max(0, Math.min(200, prefs.getInt(area+"_radius", "panel".equals(area) ? prefs.getInt("shade_radius", 100) : 100))));

@@ -43,7 +43,25 @@ import top.yukonga.miuix.kmp.theme.lightColorScheme
 
 class MainActivity : ComponentActivity() {
     private var resumeTick by mutableIntStateOf(0)
+    private var bannerTestPending = false
     override fun onResume() { super.onResume(); resumeTick++ }
+    override fun onStop() {
+        super.onStop()
+        if (bannerTestPending) {
+            bannerTestPending = false
+            TestNotification.postAfterAppStops(applicationContext)
+        }
+    }
+    private fun startBannerTest(): String {
+        TestNotification.prepare(this)?.let { return it }
+        if (bannerTestPending) return "正在返回桌面，请稍候查看测试横幅"
+        bannerTestPending = true
+        if (!moveTaskToBack(true)) {
+            bannerTestPending = false
+            return "未能返回桌面，请重试横幅测试"
+        }
+        return "已安排横幅测试：返回桌面约 1 秒后发送，点击通知可回到 thunder"
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState); enableEdgeToEdge()
         val prefs = SettingsProvider.preferences(this)
@@ -87,10 +105,10 @@ class MainActivity : ComponentActivity() {
             }
             BackHandler(enabled=page!=0) { page=0 }
             val notificationPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-                message=if(granted) TestNotification.post(this@MainActivity) else "未允许通知权限，暂时无法发送测试通知。可再次点击测试或在系统设置中开启通知。"
+                message=if(granted) startBannerTest() else "未允许通知权限，暂时无法发送测试通知。可再次点击测试或在系统设置中开启通知。"
             }
             fun testNotification() {
-                if(TestNotification.permissionGranted(this@MainActivity)) message=TestNotification.post(this@MainActivity)
+                if(TestNotification.permissionGranted(this@MainActivity)) message=startBannerTest()
                 else notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
             val importLauncher=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -155,12 +173,13 @@ class MainActivity : ComponentActivity() {
                                         Summary("下拉压暗 / 混色",if(draft.panel.tint) "${alphaPercent(draft.panel.color)}%" else "系统默认")
                                         Summary("通知左右边距",if(draft.margins) "${draft.margin} dp" else "系统默认")
                                         Summary("流体云",if(draft.cloud) "已启用" else "系统默认")
+                                        Summary("状态栏图标",if(draft.hiddenStatusIcons==0) "跟随系统" else "隐藏 ${Integer.bitCount(draft.hiddenStatusIcons)} 项")
                                         LiquidAction("前往调节",Modifier.fillMaxWidth(),selected=true) { page=1 }
                                     }
                                     UiText("首次使用：在 LSPosed 启用模块，作用域选择系统界面，重启手机。",12,muted=true)
                                 }
                                 1 -> {
-                                    ChoiceTabs(listOf("下拉背景","通知横幅","布局与流体云"),section,undoable=false) { section=it }
+                                    ChoiceTabs(listOf("下拉背景","通知横幅","布局","状态栏"),section,undoable=false) { section=it }
                                     when(section) {
                                         0,1 -> {
                                             val area=if(section==0) draft.panel else draft.banner
@@ -182,13 +201,13 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                             if(section==1) {
-                                                LiquidAction("发送横幅测试通知",Modifier.fillMaxWidth()) { testNotification() }
-                                                UiText("点击后发送一条真实通知，15 秒后自动移除。首次使用需要允许通知权限。",12,muted=true)
+                                                LiquidAction("返回桌面并测试横幅",Modifier.fillMaxWidth()) { testNotification() }
+                                                UiText("点击后自动返回桌面，约 1 秒后发送测试通知，避免应用在前台时横幅被抑制。通知 15 秒后自动移除，点击通知可返回。首次使用需要允许通知权限。",12,muted=true)
                                             }
                                             LiquidAction("恢复此区域系统参数",Modifier.fillMaxWidth()) { change(Area(color=area.color)) }
                                             UiText("圆角沿用 C17。模糊半径与混色在系统的实际背景路径应用。",12,muted=true)
                                         }
-                                        else -> {
+                                        2 -> {
                                             SettingsGroup {
                                                 UiText("通知布局",18,bold=true)
                                                 LiquidSwitchRow("自定义左右边距","适配单栏、双栏与分屏通知列表",draft.margins) { draft=draft.copy(margins=it) }
@@ -213,6 +232,32 @@ class MainActivity : ComponentActivity() {
                                                 }
                                                 UiText("自动保存后点击右上角重启系统界面。展开卡片的模糊随系统透明度动画变化。",12,muted=true)
                                             }
+                                        }
+                                        else -> {
+                                            UiText("状态栏图标显示",18,bold=true)
+                                            UiText("开启开关可隐藏对应图标；关闭后跟随系统的显示设置。仅改变图标，不会关闭对应功能。",13,muted=true)
+                                            val icons=listOf(
+                                                StatusBarIcons.BLUETOOTH to "蓝牙",
+                                                StatusBarIcons.ALARM to "闹钟",
+                                                StatusBarIcons.VOLUME to "静音 / 振动",
+                                                StatusBarIcons.ZEN to "勿扰模式",
+                                                StatusBarIcons.VPN to "VPN",
+                                                StatusBarIcons.HOTSPOT to "个人热点",
+                                                StatusBarIcons.ROTATE to "旋转锁定",
+                                                StatusBarIcons.HEADSET to "耳机",
+                                                StatusBarIcons.NFC to "NFC",
+                                                StatusBarIcons.HIGH_PERFORMANCE to "高性能模式")
+                                            icons.chunked(5).forEach { group ->
+                                                SettingsGroup {
+                                                    group.forEach { (bit,label) ->
+                                                        LiquidSwitchRow("隐藏${label}图标","关闭后跟随系统",draft.hiddenStatusIcons and bit != 0) { hide ->
+                                                            draft=draft.copy(hiddenStatusIcons=if(hide) draft.hiddenStatusIcons or bit else draft.hiddenStatusIcons and bit.inv())
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            LiquidAction("全部恢复为跟随系统",Modifier.fillMaxWidth()) { draft=draft.copy(hiddenStatusIcons=0) }
+                                            UiText("自动保存后点击右上角重启系统界面生效。锁屏及下拉区域中由系统共用的同类图标也可能随之隐藏。",12,muted=true)
                                         }
                                     }
                                 }

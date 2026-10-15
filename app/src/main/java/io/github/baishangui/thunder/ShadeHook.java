@@ -73,6 +73,7 @@ public final class ShadeHook {
                 }
             }));
         install("resource-overrides", ResourceOverrides::install);
+        install("status-bar-icons", () -> StatusBarIconHook.install(loader));
         install("cloud-plugin-loader", () -> CloudHook.watch(loader));
         install("qs", () -> Api102Runtime.hookAllConstructors(Reflect.findClass(
             "com.oplus.systemui.separate.OplusSeparateQSManager", loader), new HookCallback() {
@@ -381,6 +382,9 @@ public final class ShadeHook {
     }
     static HookConfig snapshot() { return config; }
     static void resourceHit(String key) { hit(key); }
+    static void statusIconsObserved(String slots) {
+        observed("status-bar-icons", slots.isEmpty() ? "system" : "hidden="+slots);
+    }
     private static void capturePanel(Object owner) {
         try {
             Object controller=Reflect.callMethod(owner,"getScrimController");
@@ -477,7 +481,7 @@ public final class ShadeHook {
             Bundle data = context.getContentResolver().call(URI, "settings", null, null);
             if (data == null) throw new IllegalStateException("No settings response");
             config = new HookConfig(data); settingsSource="provider fallback";
-            main.post(ShadeHook::refreshProxies); report();
+            main.post(() -> { refreshProxies(); StatusBarIconHook.refresh(); }); report();
         } catch (Throwable error) {
             if (attempt < 4) worker.postDelayed(() -> readSettings(attempt+1), 2500);
             else failed("settings-read", error);

@@ -11,9 +11,11 @@ final class HookConfig {
     final int cloudHeight, cloudCorner;
     final boolean margins, cloud;
     final int margin;
+    final int hiddenStatusIcons;
     HookConfig(Bundle data) {
         enabled = data != null && data.getBoolean("enabled", true);
         revision = data == null ? -1 : data.getLong("revision", 0);
+        hiddenStatusIcons = data == null ? 0 : data.getInt("status_bar_hidden_icons", 0) & StatusBarIcons.ALL;
         shade = new Area(data, data != null && data.containsKey("panel_radius") ? "panel" : "shade");
         qs = shade; banner = new Area(data, "banner");
         margins = data != null && data.getBoolean("notification_margins", false);
