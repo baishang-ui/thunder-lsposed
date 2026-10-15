@@ -67,7 +67,16 @@ Windows 使用 `gradlew.bat`。本地构建输出为 `app/build/outputs/apk/rele
 
 ## GitHub Actions 与发布
 
-[构建工作流](../../actions/workflows/android.yml) 在推送 `main`、提交 Pull Request 或手动运行时执行处理器检查、重启脚本检查、单元测试、Lint 和 Release 构建，保留未签名 APK 及检查报告。普通分支构建不使用发布密钥。
+[构建工作流](../../actions/workflows/android.yml) 按以下条件运行：
+
+- 推送或合并到 `main`：只有 `app/build.gradle.kts` 改动时才启动工作流，再比较本次推送前后的 `versionName` 和 `versionCode`；任一版本号变化才构建，其他 Gradle 配置变化会跳过构建。
+- Pull Request：不自动构建。
+- 推送 `v*` 标签：构建并签名发布，不受文件路径或版本号变化检测限制。
+- 手动运行：始终构建；选择版本标签运行时还会签名发布。
+
+构建执行处理器检查、重启脚本检查、单元测试、Lint 和 Release 构建，保留未签名 APK 及检查报告。普通分支构建不使用发布密钥。一次推送包含多个提交时，版本比较覆盖整个推送，而非仅比较最后一个提交。
+
+tag（标签）用于给某个提交固定版本名，例如 `v4.5`，方便定位发布源码和回退；本仓库还用它作为正式签名和 GitHub Release 发布的触发入口。只修改版本号并推送 `main` 会生成未签名构建，推送标签后才会生成可安装的正式发布包，因此版本提交和标签发布各会构建一次。
 
 发布步骤：
 

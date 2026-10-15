@@ -295,12 +295,12 @@ class MainActivity : ComponentActivity() {
                     ProgressiveHeader(overlaySource,Modifier.fillMaxWidth().height(108.dp + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()).align(Alignment.TopCenter))
                     Row(Modifier.align(Alignment.TopCenter).widthIn(max=640.dp).fillMaxWidth().statusBarsPadding().padding(horizontal=24.dp,vertical=14.dp),
                         verticalAlignment=Alignment.CenterVertically) {
-                        LiquidAction("返回",Modifier.sizeIn(minWidth=52.dp,minHeight=48.dp)) { if(page==0) { SettingsWriter.submit(this@MainActivity,draft,immediate=true); finish() } else page=0 }
+                        LiquidAction("返回",Modifier.size(56.dp,48.dp),icon=R.drawable.ic_arrow_back) { if(page==0) { SettingsWriter.submit(this@MainActivity,draft,immediate=true); finish() } else page=0 }
                         Column(Modifier.weight(1f).padding(horizontal=14.dp)) {
                             UiText(listOf("主页","调节","设置")[page],24,bold=true)
                             UiText(if(dirty) "正在自动保存…" else "已自动保存",11,muted=true)
                         }
-                        LiquidAction("重启",Modifier.sizeIn(minWidth=52.dp,minHeight=48.dp),enabled=!busy,selected=true) { restart=true }
+                        LiquidAction("重启系统界面",Modifier.size(56.dp,48.dp),enabled=!busy,selected=true,icon=R.drawable.ic_restart) { restart=true }
                     }
                     CompositionLocalProvider(LocalGlass provides style.copy(source=overlaySource)) {
                         FloatingNav(page,{ page=it },Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(horizontal=28.dp,vertical=14.dp))

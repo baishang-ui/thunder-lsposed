@@ -2,6 +2,7 @@ package io.github.baishangui.thunder
 
 import android.graphics.RenderEffect
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -15,6 +16,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -62,15 +64,21 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
 }
 
 @Composable internal fun LiquidAction(text: String, modifier: Modifier = Modifier, enabled: Boolean = true,
-    selected: Boolean = false, onClick: () -> Unit) {
+    selected: Boolean = false, icon: Int? = null, onClick: () -> Unit) {
     val s = LocalGlass.current
+    val contentColor = if (selected) (if (s.accent.luminance() > .45f) Color.Black else Color.White) else s.ink
     // Remove gesture handlers altogether while disabled, including the author's press animation.
-    Box(modifier.alpha(if (enabled) 1f else .45f).semantics { if (!enabled) disabled() }, propagateMinConstraints = true) {
+    Box(modifier.alpha(if (enabled) 1f else .45f).semantics(mergeDescendants = icon != null) {
+        if (icon != null) contentDescription = text
+        if (!enabled) disabled()
+    }, propagateMinConstraints = true) {
         LiquidButton(onClick = { if (enabled) onClick() }, backdrop = s.source,
             modifier = Modifier.then(if (!enabled) Modifier.clearAndSetSemantics { disabled() } else Modifier),
             isInteractive = enabled, tint = if (selected) s.accent else Color.Unspecified,
             surfaceColor = if (selected) Color.Unspecified else s.surface.copy(alpha = .18f)) {
-            UiText(text, 14, bold = true, color = if (selected) (if (s.accent.luminance() > .45f) Color.Black else Color.White) else s.ink)
+            if (icon != null) Image(painterResource(icon), contentDescription = null,
+                modifier = Modifier.size(24.dp), colorFilter = ColorFilter.tint(contentColor))
+            else UiText(text, 14, bold = true, color = contentColor)
         }
     }
 }
