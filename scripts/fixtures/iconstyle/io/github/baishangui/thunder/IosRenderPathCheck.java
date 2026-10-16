@@ -32,7 +32,7 @@ public final class IosRenderPathCheck {
         host.full="com.android.systemui:dimen/status_bar_battery_horizontal_progress_start";
         HookCallback dimension=Api102Runtime.callbacks.get(Resources.class.getName()+"#getDimension");
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
-        check(Math.abs(((Float)call.getResult())-3f*1.12f*host.getDisplayMetrics().density)<.001f,"fractional PUI battery dimension retains precision and host density");
+        check(Math.abs(((Float)call.getResult())-3f*host.getDisplayMetrics().density)<.001f,"horizontal progress inset follows the narrower battery at host density");
         host=new Resources(); host.full="foreign:dimen/status_bar_battery_horizontal_progress_start";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
         check(call.getResult().equals(99f),"battery dimensions are isolated to SystemUI");
@@ -41,7 +41,7 @@ public final class IosRenderPathCheck {
         HookCallback getValue=Api102Runtime.callbacks.get(Resources.class.getName()+"#getValue");
         call=IosStatusBarCheck.param(host,1,value,true); getValue.after(call);
         check(value.type==android.util.TypedValue.TYPE_DIMENSION,"raw dimension consumers receive a dimension");
-        check(Math.abs((value.data >> 8)/32768f-32.48f)<.0001f && (value.data & 15)==1,"raw dimension value matches typed getter in dp");
+        check(Math.abs((value.data >> 8)/32768f-29f)<.0001f && (value.data & 15)==1,"raw dimension value matches the narrower 29dp battery width");
         check(Math.abs((IosStatusBarHook.complexDimension(4.92f)>>8)/32768f-4.92f)<.0001f,"raw fractional dimensions retain subpixel precision");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_wifi_signal_size";
         call=IosStatusBarCheck.param(host,1); call.setResult(30f); dimension.after(call);
@@ -60,16 +60,16 @@ public final class IosRenderPathCheck {
         check((value.data&15)==2 && Math.abs((value.data>>8)/32768f-16.8f)<.0001f,"native SP dimensions retain font-scale units after scaling");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_battery_horizontal_height";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
-        check(Math.abs((Float)call.getResult()-17f*host.getDisplayMetrics().density)<.001f,"horizontal battery height is 17dp while its width remains 32.48dp");
+        check(Math.abs((Float)call.getResult()-14f*host.getDisplayMetrics().density)<.001f,"horizontal battery uses 29 by 14dp dimensions near the iOS aspect ratio");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_battery_horizontal_progress_top";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
-        check(Math.abs((Float)call.getResult()-4.45f*host.getDisplayMetrics().density)<.001f,"progress inset follows the reduced vertical scale");
+        check(Math.abs((Float)call.getResult()-4.45f*(14f/17f)*host.getDisplayMetrics().density)<.001f,"progress inset follows the reduced vertical scale");
         host=new Resources(); host.full="com.android.systemui:dimen/battery_percent_in_text_size";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
-        check(Math.abs((Float)call.getResult()-10f*host.getDisplayMetrics().density)<.001f,"internal percentage follows the reduced battery height");
+        check(Math.abs((Float)call.getResult()-10f*(14f/17f)*host.getDisplayMetrics().density)<.001f,"internal percentage follows the reduced battery height");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_battery_horizontal_height";
         value=new android.util.TypedValue(); call=IosStatusBarCheck.param(host,1,value,true); getValue.after(call);
-        check(Math.abs((value.data>>8)/32768f-17f)<.0001f,"raw and getter battery heights agree");
+        check(Math.abs((value.data>>8)/32768f-14f)<.0001f,"raw and getter battery heights agree");
         for (String suffix : new String[]{"", "_new"}) {
             host=new Resources(); host.full="com.android.systemui:dimen/signal_cluster_battery_padding"+suffix;
             call=IosStatusBarCheck.param(host,1); call.setResult(0f); dimension.after(call);

@@ -54,6 +54,7 @@ public final class ShadeHook {
         install("status-bar-icons", () -> StatusBarIconHook.install(loader));
         install("status-bar-layout", () -> StatusBarLayoutHook.install(loader));
         install("status-bar-clock", () -> StatusBarClockHook.install(loader));
+        install("status-bar-clock-transition", () -> StatusBarClockTransitionHook.install(loader));
         install("status-bar-ios-resources", () -> IosStatusBarHook.install(loader));
         install("qs-card-backgrounds", () -> QsCardHook.install(loader));
         install("volume-panel", () -> VolumeHook.install(loader));

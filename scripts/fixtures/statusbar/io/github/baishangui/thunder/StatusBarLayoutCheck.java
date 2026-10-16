@@ -73,6 +73,15 @@ public final class StatusBarLayoutCheck {
         inner=StatusBarIconCheck.param(clock,View.MeasureSpec.makeMeasureSpec(600,View.MeasureSpec.AT_MOST),40);
         callback(Clock.class,"onMeasure").before(inner);
         check(clock.getTextScaleX()==1,"StatClock measurement scope does not leak into another clock");
+        stat.actualWidth=90;stat.cachedMinutesLayoutWidth=700;stat.mShowSeconds=true;stat.mSecondsFixedWidth=700;
+        var area=StatusBarIconCheck.param(stat,true,0,0,90,30);
+        callback(stat.getClass(),"onLayout").before(area);stat.onLayout(true,0,0,90,30);
+        check(stat.publishedMinutes>0 && stat.publishedMinutes<=90 && stat.publishedFull==90,
+            "SystemUI receives actual compressed minutes/full areas before native onLayout publishes them");
+        b.putBoolean("status_bar_clock_seconds",false);config(b);stat.mShowSeconds=false;stat.mSecondsFixedWidth=-1;
+        stat.actualWidth=180;stat.setText("21:07");stat.setTextScaleX(1);stat.getPaint().setTextSize(20);stat.cachedMinutesLayoutWidth=700;
+        callback(stat.getClass(),"onLayout").before(area);stat.onLayout(true,0,0,180,30);
+        check(stat.publishedMinutes>=64 && stat.publishedMinutes<=65 && stat.publishedFull==stat.publishedMinutes,"minutes-only clock repairs stale width even without native seconds refresh");
         check(StatusBarClockHook.compression(120,60)==.5f && StatusBarClockHook.compression(0,0)==1f,"compression handles half width and empty text");
         b.putBoolean("enabled",false);config(b);StatusBarClockHook.refresh();
         check(!clock.mShowSeconds && clock.getTextSize()==14 && clock.getTextScaleX()==1,"module off restores native seconds, text size and scale");

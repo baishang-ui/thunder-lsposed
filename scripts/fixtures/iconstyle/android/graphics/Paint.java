@@ -8,4 +8,5 @@ public class Paint {
  public static class FontMetricsInt{public int top,bottom,ascent,descent;}
  public FontMetricsInt getFontMetricsInt(){var f=new FontMetricsInt();f.top=-(int)Math.ceil(textSize*.8);f.bottom=(int)Math.ceil(textSize*.2);f.ascent=f.top;f.descent=f.bottom;return f;}
  public void setColorFilter(ColorFilter f){filter=f;}public ColorFilter getColorFilter(){return filter;}
+ public float textScaleX=1;public float measureText(String text){return text.length()*textSize*.6f*textScaleX;}
 }

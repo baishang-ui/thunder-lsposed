@@ -16,7 +16,8 @@ final class IosStatusBarHook {
     private static boolean enabled;
     static final float ICON_SCALE = 1.12f;
     static final float ICON_SIDE_GAP_DP = 1f;
-    static final float BATTERY_HEIGHT_SCALE = 1f;
+    static final float BATTERY_WIDTH_SCALE = 1f;
+    static final float BATTERY_HEIGHT_SCALE = 14f / 17f;
     static final float EXTRA_HEIGHT_DP = 4f;
     private static final ThreadLocal<Integer> heightDepth = ThreadLocal.withInitial(() -> 0);
 
@@ -128,6 +129,10 @@ final class IosStatusBarHook {
             Float dp = IosStatusResources.dimension(name);
             if (dp == null) return null;
             float scale = switch (name) {
+                case "com.android.systemui:dimen/status_bar_battery_horizontal_width",
+                     "com.android.systemui:dimen/status_bar_battery_horizontal_progress_start",
+                     "com.android.systemui:dimen/status_bar_battery_horizontal_progress_end",
+                     "com.android.systemui:dimen/battery_percent_in_text_offset_x" -> BATTERY_WIDTH_SCALE;
                 case "com.android.systemui:dimen/status_bar_battery_horizontal_height",
                      "com.android.systemui:dimen/status_bar_battery_horizontal_progress_top",
                      "com.android.systemui:dimen/status_bar_battery_horizontal_progress_bottom",
@@ -220,7 +225,7 @@ final class IosStatusBarHook {
     }
 
     static String state() {
-        return (enabled ? "style=ios;renderer=resources;signals=pui-c17;battery=pui-c17;state=system;icons=112%;height=+4dp;gap=+2dp;battery-height=17dp;network-text=hidden" : "style=system")
+        return (enabled ? "style=ios;renderer=resources;signals=pui-c17;battery=pui-c17;state=system;icons=112%;height=+4dp;gap=+2dp;battery-width=29dp;battery-height=14dp;network-text=hidden" : "style=system")
             + (enabled != IosStatusIcons.active(ShadeHook.snapshot()) ? ";restart-required=true" : "");
     }
     private IosStatusBarHook() { }

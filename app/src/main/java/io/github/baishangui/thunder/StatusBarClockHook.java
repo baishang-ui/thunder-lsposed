@@ -143,6 +143,12 @@ final class StatusBarClockHook {
         });
         Class<?> statClock = Reflect.findClass("com.oplus.systemui.statusbar.widget.StatClock", loader);
         Api102Runtime.findAndHookMethod(statClock, "reloadStatClockDimens", dimensions);
+        Api102Runtime.findAndHookMethod(statClock, "onLayout", boolean.class, int.class, int.class, int.class, int.class, new HookCallback() {
+            @Override protected void beforeHookedMethod(Param p) {
+                TextView clock = (TextView) p.thisObject;
+                syncLayoutWidth(clock, clock.getWidth());
+            }
+        });
         Api102Runtime.findAndHookMethod(statClock, "onMeasure", int.class, int.class, new HookCallback() {
             @Override protected void beforeHookedMethod(Param p) {
                 p.setObjectExtra("thunder-clock-measure", measurement.get());
@@ -151,12 +157,16 @@ final class StatusBarClockHook {
             @Override protected void afterHookedMethod(Param p) {
                 Measurement previous = (Measurement) p.getObjectExtra("thunder-clock-measure");
                 if (previous == null) measurement.remove(); else measurement.set(previous);
+                if (!p.hasThrowable()) {
+                    TextView clock = (TextView) p.thisObject;
+                    syncLayoutWidth(clock, clock.getMeasuredWidth());
+                }
             }
         });
         // getSmallTime is private; invalidate compiled callers that may have inlined it.
         try { Api102Runtime.deoptimizeCallers(type, "updateClock", "onDarkChanged", "dispatchDemoCommand", "onMeasure", "refreshWidth"); }
         catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-clock-deopt", error); }
-        try { Api102Runtime.deoptimizeCallers(statClock, "onMeasure", "reloadDimens", "updateConfigurationChanged"); }
+        try { Api102Runtime.deoptimizeCallers(statClock, "onMeasure", "onLayout", "reloadDimens", "updateConfigurationChanged"); }
         catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-statclock-deopt", error); }
     }
 
@@ -170,12 +180,26 @@ final class StatusBarClockHook {
     }
     private static boolean custom(HookConfig c) { return c.enabled && c.statusBarClock; }
     private static int padding(TextView clock) { return ((Number) Reflect.callMethod(clock, "getSecondsWidthExtraPadding")).intValue(); }
-    private static boolean isStatusClock(TextView clock) {
+    static boolean isStatusClock(TextView clock) {
         for (ViewParent parent = clock.getParent(); parent instanceof View view; parent = view.getParent())
             if (view.getClass().getName().equals("com.android.systemui.statusbar.phone.PhoneStatusBarView")) return true;
         return false;
     }
     private static State state(TextView clock) { return clocks.computeIfAbsent(clock, State::new); }
+    private static void syncLayoutWidth(TextView clock, int width) {
+        HookConfig c = ShadeHook.snapshot();
+        if (!c.enabled || (!c.statusBarClock && !c.statusBarCompressClock) || !isStatusClock(clock)) return;
+        // The native cache predates our final font/scale. SystemUI must receive
+        // the actual clock areas, including the parent's compression constraint.
+        String text = clock.getText().toString();
+        char separator = text.indexOf(':') >= 0 ? ':' : '.';
+        int first = text.indexOf(separator);
+        int seconds = first < 0 ? -1 : text.indexOf(separator, first + 1);
+        if (seconds >= 0 && Reflect.getBooleanField(clock, "mShowSeconds")) text = text.substring(0, seconds);
+        int minutes = (int) Math.ceil(Layout.getDesiredWidth(text, clock.getPaint())) + padding(clock);
+        Reflect.setIntField(clock, "cachedMinutesLayoutWidth", Math.min(Math.max(0, width), minutes));
+        if (Reflect.getBooleanField(clock, "mShowSeconds")) Reflect.setIntField(clock, "mSecondsFixedWidth", width);
+    }
     private static void restore(TextView clock, State s) {
         clock.setTextSize(TypedValue.COMPLEX_UNIT_PX, s.size);
         clock.setTypeface(s.face); clock.setTextScaleX(s.scale);
@@ -197,6 +221,7 @@ final class StatusBarClockHook {
         if (!c.enabled || !c.statusBarCompressClock) clock.setTextScaleX(s.scale);
     }
     static void refresh() {
+        StatusBarClockTransitionHook.invalidate();
         for (TextView clock : new ArrayList<>(clocks.keySet())) {
             try {
                 State s = clocks.get(clock);
