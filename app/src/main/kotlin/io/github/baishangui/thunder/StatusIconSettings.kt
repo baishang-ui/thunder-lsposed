@@ -39,7 +39,7 @@ import top.yukonga.miuix.kmp.basic.Text
                     "横向电池，电量百分之$level", cutout = LocalGlass.current.surface)
             }
         }
-        UiText("图标、Wi-Fi 和电池全部直接使用 PUI ColorOS 17 包内原始资源，Wi-Fi 与移动信号不显示角标、5G 文字和上下行箭头；状态栏加高 4dp，图标放大 12%，图标间距额外增加约 2dp，横向电池尺寸为 27 × 17dp；深色行展示 C17 主卡信号柱与副卡圆点。横向电池使用 PUI 外观，百分比按电池主体居中，一位、两位和三位数字均自动对齐；电量、充电状态与双卡排列跟随系统设置。", 12, muted = true)
+        UiText("图标、Wi-Fi 和电池全部直接使用 PUI ColorOS 17 包内原始资源，Wi-Fi 与移动信号不显示角标、5G 文字和上下行箭头；状态栏加高 4dp，图标放大 12%，图标间距额外增加约 2dp，横向电池尺寸为 28 × 17dp；深色行展示 C17 主卡信号柱与副卡圆点。横向电池使用 PUI 外观，百分比按电池主体居中，一位、两位和三位数字均自动对齐；电量、充电状态与双卡排列跟随系统设置。", 12, muted = true)
     }
     SettingsGroup {
         UiText("状态图标", 15)
@@ -114,7 +114,7 @@ import top.yukonga.miuix.kmp.basic.Text
         textAlign = android.graphics.Paint.Align.CENTER
     } }
     val width = if (symbol.row() > 0 || symbol.kind() == IosStatusIcons.Kind.CELLULAR) 22f
-        else if (battery) 27f else (drawable.intrinsicWidth / density).coerceIn(16f, 30f) + 3f
+        else if (battery) 28f else (drawable.intrinsicWidth / density).coerceIn(16f, 30f) + 3f
     Canvas(Modifier.size((width * if (battery) 1f else 1.12f).dp, 22.4.dp).semantics { contentDescription = label }) {
         val tint = android.graphics.Color.argb((color.alpha * 255).toInt(), (color.red * 255).toInt(), (color.green * 255).toInt(), (color.blue * 255).toInt())
         val scale = minOf((size.width - 3.dp.toPx()) / drawable.intrinsicWidth.coerceAtLeast(1), size.height / drawable.intrinsicHeight.coerceAtLeast(1))

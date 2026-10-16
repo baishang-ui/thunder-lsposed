@@ -55,6 +55,20 @@ public final class SettingsProvider extends ContentProvider {
             result.putBoolean("enabled", prefs.getBoolean("enabled", true));
             result.putBoolean("gesture_bar_hidden", prefs.getBoolean("gesture_bar_hidden", false));
             result.putBoolean("gesture_bar_remove_inset", prefs.getBoolean("gesture_bar_remove_inset", false));
+            for (String key : new String[]{"gesture_style", "gesture_colors"})
+                result.putBoolean(key, prefs.getBoolean(key, false));
+            result.putBoolean("gesture_auto_color", prefs.getBoolean("gesture_auto_color", true));
+            result.putInt("gesture_length", Math.max(40, Math.min(320, prefs.getInt("gesture_length", 120))));
+            result.putInt("gesture_thickness", Math.max(1, Math.min(16, prefs.getInt("gesture_thickness", 4))));
+            result.putInt("gesture_bottom", Math.max(0, Math.min(32, prefs.getInt("gesture_bottom", 6))));
+            result.putInt("gesture_light_color", prefs.getInt("gesture_light_color", -1));
+            result.putInt("gesture_dark_color", prefs.getInt("gesture_dark_color", 0xff222222));
+            result.putBoolean("gesture_blur", prefs.getBoolean("gesture_blur", false));
+            result.putInt("gesture_radius", Math.max(0, Math.min(200, prefs.getInt("gesture_radius", 100))));
+            result.putBoolean("gesture_tint", prefs.getBoolean("gesture_tint", false));
+            result.putInt("gesture_color", prefs.getInt("gesture_color", 0x66ffffff));
+            result.putBoolean("gesture_corner_enabled", prefs.getBoolean("gesture_corner_enabled", false));
+            result.putInt("gesture_corner", Math.max(0, Math.min(64, prefs.getInt("gesture_corner", 28))));
             result.putBoolean("status_bar_stack_signals", prefs.getBoolean("status_bar_stack_signals", false));
             result.putInt("status_bar_icon_style", prefs.getInt("status_bar_icon_style", 0) == 1 ? 1 : 0);
             result.putInt("status_bar_hidden_icons", prefs.getInt("status_bar_hidden_icons", 0) & StatusBarIcons.ALL);

@@ -67,6 +67,68 @@ public final class VolumePanelCheck {
         CloudCheck.after(VIEW+"#resetSliderState",d,null);
         com.oplusos.systemui.common.feature.FeatureOption.alertSlider=false;
     }
+    static void shortcutMaterialScenario(boolean nativeBlur,int corner)throws Throwable {
+        Bundle settings=config();settings.putInt("volume_bar_corner",corner);CloudCheck.config(settings);
+        com.oplus.systemui.volume.utils.material.VolumeBlurManager.INSTANCE.shortcutBlur=nativeBlur;
+        OplusVolumeDialogImpl owner=new OplusVolumeDialogImpl();OplusVolumeDialogView d=owner.mOplusVolumeDialogView;
+        d.mDialogView.res=volumeResources();OplusVolumeRow row=new OplusVolumeRow();owner.mRows.add(row);d.volumeListAdapter.rows.add(row);
+        RecyclerView.ViewHolder h=holder(d,0,900,300);((ViewGroup)h.itemView).addView(row.view);row.sliderFrame.parent=row.view;row.slider.parent=row.sliderFrame;
+        row.slider.actualHeight=600;before(BAR+"#onMeasure",row.slider,0,0);
+        before(VIEW+"#expandPanel",d);d.expandPanel();
+        ViewGroup quick=(ViewGroup)d.mDialogView.getChildAt(d.mDialogView.getChildCount()-1);
+        float expected=Math.min(Math.round(corner*2.75f),row.slider.mBackgroundWidth/2);
+        for(int i=0;i<2;i++) {
+            ViewGroup group=(ViewGroup)quick.getChildAt(i);Drawable background=group.getBackground();
+            if(i==1)background=((DrawableWrapper)background).getDrawable();
+            GradientDrawable selection=(GradientDrawable)group.getChildAt(0).getBackground();
+            check(selection.getColor().getDefaultColor()==0&&selection.strokeWidth>0&&selection.radius==expected,"selected shortcut keeps shared tint and follows corner "+corner);
+            RippleDrawable ripple=(RippleDrawable)(i==1?group.getBackground():group.getChildAt(1).getBackground());
+            check(((GradientDrawable)ripple.mask).getCornerRadius()==expected,"shortcut ripple mask follows the shared corner "+corner);
+            if(nativeBlur) {
+                AutoBlurDrawable auto=(AutoBlurDrawable)background;BlurConfig blur=auto.proxy.config;
+                check(group.getWidth()==0&&"volume-buttons".equals(Reflect.getAdditionalInstanceField(blur,"thunder.role")),"actual unlaid shortcut background is registered with shared material role");
+                HookCallback.Param submission=before(QsTintCheck.B+"ViewBlurProxy#applyConfigToPlatformBlur",auto.proxy);
+                BlurMixConfig.BlurMixSingleWithShader mix=(BlurMixConfig.BlurMixSingleWithShader)blur.platformMixConfig;
+                check(blur.cornerRadius==expected&&blur.blurRadius==123&&mix.backgroundShaderParam.topLayerColor==0x4188aacc,"unlaid shortcut submits shared corner, blur and exact ARGB for "+corner);
+                QsTintCheck.after(QsTintCheck.B+"ViewBlurProxy#applyConfigToPlatformBlur",submission);
+                int applied=auto.proxy.applied;
+                group.actualWidth=group.layout.width;group.actualHeight=group.layout.height;
+                for(View.OnLayoutChangeListener listener:group.layoutListeners)listener.onLayoutChange(group,0,0,group.actualWidth,group.actualHeight,0,0,0,0);
+                for(View.OnAttachStateChangeListener listener:group.attachListeners)listener.onViewAttachedToWindow(group);
+                check(auto.proxy.applied==applied+2&&auto.proxy.invalidatedPaths>=2,"layout and attachment reapply shortcut native material after real bounds exist");
+            } else {
+                background.setBounds(0,0,group.layout.width,group.layout.height);background.draw(new Canvas());
+                GradientDrawable fill=(GradientDrawable)Reflect.getObjectField(background,"fill");
+                check(fill.getColor().getDefaultColor()==0x4188aacc&&fill.getCornerRadius()==expected,"actual flat shortcut background paints the exact shared ARGB and corner "+corner);
+            }
+        }
+        CloudCheck.after(VIEW+"#resetSliderState",d,null);
+        for(int i=0;i<2;i++) {
+            View group=quick.getChildAt(i);
+            check(group.layoutListeners.isEmpty()&&group.attachListeners.isEmpty()&&Reflect.getAdditionalInstanceField(group,"volume.proxy")==null,"shortcut cleanup removes material callbacks and proxy reference");
+        }
+        com.oplus.systemui.volume.utils.material.VolumeBlurManager.INSTANCE.shortcutBlur=false;
+    }
+    static final class RecordedShape extends GradientDrawable {
+        float drawnCorner;boolean fail;
+        @Override public void draw(Canvas canvas) {drawnCorner=getCornerRadius();if(fail)throw new IllegalStateException("native draw failure");super.draw(canvas);}
+    }
+    static void cornerOnlyScenario(int corner)throws Throwable {
+        Bundle settings=config();settings.putBoolean("volume_bar_tint",false);settings.putInt("volume_bar_corner",corner);CloudCheck.config(settings);
+        View host=new View();host.actualWidth=host.actualHeight=209;
+        RecordedShape shape=new RecordedShape();shape.setCornerRadius(90);shape.setColor(0xff123456);
+        DrawableWrapper nativeWrapper=new DrawableWrapper(shape);
+        HookCallback.Param result=CloudCheck.param(null,nativeWrapper,new android.content.Context(),new View(),host,true);
+        Api102Runtime.callbacks.get(BASE+"utils.material.VolumeBlurManager#getVolumeSettingsButtonBackground").after(result);
+        Drawable background=(Drawable)result.getResult();background.setBounds(0,0,209,209);
+        float expected=Math.round(corner*2.75f);
+        background.draw(new Canvas());
+        check(shape.drawnCorner==expected&&shape.getCornerRadius()==90&&shape.getColor().getDefaultColor()==0xff123456,"corner-only button draw changes the native shape without changing its color, then restores it for "+corner);
+        shape.fail=true;try {background.draw(new Canvas());throw new AssertionError("missing draw failure");}catch(IllegalStateException expectedError) { }
+        check(shape.getCornerRadius()==90&&nativeWrapper.getCallback()==background,"corner-only native shape and callbacks also restore after a draw failure");
+        shape.fail=false;settings.putBoolean("volume_bar_corner_enabled",false);CloudCheck.config(settings);background.draw(new Canvas());
+        check(shape.drawnCorner==90,"disabling button corner customization immediately draws its original native corner");
+    }
     public static void main(String[] args)throws Throwable {
         ShadeHook.install("com.android.systemui","com.android.systemui",VolumePanelCheck.class.getClassLoader());
         check(!Api102Runtime.callbacks.containsKey(OWNER+"#computeTimeoutH$1"),"compact mode preserves native timeout policy");
@@ -203,7 +265,7 @@ public final class VolumePanelCheck {
         check(zenOff.mResource==Math.abs("status_bar_qs_dnd_inactive".hashCode())&&zenOn.mResource==Math.abs("status_bar_qs_dnd_active".hashCode()),"DND uses the native ColorOS moon icons rather than generic AOSP resources");
         LayoutParams quickLp=(LayoutParams)quick.layout;
         check(quickLp.topMargin==panel.bottom-22-209&&quickLp.height==209,"shortcut row sits one shared spacing below the track and one spacing above the panel bottom");
-        check(com.oplus.systemui.volume.utils.material.VolumeBlurManager.INSTANCE.shortcutMaterials>=2,"shortcuts obtain their backgrounds through the existing native shared material factory");
+        check(com.oplus.systemui.volume.utils.material.VolumeBlurManager.INSTANCE.shortcutMaterials>=2&&com.oplus.systemui.volume.utils.material.VolumeBlurManager.INSTANCE.accessoryMaterials==0,"expanded shortcuts use the same native BAR_BACKGROUND material as the tracks, without the brighter SIDE_ACCESSORY mix");
         check(sound.isEnabled()&&zen.isEnabled(),"shortcuts enable when native expansion reaches its endpoint");
         check(selector.getTranslationX()==0&&sound.getAlpha()==1&&zenOn.getAlpha()==0&&ValueAnimator.running.isEmpty(),"initial native state renders immediately without a startup switching animation");
         sound.performClick();check(owner.mController.ringerCalls==0,"selecting the current sound segment avoids redundant native writes");
@@ -297,6 +359,10 @@ public final class VolumePanelCheck {
         sizeScenario(880,2,8,false,false);
         sizeScenario(330,2,4,true,false);
         sizeScenario(330,2,4,false,true);
+        for(int corner:new int[]{0,18,64}) {
+            shortcutMaterialScenario(false,corner);shortcutMaterialScenario(true,corner);
+        }
+        cornerOnlyScenario(0);cornerOnlyScenario(18);
         System.out.println("Volume native preservation checks passed: "+checks);
     }
 }

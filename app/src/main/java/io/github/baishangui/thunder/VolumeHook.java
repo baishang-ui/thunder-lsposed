@@ -9,6 +9,7 @@ import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.DrawableWrapper;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.LayerDrawable;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -208,21 +209,36 @@ final class VolumeHook {
                 }
                 @Override protected void afterHookedMethod(Param p) throws Throwable {
                     if(p.hasThrowable()||!(p.getResult() instanceof Drawable))return;
-                    Class<?> finder=Reflect.findClass(MATERIAL+"OplusVolumeBlurDrawableFinder",loader);
-                    Method find=finder.getDeclaredMethod("findAutoBlurDrawable",Drawable.class);find.setAccessible(true);
-                    Object auto=find.invoke(null,p.getResult());
-                    if(auto!=null) {
-                        Object proxy=Reflect.callMethod(auto,"getViewBlurProxy"),blur=Reflect.callMethod(proxy,"getBlurConfig");
-                        Reflect.setAdditionalInstanceField(blur,"volume.host",new WeakReference<>((View)p.args[2]));
-                        ShadeHook.trackVolume(proxy,role);
-                    }
-                    else p.setResult(new FlatSurface((Drawable)p.getResult(),(Context)p.args[0],role,(View)p.args[2]));
+                    View host=(View)p.args[2];
+                    String materialRole=role.equals("volume-bar")&&Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(host,"volume.shortcut"))?"volume-buttons":role;
+                    p.setResult(material((Drawable)p.getResult(),(Context)p.args[0],materialRole,host,loader));
                 }
             });
         }
         // These small native getters are called by ART-compiled animation code.
         bind("button-animation-deopt",()->Api102Runtime.deoptimizeCallers(Reflect.findClass(BASE+"view.OplusVolumeDialogView",loader),"startBtnThickAnim"));
         bind("animation-deopt",()->Api102Runtime.deoptimizeCallers(Reflect.findClass(BASE+"anim.VolumeItemAnimator",loader),"animateAddImpl","animateMoveImpl","runPendingAnimations"));
+    }
+
+    private static Drawable material(Drawable original,Context context,String role,View host,ClassLoader loader) throws Throwable {
+        if(original instanceof FlatSurface)return original;
+        Class<?> finder=Reflect.findClass(MATERIAL+"OplusVolumeBlurDrawableFinder",loader);
+        Method find=finder.getDeclaredMethod("findAutoBlurDrawable",Drawable.class);find.setAccessible(true);
+        Object auto=find.invoke(null,original);
+        if(auto==null)return new FlatSurface(original,context,role,host);
+        Object proxy=Reflect.callMethod(auto,"getViewBlurProxy"),blur=Reflect.callMethod(proxy,"getBlurConfig");
+        Reflect.setAdditionalInstanceField(blur,"volume.host",new WeakReference<>(host));
+        Reflect.setAdditionalInstanceField(host,"volume.proxy",new WeakReference<>(proxy));
+        if(!role.equals(Reflect.getAdditionalInstanceField(blur,"thunder.role")))ShadeHook.trackVolume(proxy,role);
+        return original;
+    }
+    private static void refreshMaterial(View host) {
+        Object ref=Reflect.getAdditionalInstanceField(host,"volume.proxy");
+        Object proxy=ref instanceof WeakReference<?>?((WeakReference<?>)ref).get():null;
+        if(proxy!=null) {
+            Reflect.callMethod(proxy,"invalidatePath");Reflect.callMethod(proxy,"applyBlurConfig");
+        }
+        host.invalidate();host.invalidateOutline();
     }
 
     static Float cornerRadius(Object blur,HookConfig.Area area) {
@@ -241,7 +257,12 @@ final class VolumeHook {
         }
         VolumePanelGeometry.Bounds visible=panel==null?null:panel.visualBounds();
         int width=visible==null?host.getWidth():visible.width(),height=visible==null?host.getHeight():visible.height();
-        return Math.min(radius,Math.min(width,height)/2f);
+        // New shortcut hosts have layout parameters before their first layout. Submitting
+        // zero here caches square native blur corners until another config is applied.
+        ViewGroup.LayoutParams lp=host.getLayoutParams();
+        if(width<=0&&lp!=null)width=lp.width;
+        if(height<=0&&lp!=null)height=lp.height;
+        return width>0&&height>0?Math.min(radius,Math.min(width,height)/2f):radius;
     }
 
     private static int dp(View v,int value) { return Math.round(value*v.getResources().getDisplayMetrics().density); }
@@ -420,6 +441,13 @@ final class VolumeHook {
         int rowWidth;
         float rowOffset;
         FrameLayout shortcuts,soundSegments,zenControl;
+        final View.OnLayoutChangeListener materialLayout=(v,l,t,r,b,ol,ot,or,ob)->{
+            if(r-l!=or-ol||b-t!=ob-ot)refreshMaterial(v);
+        };
+        final View.OnAttachStateChangeListener materialAttach=new View.OnAttachStateChangeListener() {
+            @Override public void onViewAttachedToWindow(View v) {refreshMaterial(v);}
+            @Override public void onViewDetachedFromWindow(View v) { }
+        };
         final ImageView[] soundButtons=new ImageView[3];
         ImageView zenOff,zenOn;
         View soundSelection,zenSelection;
@@ -486,6 +514,9 @@ final class VolumeHook {
             if(shortcuts==null) {
                 shortcuts=new FrameLayout(r.getContext());
                 soundSegments=new FrameLayout(r.getContext());zenControl=new FrameLayout(r.getContext());
+                for(View group:new View[]{soundSegments,zenControl}) {
+                    group.addOnLayoutChangeListener(materialLayout);group.addOnAttachStateChangeListener(materialAttach);
+                }
                 soundSelection=new View(r.getContext());zenSelection=new View(r.getContext());
                 soundSegments.addView(soundSelection);zenControl.addView(zenSelection);
                 for(int i=0;i<soundButtons.length;i++) {
@@ -528,13 +559,23 @@ final class VolumeHook {
             float corner=Math.min(side/2f,config.volumeBar.cornerEnabled?dp(r,config.volumeBar.corner):startBarRadius);
             for(View selection:new View[]{soundSelection,zenSelection}) {
                 selection.setLayoutParams(new FrameLayout.LayoutParams(side,side));
-                GradientDrawable fill=new GradientDrawable();fill.setColor((foreground&0xffffff)|0x26000000);fill.setCornerRadius(corner);
+                // Keep the chosen material ARGB visible in selected slots too. A filled
+                // black/white overlay changes its apparent tint by another 15 percent.
+                GradientDrawable fill=new GradientDrawable();fill.setColor(0);fill.setCornerRadius(corner);
+                fill.setStroke(Math.max(1,dp(r,1)),(foreground&0xffffff)|0x66000000);
                 selection.setBackground(fill);
             }
             for(View group:new View[]{soundSegments,zenControl}) {
-                Drawable material=(Drawable)Reflect.callMethod(manager,"getVolumeSideAccessoryBackground",r.getContext(),r,group,
+                // SIDE_ACCESSORY has a brighter native mix and different light defaults,
+                // even when custom tint is off. Use the same surface kind as the tracks.
+                Reflect.setAdditionalInstanceField(group,"volume.shortcut",true);
+                Drawable material=(Drawable)Reflect.callMethod(manager,"getVolumeBarBackground",r.getContext(),r,group,corner,
                         Reflect.callMethod(d,"getMIsDefaultVolumeTheme"));
-                group.setBackground(group==zenControl?new RippleDrawable(ColorStateList.valueOf((foreground&0xffffff)|0x24000000),material,null):material);
+                try {material=material(material,r.getContext(),"volume-buttons",group,d.getClass().getClassLoader());}
+                catch(Throwable error) {throw new IllegalStateException("Shortcut material",error);}
+                GradientDrawable mask=new GradientDrawable();mask.setColor(0xffffffff);mask.setCornerRadius(corner);
+                group.setBackground(group==zenControl?new RippleDrawable(ColorStateList.valueOf((foreground&0xffffff)|0x24000000),material,mask):material);
+                refreshMaterial(group);
             }
             for(int i=0;i<5;i++) {
                 ImageView button=i<3?soundButtons[i]:i==3?zenOff:zenOn;
@@ -709,6 +750,11 @@ final class VolumeHook {
                 cancelShortcutMotion();
                 for(ImageView button:soundButtons) {button.setOnClickListener(null);button.setBackground(null);}
                 zenControl.setOnClickListener(null);zenControl.setBackground(null);soundSegments.setBackground(null);
+                for(View group:new View[]{soundSegments,zenControl}) {
+                    group.removeOnLayoutChangeListener(materialLayout);group.removeOnAttachStateChangeListener(materialAttach);
+                    Reflect.removeAdditionalInstanceField(group,"volume.proxy");
+                    Reflect.removeAdditionalInstanceField(group,"volume.shortcut");
+                }
                 if(shortcuts.getParent() instanceof ViewGroup parent)parent.removeView(shortcuts);
             }
             if(observer!=null&&observer.isAlive())observer.removeOnPreDrawListener(frame);
@@ -752,7 +798,19 @@ final class VolumeHook {
             if(v!=null&&role.equals("volume-bar"))return Math.min(((Number)Reflect.getObjectField(v,"mCurBackgroundRadius")).floatValue(),Math.min(bounds.width(),bounds.height())/2f);
             Outline nativeOutline=new Outline();getDrawable().getOutline(nativeOutline);
             float nativeRadius=getDrawable() instanceof GradientDrawable?((GradientDrawable)getDrawable()).getCornerRadius():Math.max(0f,nativeOutline.getRadius());
-            return Math.min(a.cornerEnabled?a.corner*context.getResources().getDisplayMetrics().density:nativeRadius,Math.min(bounds.width(),bounds.height())/2f);
+            return Math.min(a.cornerEnabled?Math.round(a.corner*context.getResources().getDisplayMetrics().density):nativeRadius,Math.min(bounds.width(),bounds.height())/2f);
+        }
+        void roundNative(Drawable drawable,float radius,Map<GradientDrawable,Object> saved) {
+            if(drawable instanceof GradientDrawable gradient) {
+                if(saved.containsKey(gradient))return;
+                float[] corners=gradient.getCornerRadii();
+                saved.put(gradient,corners==null?gradient.getCornerRadius():corners);
+                gradient.setCornerRadius(radius);
+            } else if(drawable instanceof LayerDrawable layers) {
+                for(int i=0;i<layers.getNumberOfLayers();i++)roundNative(layers.getDrawable(i),radius,saved);
+            } else if(drawable instanceof DrawableWrapper wrapper)roundNative(wrapper.getDrawable(),radius,saved);
+            else if(drawable.getClass().getName().equals(MATERIAL+"OplusVolumeBackgroundWrapper"))
+                roundNative((Drawable)Reflect.callMethod(drawable,"getContent"),radius,saved);
         }
         @Override public void draw(Canvas canvas) {
             HookConfig.Area a=area();if(a==null||(!a.tint&&!a.cornerEnabled)){super.draw(canvas);return;}
@@ -763,8 +821,20 @@ final class VolumeHook {
                 clip.rewind();clip.addRoundRect(b.left,b.top,b.right,b.bottom,radius,radius,Path.Direction.CW);
                 Drawable original=getDrawable();Rect old=original.getBounds();int l=old.left,t=old.top,r=old.right,bottom=old.bottom;
                 Drawable.Callback callback=original.getCallback();int save=canvas.save();
-                try {original.setCallback(null);original.setBounds(b);canvas.clipPath(clip);super.draw(canvas);}
-                finally {original.setBounds(l,t,r,bottom);original.setCallback(callback);canvas.restoreToCount(save);}
+                Map<GradientDrawable,Object> corners=new LinkedHashMap<>();
+                try {
+                    original.setCallback(null);original.setBounds(b);
+                    // Clipping can cut a larger corner but cannot fill a smaller one.
+                    // Update solid native shapes during this draw, then restore them.
+                    if(a.cornerEnabled)roundNative(original,radius,corners);
+                    canvas.clipPath(clip);super.draw(canvas);
+                } finally {
+                    for(Map.Entry<GradientDrawable,Object> entry:corners.entrySet()) {
+                        if(entry.getValue() instanceof float[] values)entry.getKey().setCornerRadii(values);
+                        else entry.getKey().setCornerRadius(((Number)entry.getValue()).floatValue());
+                    }
+                    original.setBounds(l,t,r,bottom);original.setCallback(callback);canvas.restoreToCount(save);
+                }
             }
         }
         @Override public void getOutline(Outline outline) {

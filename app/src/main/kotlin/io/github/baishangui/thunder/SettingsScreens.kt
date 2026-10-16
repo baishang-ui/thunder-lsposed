@@ -57,7 +57,7 @@ private fun Area.summary(corner: Boolean = true): String = buildList {
     }
     SettingsMenuGroup("更多") {
         SettingsMenuItem("音量面板", if (settings.volume.compact) "紧凑展开" else "系统展开", MiuixIcons.Regular.Layers) { open(SettingsPage.Volume) }
-        SettingsMenuItem("手势条", listOfNotNull(if (settings.hideGestureBar) "横条已隐藏" else null, if (settings.removeGestureBarInset) "已取消底部抬高" else null).joinToString(" · ").ifEmpty { "跟随系统" }, MiuixIcons.Regular.Hide) { open(SettingsPage.GestureBar) }
+        SettingsMenuItem("手势条", listOfNotNull(if (settings.hideGestureBar) "横条已隐藏" else if (settings.gestureBar.enabled) "自定义外观" else null, if (settings.removeGestureBarInset) "已取消底部抬高" else null).joinToString(" · ").ifEmpty { "跟随系统" }, MiuixIcons.Regular.Hide) { open(SettingsPage.GestureBar) }
     }
 }
 
@@ -129,6 +129,7 @@ private fun Area.summary(corner: Boolean = true): String = buildList {
                 LiquidSwitchRow("隐藏手势条", "", settings.hideGestureBar) { change(settings.copy(hideGestureBar = it)) }
                 LiquidSwitchRow("取消底部抬高", "让应用内容延伸到底边", settings.removeGestureBarInset) { change(settings.copy(removeGestureBarInset = it)) }
             }
+            if (!settings.hideGestureBar) GestureBarControls(settings.gestureBar) { change(settings.copy(gestureBar = it)) }
         }
         SettingsPage.StatusStyle -> StatusIconStyleSettings(settings, change)
         SettingsPage.StatusIcons -> {

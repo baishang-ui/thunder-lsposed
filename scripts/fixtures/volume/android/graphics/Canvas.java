@@ -1,6 +1,7 @@
 package android.graphics;
 import java.util.*;
 public class Canvas {
+ public boolean hardware=true;public boolean isHardwareAccelerated(){return hardware;}
  public final List<float[]> rectangles=new ArrayList<>();private float sx=1,sy=1,tx,ty;private final List<float[]> transforms=new ArrayList<>();
  public int color,depth;public float textX,textY;public Paint.Align textAlign;public Paint.Style textStyle;public float textSize;public int clips;public final List<Paint.Style> styles=new ArrayList<>();public final List<String> operations=new ArrayList<>();public final List<Integer> colors=new ArrayList<>();
  public void drawColor(int c){color=c;}public int save(){transforms.add(new float[]{sx,sy,tx,ty});return ++depth;}public void restoreToCount(int count){float[] t=transforms.get(count-1);sx=t[0];sy=t[1];tx=t[2];ty=t[3];while(transforms.size()>=count)transforms.remove(transforms.size()-1);depth=count-1;}

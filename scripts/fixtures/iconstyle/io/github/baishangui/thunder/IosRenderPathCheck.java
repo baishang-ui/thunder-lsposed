@@ -32,7 +32,7 @@ public final class IosRenderPathCheck {
         host.full="com.android.systemui:dimen/status_bar_battery_horizontal_progress_start";
         HookCallback dimension=Api102Runtime.callbacks.get(Resources.class.getName()+"#getDimension");
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
-        check(Math.abs(((Float)call.getResult())-3f*(27f/29f)*host.getDisplayMetrics().density)<.001f,"horizontal progress inset follows the 27dp battery width at host density");
+        check(Math.abs(((Float)call.getResult())-3f*(28f/29f)*host.getDisplayMetrics().density)<.001f,"horizontal progress inset follows the 28dp battery width at host density");
         host=new Resources(); host.full="foreign:dimen/status_bar_battery_horizontal_progress_start";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
         check(call.getResult().equals(99f),"battery dimensions are isolated to SystemUI");
@@ -41,7 +41,7 @@ public final class IosRenderPathCheck {
         HookCallback getValue=Api102Runtime.callbacks.get(Resources.class.getName()+"#getValue");
         call=IosStatusBarCheck.param(host,1,value,true); getValue.after(call);
         check(value.type==android.util.TypedValue.TYPE_DIMENSION,"raw dimension consumers receive a dimension");
-        check(Math.abs((value.data >> 8)/32768f-27f)<.0001f && (value.data & 15)==1,"raw dimension value matches the 27dp battery width");
+        check(Math.abs((value.data >> 8)/32768f-28f)<.0001f && (value.data & 15)==1,"raw dimension value matches the 28dp battery width");
         check(Math.abs((IosStatusBarHook.complexDimension(4.92f)>>8)/32768f-4.92f)<.0001f,"raw fractional dimensions retain subpixel precision");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_wifi_signal_size";
         call=IosStatusBarCheck.param(host,1); call.setResult(30f); dimension.after(call);
@@ -60,7 +60,7 @@ public final class IosRenderPathCheck {
         check((value.data&15)==2 && Math.abs((value.data>>8)/32768f-16.8f)<.0001f,"native SP dimensions retain font-scale units after scaling");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_battery_horizontal_height";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
-        check(Math.abs((Float)call.getResult()-17f*host.getDisplayMetrics().density)<.001f,"horizontal battery preserves 17dp height with a compact 27dp width");
+        check(Math.abs((Float)call.getResult()-17f*host.getDisplayMetrics().density)<.001f,"horizontal battery preserves 17dp height with a compact 28dp width");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_battery_horizontal_progress_top";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
         check(Math.abs((Float)call.getResult()-4.45f*host.getDisplayMetrics().density)<.001f,"progress inset returns to the 17dp battery height scale");
@@ -76,11 +76,11 @@ public final class IosRenderPathCheck {
         var battery=new com.oplus.systemui.statusbar.pipeline.battery.ui.drawable.HorizontalBatteryContentDrawable();
         for (float density : new float[]{1f, 2.75f, 3.5f}) for (boolean rtl : new boolean[]{false,true}) {
             battery.rtl=rtl;
-            var content=new android.graphics.RectF(3f*density,2f*density,30f*density,19f*density);
+            var content=new android.graphics.RectF(3f*density,2f*density,31f*density,19f*density);
             battery.rect=content;
             var body=battery.getBodyRectForLayout(content);
             call=IosStatusBarCheck.param(battery,content);call.setResult(body);bodyLayout.after(call);
-            float cap=27f*density*(1f-1979f/2200f);
+            float cap=28f*density*(1f-1979f/2200f);
             check(Math.abs(body.left-(content.left+(rtl?cap:0)))<.001f && Math.abs(body.right-(content.right-(rtl?0:cap)))<.001f,"text layout excludes the PUI cap in LTR and RTL");
             check(body.top==content.top && body.bottom==content.bottom,"text centering preserves vertical layout");
             for (String digits : new String[]{"7","75","100"}) {

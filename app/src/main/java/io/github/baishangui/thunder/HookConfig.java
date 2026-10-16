@@ -21,6 +21,9 @@ final class HookConfig {
     final boolean statusBarClock, statusBarClockSeconds, statusBarClockWeekday, statusBarClockBold;
     final int statusBarClockHourFormat, statusBarClockDate, statusBarClockSize;
     final boolean hideGestureBar, removeGestureBarInset;
+    final boolean gestureStyle, gestureColors, gestureAutoColor;
+    final int gestureLength, gestureThickness, gestureBottom, gestureLightColor, gestureDarkColor;
+    final Area gestureArea;
     HookConfig(Bundle data) {
         volumeSize = data != null && data.getBoolean("volume_size",false);
         volumeCompact = data != null && data.getBoolean("volume_compact",false);
@@ -32,6 +35,15 @@ final class HookConfig {
         revision = data == null ? -1 : data.getLong("revision", 0);
         hideGestureBar = data != null && data.getBoolean("gesture_bar_hidden", false);
         removeGestureBarInset = data != null && data.getBoolean("gesture_bar_remove_inset", false);
+        gestureStyle = data != null && data.getBoolean("gesture_style", false);
+        gestureColors = data != null && data.getBoolean("gesture_colors", false);
+        gestureAutoColor = data == null || data.getBoolean("gesture_auto_color", true);
+        gestureLength = bounded(data,"gesture_length",120,40,320);
+        gestureThickness = bounded(data,"gesture_thickness",4,1,16);
+        gestureBottom = bounded(data,"gesture_bottom",6,0,32);
+        gestureLightColor = data == null ? -1 : data.getInt("gesture_light_color",-1);
+        gestureDarkColor = data == null ? 0xff222222 : data.getInt("gesture_dark_color",0xff222222);
+        gestureArea = new Area(data,"gesture");
         statusBarStackSignals = data != null && data.getBoolean("status_bar_stack_signals",false);
         statusBarMargins = data != null && data.getBoolean("status_bar_margins", false);
         statusBarCenterEnabled = data != null && data.getBoolean("status_bar_center_enabled", false);
@@ -80,7 +92,7 @@ final class HookConfig {
             blur = data != null && data.getBoolean(key+"_blur", false);
             tint = data != null && data.getBoolean(key+"_tint", false);
             radius = clamp(data == null ? 100 : data.getInt(key+"_radius", 100));
-            int defaultColor=key.startsWith("cloud")?0x20282828:(key.equals("notification_card")||key.equals("qs_card"))?0x33ffffff:0x33000000;
+            int defaultColor=key.equals("gesture")?0x66ffffff:key.startsWith("cloud")?0x20282828:(key.equals("notification_card")||key.equals("qs_card"))?0x33ffffff:0x33000000;
             color = data == null ? defaultColor : data.getInt(key+"_color", defaultColor);
         }
     }
