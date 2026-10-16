@@ -35,10 +35,12 @@ class ScopeRestartReportTest {
     }
 
     @Test fun protocolRejectsMissingOrAmbiguousProcessResults() {
-        val output = "THUNDER_RESTART_HOST_OLD=42\nTHUNDER_RESTART_HOST_NEW=43\nTHUNDER_RESTART_PLUGIN_OLD=52\nTHUNDER_RESTART_PLUGIN_NEW=53\n"
+        val output = "THUNDER_RESTART_HOST_OLD=42\nTHUNDER_RESTART_HOST_EXITED=1\nTHUNDER_RESTART_HOST_NEW=43\nTHUNDER_RESTART_PLUGIN_OLD=52\nTHUNDER_RESTART_PLUGIN_EXITED=1\nTHUNDER_RESTART_PLUGIN_NEW=53\n"
         assertEquals(ScopeRestartTargetResult(52, 53), ScopeRestartTargetResult.parse(output, "PLUGIN"))
         assertNull(ScopeRestartTargetResult.parse(output, "OTHER"))
         assertNull(ScopeRestartTargetResult.parse(output + "THUNDER_RESTART_HOST_NEW=44\n", "HOST"))
         assertNull(ScopeRestartTargetResult.parse(output.replace("HOST_NEW=43", "HOST_NEW=42"), "HOST"))
+        assertNull(ScopeRestartTargetResult.parse(output.replace("THUNDER_RESTART_HOST_EXITED=1\n", ""), "HOST"))
+        assertNull(ScopeRestartTargetResult.parse(output + "THUNDER_RESTART_HOST_EXITED=1\n", "HOST"))
     }
 }

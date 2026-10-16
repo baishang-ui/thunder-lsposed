@@ -206,34 +206,28 @@ class MainActivity : ComponentActivity() {
                                     } else when(destination.page) {
                                         0 -> {
                                             val status = remember(resumeTick, refresh, RemoteSettings.status, RemoteSettings.scopeStatus) { runtimeStatus() }
+                                            val activation = RemoteSettings.activation
                                             SettingsGroup {
                                                 LiquidSwitchRow("启用效果调整", "ColorOS 17", draft.enabled) { draft = draft.copy(enabled = it) }
-                                                LiquidAction("前往调节", Modifier.fillMaxWidth(), selected = true) { page = 1 }
                                             }
                                             SettingsGroup {
-                                                UiText("模块状态", 16, bold = true)
-                                                val activation = RemoteSettings.activation
+                                                UiText("模块状态", 14, muted = true)
                                                 ModuleStatusRow("LSPosed", activation.label,
-                                                    when {
-                                                        activation != RemoteSettings.Activation.Connected -> activation.hint
-                                                        !RemoteSettings.scopeStatus.startsWith("作用域已完整") -> RemoteSettings.scopeStatus
-                                                        else -> ""
-                                                    },
+                                                    if (activation != RemoteSettings.Activation.Connected) activation.hint else "",
                                                     activation == RemoteSettings.Activation.Connected)
+                                                SettingsDivider()
+                                                ModuleStatusRow("作用域", if (RemoteSettings.scopeStatus.startsWith("作用域已完整")) "已完整启用" else "待检查",
+                                                    if (RemoteSettings.scopeStatus.startsWith("作用域已完整")) "" else RemoteSettings.scopeStatus,
+                                                    RemoteSettings.scopeStatus.startsWith("作用域已完整"))
+                                            }
+                                            SettingsGroup {
                                                 ModuleStatusRow("Root", rootState.label,
                                                     if (rootState !in setOf(RootAccessState.Unchecked, RootAccessState.Granted)) rootState.hint else "",
                                                     rootState == RootAccessState.Granted, rootState == RootAccessState.Checking)
-                                                LiquidAction(
-                                                    if (rootState == RootAccessState.Checking) "正在验证…" else if (rootState == RootAccessState.Unchecked) "验证 Root 权限" else "重新验证 Root",
-                                                    Modifier.fillMaxWidth(),
-                                                    enabled = rootState != RootAccessState.Checking && !restartState.running
-                                                ) { RootAccess.verify() }
+                                                LiquidAction(if (rootState == RootAccessState.Checking) "正在验证…" else "验证 Root 权限",
+                                                    Modifier.fillMaxWidth(), enabled = rootState != RootAccessState.Checking && !restartState.running) { RootAccess.verify() }
                                             }
-                                            SettingsMenuGroup("快捷调节") {
-                                                SettingsMenuItem("整体背景", if(draft.panel.blur || draft.panel.tint) "已自定义" else "跟随系统", MiuixIcons.Regular.Background) { page = 1; detail = SettingsPage.Panel }
-                                                SettingsMenuItem("图标样式", if(draft.statusIconStyle == 1) "iOS 风格" else "系统默认", MiuixIcons.Regular.Theme) { page = 1; detail = SettingsPage.StatusStyle }
-                                            }
-                                            SettingsMenuGroup("诊断") {
+                                            SettingsMenuGroup("运行状态") {
                                                 SettingsMenuItem("运行报告", status.first, MiuixIcons.Regular.Report) { detail = SettingsPage.Runtime }
                                             }
                                         }
@@ -245,10 +239,14 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     ProgressiveHeader(overlaySource,Modifier.fillMaxWidth().height(headerHeight + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()).align(Alignment.TopCenter))
-                    Row(Modifier.align(Alignment.TopCenter).widthIn(max=640.dp).fillMaxWidth().statusBarsPadding().padding(horizontal=16.dp,vertical=10.dp),
+                    Row(Modifier.align(Alignment.TopCenter).widthIn(max=640.dp).fillMaxWidth()
+                        .statusBarsPadding().height(headerHeight).padding(horizontal=16.dp,vertical=10.dp),
                         verticalAlignment=Alignment.CenterVertically) {
-                        if (detail != null || page != 0) {
-                            LiquidAction("返回",Modifier.size(48.dp),icon=MiuixIcons.Regular.Back) { navigateBack() }
+                        // Reserve the navigation slot so showing Back never shifts the title.
+                        Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                            if (detail != null || page != 0) {
+                                LiquidAction("返回",Modifier.size(48.dp),icon=MiuixIcons.Regular.Back) { navigateBack() }
+                            }
                         }
                         Crossfade(MenuDestination(page, detail), Modifier.weight(1f).padding(horizontal=14.dp),
                             animationSpec = tween(220), label = "Menu title") { destination ->
@@ -260,7 +258,9 @@ class MainActivity : ComponentActivity() {
                                     dirty -> "正在保存…"
                                     else -> destination.detail?.category
                                 }
-                                if (caption != null) UiText(caption, 11, muted = true)
+                                // Keep one line even without a caption; save-state changes must not reflow the title.
+                                UiText(caption.orEmpty(), 11, muted = true,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                         LiquidAction("重启作用域",Modifier.size(48.dp),enabled=!busy,selected=restartState.running,icon=MiuixIcons.Regular.Refresh) {
@@ -286,9 +286,9 @@ class MainActivity : ComponentActivity() {
                         {restartFeedback=false}
                     ) {
                         if(!restartRequested) {
-                            UiText("重新加载系统界面及插件",16,bold=true)
-                            UiText("范围：系统界面、系统界面插件。保存配置并等待进程稳定后，按实际加载方式重启。需要 Root 授权，状态栏、通知栏和流体云会短暂中断。",14,muted=true)
-                            UiText("普通参数修改会自动应用，无需重启。",12,muted=true)
+                            UiText("重启系统界面及插件进程",16,bold=true)
+                            UiText("范围：系统界面、系统界面插件。保存配置并等待进程稳定后，结束旧进程并重新启动。需要 Root 授权，状态栏、通知栏和流体云会短暂中断。",14,muted=true)
+                            UiText("普通参数修改会自动应用；状态栏图标样式需重启系统界面后生效。",12,muted=true)
                             Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                                 LiquidAction("取消",Modifier.weight(1f)) { restartFeedback=false }
                                 LiquidAction("重启",Modifier.weight(1f),enabled=!restartState.running && rootState != RootAccessState.Checking,selected=true) {
@@ -375,21 +375,24 @@ private fun alphaPercent(c: Int)=TintColor.percent(c)
                                     cornerRange: IntRange=0..64,relativeCorners: Boolean=false,
                                     showTitle: Boolean=false,onChange: (Area)->Unit) {
     CompositionLocalProvider(LocalControlScope provides "${LocalControlScope.current}:$title") {
-    if (showTitle) UiText(title,14,muted=true,modifier=Modifier.padding(start=8.dp,top=4.dp))
-    if(blur) SettingsGroup {
-        LiquidSwitchRow("背景模糊","",area.blur) { onChange(area.copy(blur=it)) }
-        if(area.blur) LiquidValueSlider("模糊半径",area.radius,0..200," px") { onChange(area.copy(radius=it)) }
-    }
-    SettingsGroup {
-        LiquidSwitchRow("背景混色","",area.tint) { onChange(area.copy(tint=it)) }
-        if(area.tint) {
-            LiquidColorSetting("混色颜色",area.color) { onChange(area.copy(color=it)) }
+        if (showTitle) UiText(title,14,muted=true,modifier=Modifier.padding(start=8.dp,top=4.dp))
+        SettingsGroup {
+            if (blur) {
+                LiquidSwitchRow("自定义模糊", "", area.blur) { onChange(area.copy(blur=it)) }
+                if (area.blur) LiquidValueSlider("模糊半径",area.radius,0..200," px") { onChange(area.copy(radius=it)) }
+                SettingsDivider()
+            }
+            LiquidSwitchRow("自定义混色", "", area.tint) { onChange(area.copy(tint=it)) }
+            if (area.tint) LiquidColorSetting("混色颜色",area.color) { onChange(area.copy(color=it)) }
+            if (corner) {
+                SettingsDivider()
+                LiquidSwitchRow("自定义圆角", "", area.cornerEnabled) { onChange(area.copy(cornerEnabled=it)) }
+                if (area.cornerEnabled) LiquidValueSlider(if(relativeCorners) "圆角程度" else "圆角半径",area.corner,cornerRange,if(relativeCorners) " / 64" else " dp") { onChange(area.copy(corner=it)) }
+            }
+            if (area.blur || area.tint || area.cornerEnabled) {
+                SettingsDivider()
+                LiquidAction("恢复系统材质",Modifier.fillMaxWidth()) { onChange(area.copy(blur=false,tint=false,cornerEnabled=false)) }
+            }
         }
-    }
-    if(corner) SettingsGroup {
-        LiquidSwitchRow("自定义圆角","",area.cornerEnabled) { onChange(area.copy(cornerEnabled=it)) }
-        if(area.cornerEnabled) LiquidValueSlider(if(relativeCorners) "圆角程度" else "圆角半径",area.corner,cornerRange,if(relativeCorners) " / 64" else " dp") { onChange(area.copy(corner=it)) }
-    }
-    LiquidAction("恢复系统材质",Modifier.fillMaxWidth()) { onChange(area.copy(blur=false,tint=false,cornerEnabled=false)) }
     }
 }

@@ -23,25 +23,14 @@ import top.yukonga.miuix.kmp.basic.Text
         ChoiceTabs(listOf("系统默认", "iOS 风格"), settings.statusIconStyle) {
             change(settings.copy(statusIconStyle = it))
         }
+        UiText("修改图标样式后需重启系统界面，包括切回系统默认。配置同步后，点击右上角“重启作用域”应用。", 13, muted = true)
     }
-    if (!settings.enabled) UiText("模块总开关已关闭。样式会保存，启用模块后应用。", 13, muted = true)
-    UiText("双卡排列跟随系统设置，已识别的堆叠信号上下两行分别显示真实强度。", 12, muted = true)
-    UiText("iOS 风格预览", 15)
-    StatusStrip(dark = false, stacked = false)
-    StatusStrip(dark = true, stacked = false)
-    UiText("预览为图形示意。实际图标在系统原有空间内居中绘制，颜色、电量与信号状态跟随系统。", 12, muted = true)
+    if (!settings.enabled) UiText("启用模块后应用图标样式", 13, muted = true)
     SettingsGroup {
-        UiText("电池内数字", 15)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            listOf(20 to "低电量", 62 to "充电中", 100 to "满电").forEach { (level, label) ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.BATTERY, level, 100),
-                        if (level == 20) Color(0xffe03b3b) else if (level == 62) Color(0xff34c759) else LocalGlass.current.ink,
-                        "$label，$level%", battery = true, charging = level == 62, large = true)
-                    UiText(label, 12, muted = true)
-                }
-            }
-        }
+        UiText("iOS 风格预览", 15)
+        StatusStrip(dark = false, stacked = false)
+        StatusStrip(dark = true, stacked = false)
+        UiText("图形示意，实际状态与排列跟随系统。电池样式、百分比和充电显示由系统处理。", 12, muted = true)
     }
     SettingsGroup {
         UiText("状态图标", 15)
@@ -93,7 +82,6 @@ import top.yukonga.miuix.kmp.basic.Text
                 StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.CELLULAR, 2, 4), ink, "SIM 2 信号，两格")
             }
             StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.WIFI, 4, 4), ink, "Wi-Fi 信号，满格")
-            StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.BATTERY, 75, 100), ink, "电池，75%", battery = true)
         }
     }
 }

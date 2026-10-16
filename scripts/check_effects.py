@@ -3,6 +3,7 @@ This checks state, interpolation and package/feature guards, not device renderin
 """
 from pathlib import Path
 import json
+import re
 import argparse
 import os
 import shutil
@@ -41,11 +42,14 @@ with tempfile.TemporaryDirectory(prefix='thunder-effects-') as folder:
             target = src / path.relative_to(ROOT / 'scripts/fixtures' / fixture)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(path.read_text())
-    for name in ['VolumeHook', 'VolumePanelGeometry', 'GestureBarHook', 'ShadeHook', 'QsCardHook', 'QsCornerHook', 'NotificationCardHook', 'AdaptiveTextColor', 'AdaptiveTextHook', 'LiveSettings', 'HookConfig', 'SettingsProvider', 'ResourceOverrides', 'Reflect', 'CloudHook', 'HookEntry', 'StatusBarIcons', 'StatusBarIconHook', 'IosStatusIcons', 'IosIconAssets', 'IosIconDrawable', 'IosStatusBarHook']:
+    for name in ['VolumeHook', 'VolumePanelGeometry', 'GestureBarHook', 'ShadeHook', 'QsCardHook', 'QsCornerHook', 'NotificationCardHook', 'AdaptiveTextColor', 'AdaptiveTextHook', 'LiveSettings', 'HookConfig', 'SettingsProvider', 'ResourceOverrides', 'Reflect', 'CloudHook', 'HookEntry', 'StatusBarIcons', 'StatusBarIconHook', 'IosStatusIcons', 'IosIconAssets', 'IosIconDrawable', 'IosStatusBarHook', 'IosStatusResources']:
         path = Path('io/github/baishangui/thunder') / (name + '.java')
         (src / path).write_text((ROOT / 'app/src/main/java' / path).read_text())
+    # Match generated compiled-resource references without pretending to inflate Android XML.
+    resource_names = list(dict.fromkeys(re.findall(r'R\.drawable\.(\w+)', (ROOT / 'app/src/main/java/io/github/baishangui/thunder/IosStatusResources.java').read_text())))
+    (src / 'io/github/baishangui/thunder/R.java').write_text('package io.github.baishangui.thunder; final class R { static class drawable {' + ''.join(f'static final int {name}={index};' for index, name in enumerate(resource_names, 1000)) + '} }')
     subprocess.run([javac, '-d', str(classes), *map(str, src.rglob('*.java'))], check=True)
-    checks = ['VolumePanelCheck', 'GestureBarCheck', 'CardBlendCheck', 'HookCheck', 'ProviderCheck', 'CloudCheck', 'CloudLayerCheck', 'StatusBarIconCheck', 'IosStatusBarCheck', 'IosDrawSafetyCheck', 'IosRenderPathCheck', 'IosCoverageCheck', 'QsTintCheck', 'QsStateCheck', 'QsGeometryCheck', 'NotificationStyleCheck', 'AdaptiveTextCheck']
+    checks = ['VolumePanelCheck', 'GestureBarCheck', 'CardBlendCheck', 'HookCheck', 'ProviderCheck', 'CloudCheck', 'CloudLayerCheck', 'StatusBarIconCheck', 'IosStatusBarCheck', 'IosDrawSafetyCheck', 'IosRenderPathCheck', 'IosCoverageCheck', 'QsTintCheck', 'QsStateCheck', 'QsGeometryCheck', 'NotificationStyleCheck', 'NotificationExpansionCheck', 'AdaptiveTextCheck']
     if args.only:
         unknown = set(args.only) - set(checks)
         if unknown: raise SystemExit('Unknown checks: ' + ', '.join(sorted(unknown)))

@@ -24,8 +24,10 @@ floating-point drag accumulator, reads current callbacks and geometry, and adds 
 finished callback so the app commits a drag once instead of recomposing the whole
 screen for every pointer event.
 
-The button accepts configurable content padding for compact 40 dp circular header
-icons inside 48 dp touch targets; text buttons retain the original padding.
+The button accepts configurable content padding for header icons inside 48 dp
+touch targets; text buttons retain the original padding. Button press content is
+explicitly clipped to its capsule shape, and disabled buttons have no click or
+press handlers.
 
 Other UI components (theme, text, cards, menu rows, choice tabs, dialog, color picker, and
 text input) use `top.yukonga.miuix.kmp:miuix-ui:0.9.0`.
@@ -65,8 +67,14 @@ The original reference illustrations are Apple material; they are not described
 as MIT assets or an Apple-supplied Android icon pack. No Apple fonts are bundled.
 `app/src/main/assets/icons/ios-reference` contains editable vector studies;
 `scripts/refine_status_icons.py` constructs the regular geometry;
-`scripts/render_status_icons.py` generates the paths used in the app and SystemUI.
+`scripts/render_status_icons.py` generates app preview paths;
+`scripts/generate_status_drawables.py` generates native Android XML resources.
 Bluetooth, silent, vibrate, NFC and performance indicators are project companion
 artwork, including Android-specific states.
-The solid battery combines regularized reference proportions with iOS 16 percentage-mode
-presentation and native Android battery state.
+The solid battery study follows iOS 16 percentage-mode proportions. The current
+SystemUI integration retains native battery rendering and percentage calculations.
+
+Static status-resource label outlines are derived from Work Sans Bold by Wei Huang,
+licensed under the SIL Open Font License 1.1. The glyph subset is stored in
+`scripts/fixtures/iconstyle/label-glyphs.json`; license and copyright notice are
+bundled as `app/src/main/assets/licenses/status-labels.txt`. No runtime font is added.

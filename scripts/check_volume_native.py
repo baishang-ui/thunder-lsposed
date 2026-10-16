@@ -13,19 +13,22 @@ logger.remove()
 base = 'Lcom/oplus/systemui/volume/'
 required = {
     base+'view/OplusVolumeDialogView;': (
-        {'initDialog', 'updateRowsH', 'showSliderVolume', 'updateState', 'adaptThemeDrawable', 'expandPanel', 'resetSliderState','getIconHalfDelta','startBtnThickAnim'},
+        {'initDialog', 'updateRowsH', 'showSliderVolume', 'updateState', 'adaptThemeDrawable', 'expandPanel', 'resetSliderState','getIconHalfDelta','startBtnThickAnim','getMIsDefaultVolumeTheme'},
         {'volumeInteractor','volumeListAdapter','mDialogView','mVolumeRecyclerview','mSettingsButton','mMoreRowStreamLl','mAppVolumeAdjustFl','mODICaptionsView','mVolumePanelTitleIcon','mVolumePanelTitleText','mVolumePanelTipsText','mVolumeSettingText','mSnackBar'}),
     base+'view/OplusVolumeDialogView$CustomDialog;': ({'dispatchTouchEvent'}, {'this$0'}),
-    base+'OplusVolumeDialogImpl;': ({'getActiveRow','dismissH$1','destroy','onConfigChanged','onThemeChanged','onUiModeChanged'}, {'mRows','mOplusVolumeDialogView'}),
+    base+'OplusVolumeDialogImpl;': ({'getActiveRow','dismissH$1','destroy','onConfigChanged','onThemeChanged','onUiModeChanged','rescheduleTimeoutH'}, {'mRows','mOplusVolumeDialogView','mController','mState'}),
     base+'view/OplusVolumeRow;': (set(), {'slider','sliderFrame','view'}),
     base+'VolumeListAdapter;': ({'switchToDataSourcePanel','onBindViewHolder','getPanelShowList'}, set()),
     base+'anim/VolumeItemAnimator;': ({'getEndX','getTranslationY','resolvePanelStartTranslationX','animateAddImpl','animateMoveImpl','runPendingAnimations'}, {'adapter','cachedPanelBiasTranslationY'}),
     base+'utils/material/VolumePlatformBlurHostHelper;': ({'mountPanelBackground','createPanelBackgroundIfNeeded','applyBarPanelBottomProgress'}, {'deps'}),
-    base+'utils/material/VolumeBlurManager;': ({'getVolumeBarBackground','getVolumeSettingsButtonBackground','getVolumeSideAccessoryBackground','getVolumePanelBackground'}, set()),
+    base+'utils/material/VolumeBlurManager;': ({'getVolumeBarBackground','getVolumeSettingsButtonBackground','getVolumeSideAccessoryBackground','getVolumePanelBackground'}, {'INSTANCE'}),
     base+'utils/material/OplusVolumeBlurDrawableFinder;': ({'findAutoBlurDrawable'}, set()),
     base+'OplusVolumeSeekBar;': ({'onAttachedToWindow','onMeasure','onDraw','draw','preCalcMaterialClipPath'}, set()),
     'Lcom/coui/appcompat/seekbar/COUIVerticalSeekBar;': ({'ensureSize','updatePixPerProgress'}, {'mBackgroundRect','mBackgroundWidth','mCurBackgroundWidth','mProgressWidth','mCurProgressWidth','mBackgroundRadius','mCurBackgroundRadius','mProgressRadius','mCurProgressRadius','mPaddingVertical','mCurPaddingVertical','mSeekbarMinWidth','mBackgroundColor'}),
 }
+required['Lcom/android/systemui/volume/VolumeDialogControllerImpl;']=({'setRingerMode','setZenMode','hasVibrator'},set())
+required['Lcom/android/systemui/plugins/VolumeDialogController$State;']=(set(),{'ringerModeInternal','zenMode','disallowRinger'})
+required['Lcom/oplusos/systemui/common/feature/FeatureOption;']=({'isOplusAlertSlider'},set())
 classes = {}
 with ZipFile(args.apk) as apk:
     for entry in apk.namelist():

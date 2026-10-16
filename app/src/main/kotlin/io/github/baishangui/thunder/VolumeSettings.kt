@@ -33,7 +33,7 @@ internal data class VolumeSettings(
 
 @Composable internal fun VolumeSettingsControls(value: VolumeSettings, change: (VolumeSettings) -> Unit) {
     SettingsGroup {
-        LiquidSwitchRow("跟随音量条展开", "在音量条旁展开紧凑面板", value.compact) { change(value.copy(compact = it)) }
+        LiquidSwitchRow("跟随音量条展开", "沿当前音量条横向展开，下方显示声音与免打扰快捷按钮", value.compact) { change(value.copy(compact = it)) }
     }
     SettingsGroup {
         LiquidSwitchRow("自定义尺寸", "按钮边长跟随音量条宽度", value.size) { change(value.copy(size = it)) }

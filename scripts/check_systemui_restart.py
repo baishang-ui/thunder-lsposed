@@ -1,4 +1,4 @@
-"""Exercise the actual scope restart script with fake Android commands, never host processes."""
+"""Exercise process replacement using isolated fake Android commands. Never signal a host PID."""
 from pathlib import Path
 import os
 import re
@@ -6,19 +6,20 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
-asset = ROOT / 'app/src/main/assets/restart-scope.sh'
-script = asset.read_text()
-assert not re.search(r'\b(?:kill|killall|pkill|reboot|zygote)\b|\bam\s+crash\b', script)
+script = (ROOT / 'app/src/main/assets/restart-scope.sh').read_text()
+# LuckyTool-style SystemUI exit, restricted to one previously validated PID.
+assert '/system/bin/kill -9 "$thunder_host_old"' in script
+assert 'force-stop --user 0 com.android.systemui' not in script
+assert not re.search(r'\b(?:killall|pkill|pgrep|reboot|zygote)\b|\bam\s+crash\b', script)
 for source in [*(ROOT / 'app/src/main/java').rglob('*.java'),
                ROOT / 'app/src/main/kotlin/io/github/baishangui/thunder/SettingsWriter.kt',
                ROOT / 'app/src/main/kotlin/io/github/baishangui/thunder/RemoteSettings.kt']:
-    text = source.read_text()
-    assert 'ProcessBuilder(' not in text and 'ScopeRestart.restart(' not in text, source
+    assert 'ProcessBuilder(' not in source.read_text() and 'ScopeRestart.restart(' not in source.read_text(), source
 
 
 def run_case(mode):
     independent = mode.startswith('plugin-') and mode != 'plugin-appeared' or mode == 'independent'
-    with tempfile.TemporaryDirectory(prefix='thunder-scope-') as folder:
+    with tempfile.TemporaryDirectory(prefix='thunder-process-restart-') as folder:
         tmp = Path(folder)
         calls, hostpid, pluginpid = tmp / 'calls', tmp / 'host', tmp / 'plugin'
         proc = tmp / 'proc'
@@ -37,101 +38,117 @@ def run_case(mode):
         command('date', 'if [ -f "$TEST_LATE" ]; then echo 201; else echo 100; fi')
         command('getconf', 'echo 100')
         command('sleep', 'true')
+        command('timeout', 'shift\nexec "$@"')
         command('pidof', '''case "$1" in
 com.android.systemui) cat "$TEST_HOST";;
 com.oplus.systemui.plugins) cat "$TEST_PLUGIN";;
 *) exit 1;;
 esac''')
         command('cmd', '''echo "cmd $*" >> "$TEST_CALLS"
-case "$*" in
- "package query-services --components --user 0 -n com.android.systemui/com.android.systemui.SystemUIService")
-  [ "$TEST_MODE" != unavailable ] || exit 1
-  [ "$TEST_MODE" != changed-during-lookup ] || echo 44 > "$TEST_HOST"
-  [ "$TEST_MODE" != plugin-appeared ] || echo 52 > "$TEST_PLUGIN"
-  echo com.android.systemui/.SystemUIService;;
- "package query-services --components --user 0 -n com.oplus.systemui.plugins/com.oplus.systemui.plugins.seedling.plugin.SeedlingPluginService")
-  [ "$TEST_MODE" != plugin-unavailable ] || exit 1
-  [ "$TEST_MODE" != plugin-changed-during-lookup ] || echo 54 > "$TEST_PLUGIN"
-  echo com.oplus.systemui.plugins/com.oplus.systemui.plugins.seedling.plugin.SeedlingPluginService;;
- *) exit 1;;
+[ "$*" = "package query-services --components --user 0 -n com.oplus.systemui.plugins/com.oplus.systemui.plugins.seedling.plugin.SeedlingPluginService" ] || exit 1
+[ "$TEST_MODE" != plugin-unavailable ] || exit 1
+[ "$TEST_MODE" != plugin-changed-during-lookup ] || echo 54 > "$TEST_PLUGIN"
+[ "$TEST_MODE" != plugin-host-changed-during-lookup ] || echo 44 > "$TEST_HOST"
+echo com.oplus.systemui.plugins/com.oplus.systemui.plugins.seedling.plugin.SeedlingPluginService
+''')
+        command('kill', '''echo "kill $*" >> "$TEST_CALLS"
+[ "$*" = "-9 42" ] || exit 1
+[ "$TEST_MODE" != signal-failed ] || exit 1
+# Even a zero command exit must not be confused with the old process actually exiting.
+[ "$TEST_MODE" != old-alive ] || exit 0
+[ "$TEST_MODE" != phantom-new ] || { echo 43 > "$TEST_HOST"; exit 0; }
+rm "$TEST_PROC/42/stat"
+if [ "$TEST_MODE" = signal-exited-race ]; then echo 43 > "$TEST_HOST"; exit 1; fi
+case "$TEST_MODE" in
+ hosted|independent|plugin-*) echo 43 > "$TEST_HOST";;
+ *) echo "" > "$TEST_HOST";;
 esac
 ''')
         command('am', '''echo "am $*" >> "$TEST_CALLS"
 case "$*" in
- "force-stop --user 0 com.android.systemui")
-  case "$TEST_MODE" in stop-failed|plugin-host-stop-failed) exit 1;; esac
-  echo "" > "$TEST_HOST";;
  "force-stop --user 0 com.oplus.systemui.plugins")
   [ "$TEST_MODE" != plugin-stop-failed ] || exit 1
+  [ "$TEST_MODE" != plugin-old-alive ] || exit 0
+  rm "$TEST_PROC/52/stat"
   echo "" > "$TEST_PLUGIN";;
  "startservice --user 0 -n com.android.systemui/com.android.systemui.SystemUIService")
-  case "$TEST_MODE" in start-failed|plugin-host-start-failed) echo 'Error: service not found'; exit 0;; esac
+  if [ "$TEST_MODE" = start-failed ]; then echo 'Error: service not found'; exit 0; fi
   [ "$TEST_MODE" != start-exit-failed ] || exit 1
+  if [ "$TEST_MODE" = start-retry ] && [ ! -f "$TEST_RETRIED" ]; then touch "$TEST_RETRIED"; echo 'Error: temporary'; exit 1; fi
   [ "$TEST_MODE" = no-respawn ] || echo 43 > "$TEST_HOST";;
  "startservice --user 0 -n com.oplus.systemui.plugins/com.oplus.systemui.plugins.seedling.plugin.SeedlingPluginService")
   if [ "$TEST_MODE" = plugin-start-failed ]; then echo 'Error: service not found'; exit 0; fi
+  if [ "$TEST_MODE" = plugin-start-retry ] && [ ! -f "$TEST_RETRIED" ]; then touch "$TEST_RETRIED"; echo 'Error: temporary'; exit 1; fi
   [ "$TEST_MODE" = plugin-no-respawn ] || echo 53 > "$TEST_PLUGIN"
-  [ "$TEST_MODE" != plugin-expired-after-start ] || touch "$TEST_LATE"
-  [ "$TEST_MODE" != plugin-host-changed ] || echo 44 > "$TEST_HOST";;
+  [ "$TEST_MODE" != plugin-late-start ] || touch "$TEST_LATE"
+  if [ "$TEST_MODE" = plugin-host-recreated ]; then rm "$TEST_PROC/42/stat"; echo 44 > "$TEST_HOST"; fi
+  if [ "$TEST_MODE" = plugin-host-exited ]; then rm "$TEST_PROC/42/stat"; echo "" > "$TEST_HOST"; fi
+  [ "$TEST_MODE" != plugin-host-phantom ] || echo 44 > "$TEST_HOST";;
  *) exit 1;;
 esac
 ''')
-        result = subprocess.run(['/bin/sh', '-c', script.replace('/proc/', str(proc) + '/')], capture_output=True, text=True, timeout=5,
+        # Replace the absolute Android kill binary before executing the actual asset on the host.
+        test_script = script.replace('/proc/', str(proc) + '/').replace('/system/bin/kill', str(tmp / 'kill'))
+        result = subprocess.run(['/bin/sh', '-c', test_script], capture_output=True, text=True, timeout=10,
             env={**os.environ, 'PATH': str(tmp) + ':/usr/bin:/bin', 'TEST_MODE': mode,
-                 'TEST_HOST': str(hostpid), 'TEST_PLUGIN': str(pluginpid), 'TEST_CALLS': str(calls), 'TEST_LATE': str(tmp / 'late'),
+                 'TEST_HOST': str(hostpid), 'TEST_PLUGIN': str(pluginpid), 'TEST_CALLS': str(calls),
+                 'TEST_PROC': str(proc), 'TEST_RETRIED': str(tmp / 'retried'), 'TEST_LATE': str(tmp / 'late'),
                  'THUNDER_RESTART_CONFIRMED_ELAPSED': '' if mode == 'unconfirmed' else '100000',
                  'THUNDER_RESTART_EXPECTED_PID': '41' if mode == 'changed' else '42',
                  'THUNDER_RESTART_PLUGIN_PID': '0' if mode == 'plugin-unconfirmed' else '51' if mode == 'plugin-changed' else '52' if independent else '0',
                  'THUNDER_RESTART_PLUGIN_ELAPSED': '110000' if mode == 'plugin-not-stable' else '100000',
                  'THUNDER_RESTART_DEADLINE': '0' if mode == 'expired' else '200'})
         actions = calls.read_text().splitlines() if calls.exists() else []
-        mutations = [a for a in actions if a.startswith('am ')]
-        host_stop = 'am force-stop --user 0 com.android.systemui'
+        mutations = [a for a in actions if a.startswith(('am ', 'kill '))]
+        host_stop = 'kill -9 42'
         plugin_stop = 'am force-stop --user 0 com.oplus.systemui.plugins'
         host_start = 'am startservice --user 0 -n com.android.systemui/com.android.systemui.SystemUIService'
         plugin_start = 'am startservice --user 0 -n com.oplus.systemui.plugins/com.oplus.systemui.plugins.seedling.plugin.SeedlingPluginService'
-        assert actions.count(host_stop) <= 1 and actions.count(plugin_stop) <= 1
-        if mode in {'hosted', 'independent'}:
+        assert actions.count(host_stop) <= 1 and actions.count(plugin_stop) <= 1, actions
+        assert actions.count(host_start) <= 2 and actions.count(plugin_start) <= 2, actions
+        successes = {'hosted', 'independent', 'service-recovery', 'start-retry', 'signal-exited-race',
+                     'plugin-start-retry', 'plugin-late-start', 'plugin-host-recreated', 'plugin-host-exited'}
+        if mode in successes:
             assert result.returncode == 0, result.stdout + result.stderr
-            assert 'THUNDER_RESTART_HOST_OLD=42' in result.stdout and 'THUNDER_RESTART_HOST_NEW=43' in result.stdout
-            expected = [host_stop, host_start]
+            expected_host = '44' if mode == 'plugin-host-recreated' else '43'
+            assert 'THUNDER_RESTART_HOST_OLD=42' in result.stdout and 'THUNDER_RESTART_HOST_NEW=' + expected_host in result.stdout
+            assert 'THUNDER_RESTART_HOST_EXITED=1' in result.stdout
+            assert not (proc / '42/stat').exists()
             if independent:
-                expected = [plugin_stop, plugin_start] + expected
-                assert 'THUNDER_RESTART_PLUGIN_OLD=52' in result.stdout and 'THUNDER_RESTART_PLUGIN_NEW=53' in result.stdout
-            else:
-                assert 'THUNDER_RESTART_PLUGIN_MODE=host' in result.stdout
-            assert mutations == expected, actions
-            assert all(a.startswith('cmd ') for a in actions[:(2 if independent else 1)]), actions
+                assert mutations[0] == plugin_stop
+                assert 'THUNDER_RESTART_PLUGIN_EXITED=1' in result.stdout and 'THUNDER_RESTART_PLUGIN_NEW=53' in result.stdout
+            else: assert 'THUNDER_RESTART_PLUGIN_MODE=host' in result.stdout
+            if mode in {'hosted', 'independent'}: assert host_start not in mutations, actions
+            if mode == 'start-retry': assert mutations.count(host_start) == 2
+            if mode == 'plugin-start-retry': assert mutations.count(plugin_start) == 2
+            if mode in {'plugin-host-recreated', 'plugin-host-exited'}: assert host_stop not in mutations, actions
+            else: assert mutations.count(host_stop) == 1, actions
         else:
-            error = {'denied': 'ROOT_DENIED', 'expired': 'EXPIRED', 'plugin-expired-after-start': 'EXPIRED', 'missing': 'NOT_RUNNING',
-                     'bad-pid': 'BAD_PID', 'changed': 'PROCESS_CHANGED', 'plugin-changed': 'PROCESS_CHANGED',
-                     'reused-pid': 'PROCESS_CHANGED', 'plugin-reused-pid': 'PROCESS_CHANGED',
-                     'not-stable': 'NOT_STABLE', 'plugin-not-stable': 'NOT_STABLE',
-                     'unconfirmed': 'UNCONFIRMED_PROCESS', 'plugin-unconfirmed': 'PLUGIN_UNCONFIRMED',
-                     'changed-during-lookup': 'PROCESS_CHANGED', 'plugin-changed-during-lookup': 'PROCESS_CHANGED',
-                     'plugin-appeared': 'PROCESS_CHANGED', 'plugin-host-changed': 'PROCESS_CHANGED',
-                     'unavailable': 'SERVICE_UNAVAILABLE', 'plugin-unavailable': 'SERVICE_UNAVAILABLE',
-                     'stop-failed': 'STOP_FAILED', 'plugin-stop-failed': 'STOP_FAILED', 'plugin-host-stop-failed': 'STOP_FAILED',
-                     'start-failed': 'START_FAILED', 'plugin-start-failed': 'START_FAILED', 'plugin-host-start-failed': 'START_FAILED',
-                     'start-exit-failed': 'START_FAILED', 'no-respawn': 'NO_NEW_PROCESS', 'plugin-no-respawn': 'NO_NEW_PROCESS'}[mode]
+            error = {'denied': 'ROOT_DENIED', 'expired': 'EXPIRED', 'missing': 'NOT_RUNNING',
+                     'bad-pid': 'BAD_PID', 'changed': 'PROCESS_CHANGED',
+                     'reused-pid': 'PROCESS_CHANGED', 'unconfirmed': 'UNCONFIRMED_PROCESS', 'not-stable': 'NOT_STABLE',
+                     'signal-failed': 'STOP_FAILED', 'old-alive': 'OLD_PROCESS_ALIVE', 'phantom-new': 'OLD_PROCESS_ALIVE',
+                     'start-failed': 'START_FAILED', 'start-exit-failed': 'START_FAILED', 'no-respawn': 'NO_NEW_PROCESS',
+                     'plugin-unconfirmed': 'PLUGIN_UNCONFIRMED', 'plugin-changed': 'PROCESS_CHANGED',
+                     'plugin-changed-during-lookup': 'PROCESS_CHANGED', 'plugin-host-changed-during-lookup': 'PROCESS_CHANGED',
+                     'plugin-reused-pid': 'PROCESS_CHANGED', 'plugin-not-stable': 'NOT_STABLE',
+                     'plugin-unavailable': 'SERVICE_UNAVAILABLE', 'plugin-stop-failed': 'STOP_FAILED',
+                     'plugin-old-alive': 'OLD_PROCESS_ALIVE', 'plugin-start-failed': 'START_FAILED',
+                     'plugin-no-respawn': 'NO_NEW_PROCESS', 'plugin-host-phantom': 'PROCESS_CHANGED'}[mode]
             assert result.returncode != 0 and 'THUNDER_RESTART_ERROR=' + error in result.stdout, result.stdout
-            if mode == 'plugin-not-stable': assert 'THUNDER_RESTART_TARGET=PLUGIN' in result.stdout
-            if mode in {'plugin-host-stop-failed', 'plugin-host-start-failed'}:
-                assert mutations[:2] == [plugin_stop, plugin_start]
-                assert 'THUNDER_RESTART_PLUGIN_NEW=53' in result.stdout
-                assert 'THUNDER_RESTART_TARGET=HOST' in result.stdout
-            elif mode in {'plugin-stop-failed', 'plugin-start-failed', 'plugin-no-respawn', 'plugin-host-changed', 'plugin-expired-after-start'}:
-                assert host_stop not in mutations and host_start not in mutations, actions
-            elif mode not in {'stop-failed', 'start-failed', 'start-exit-failed', 'no-respawn'}:
-                assert not mutations, actions
-            if mode == 'stop-failed': assert host_start not in mutations
-            if mode == 'plugin-stop-failed': assert plugin_start not in mutations
+            if mode.startswith('plugin-'): assert host_stop not in mutations and host_start not in mutations, actions
+            elif mode in {'signal-failed', 'old-alive', 'phantom-new'}: assert mutations == [host_stop], actions
+            elif mode not in {'start-failed', 'start-exit-failed', 'no-respawn'}: assert not mutations, actions
+            if mode in {'old-alive', 'phantom-new', 'plugin-old-alive'}: assert '_NEW=' not in result.stdout
         print('PASS:', mode)
 
 
-for mode in ['hosted', 'independent', 'denied', 'expired', 'missing', 'bad-pid', 'changed', 'changed-during-lookup',
-             'unconfirmed', 'reused-pid', 'not-stable', 'unavailable', 'stop-failed', 'start-failed', 'start-exit-failed', 'no-respawn',
-             'plugin-unconfirmed', 'plugin-changed', 'plugin-changed-during-lookup', 'plugin-appeared',
-             'plugin-reused-pid', 'plugin-not-stable', 'plugin-unavailable', 'plugin-stop-failed', 'plugin-start-failed',
-             'plugin-no-respawn', 'plugin-host-changed', 'plugin-expired-after-start', 'plugin-host-stop-failed', 'plugin-host-start-failed']:
+MODES = ['hosted', 'independent', 'service-recovery', 'start-retry', 'signal-exited-race', 'plugin-start-retry', 'plugin-late-start',
+         'plugin-host-recreated', 'plugin-host-exited', 'denied', 'expired', 'missing', 'bad-pid', 'changed',
+         'unconfirmed', 'reused-pid', 'not-stable', 'signal-failed', 'old-alive', 'phantom-new',
+         'start-failed', 'start-exit-failed', 'no-respawn', 'plugin-unconfirmed', 'plugin-changed',
+         'plugin-changed-during-lookup', 'plugin-host-changed-during-lookup', 'plugin-reused-pid',
+         'plugin-not-stable', 'plugin-unavailable', 'plugin-stop-failed', 'plugin-old-alive',
+         'plugin-start-failed', 'plugin-no-respawn', 'plugin-host-phantom']
+for mode in MODES:
     run_case(mode)

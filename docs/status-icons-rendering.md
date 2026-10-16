@@ -1,38 +1,39 @@
-# 状态栏图标：保留系统对象的视图绘制方案
+# 状态栏图标：仅替换 drawable 资源
 
-## 故障依据与边界
+模块准备静态 Android XML drawable，SystemUI 继续决定当前资源、电量、信号状态、颜色、布局、动画与绘制。`IosIconDrawable` 仅用于应用和设计预览，不进入 SystemUI 绘制链。
 
-用户反馈开启图标替换会使 LSPosed 进入安全模式。仓库历史日志及已核对 LSPosed 2.2.1 (7912) 的保护策略表明，SystemUI 短时间连续退出会累计保护次数，详见 [安全模式说明](lsposed-safe-mode.md)。目前没有本次故障对应的崩溃堆栈，也没有连接目标手机，不能把某一处 Hook 断言为此次崩溃的唯一原因。
+## 实现
 
-旧方案在 `getIcon`、`setImageResource` 和 `setImageDrawable` 中用 `DrawableWrapper` 改变系统持有的 Drawable 类型与回调链，并修改测量参数、电池模型、重新调用电池 binder，以及覆盖 `StateFlowImpl` 的双卡排列状态。框架的 Hook 异常保护只覆盖拦截器内部；调用者后续对返回 Drawable 的类型假设、绘制和异步重新绑定不在同一个保护边界内。新增 `IosDrawSafetyCheck` 在旧代码上因“原生图标对象被替换”失败，确认这个行为存在；这不是已取得手机崩溃堆栈的证明。
+- `IosStatusResources` 是完整资源名到模块 drawable ID 的静态白名单，目前准备 298 个资源。资源位于 `app/src/main/res/drawable/thunder_ios_*.xml`，通过 `scripts/generate_status_drawables.py` 从现有图形和状态映射生成。
+- 在 `Resources.getDrawableForDensity` 与 `TypedArray.getDrawableForDensity` 返回原生 drawable 后，只替换匹配白名单、包名为 `com.android.systemui` 且具体类型相同的资源。模块通过仅加载资源的包 Context 取得 Android 原生 VectorDrawable / AnimationDrawable / InsetDrawable，不创建自定义 Drawable 包装。
+- Compose 的 `vectorResource` 直接读取 XML，因此另在 `Resources.getXml` 提供编译后的静态矢量 XML，由系统继续解析和绘制。该入口仅处理已核对的 vector，文件内无主题、字体或跨包资源引用；动画列表等含模块资源 ID 的文件不交给宿主 XML 解析器。
+- 系统选择哪个信号强度、主副卡、漫游、无服务、Wi-Fi 异常或网络制式资源，就取得对应静态图形。不读取 SignalDrawable 编码，不读取或复制电池模型，不接管 `onDraw`、`dispatchDraw`、`VectorDrawable.draw`，不修改 binder、状态流或布局。
+- 蓝牙动画列表仍使用原生动画资源，保留系统 500 毫秒帧时序。无法保持原生具体类型的资源继续使用系统实现，例如原生 AnimatedVectorDrawable。
+- 未列入白名单、非 SystemUI 包、没有可用模块资源、资源加载异常等情况保留系统资源。单个资源加载失败后隔离该资源，记录 `status-bar-ios-resource-fallback`，不反复加载。通知中的应用图标不在白名单内；共用同一状态资源的锁屏、下拉界面可能同步改变。
 
-## 新实现
+## 电池与系统直接绘制的信号
 
-- 资源边界只把已识别的符号记录为原生 Drawable 的附加元数据，返回对象、类型、Callback、动画及内部状态都不改。
-- 在 `ImageView.onDraw` 和 `StatusBarIconView.onDraw` 中限定状态栏视图，读取图形来源、信号编码、原生 tint / ColorFilter / alpha，在原来的图标区域内居中绘制。通知应用标识及非 SystemUI 资源排除；原生溢出圆点与完全隐藏状态沿用系统绘制。
-- C17 Compose 堆叠信号保持原生 VectorDrawable 与 painter，只在已标记的堆叠资源的 `VectorDrawable.draw` 边界绘制对应行的图形；不 Hook Compose 函数或反优化代码，也不修改资源返回值和尺寸。切换样式通过原 Drawable 回调重绘，其他矢量图形不受影响。
-- 电池在 `StatBatteryMeterView.dispatchDraw` 读取现有 `StatBatteryIcon`、电池样式与充电模型，输出实心百分比图形。模型、原生 Drawable、子视图可见性及布局不改，也不重新调用 binder。
-- 绘制在 Canvas 的 save / restore 边界内执行，全部成功才跳过原绘制。任何渲染或接口异常会记录 `status-bar-ios-draw-fallback` 并隔离当前视图，恢复系统绘制，不循环重试。其他视图继续工作。
-- 配置变化只发起 `postInvalidateOnAnimation`。视图在系统样式下也会被弱引用跟踪，因此开启、关闭均可实时重绘，不依赖图标状态变化或重启。
+已核对 C17 的 `StatBatteryMeterView` 使用专门的 BatteryContentDrawable 与原生电量模型。其电池本体、百分比、充电配色与进度继续由系统计算和绘制。反向充电的静态资源可替换。直接创建的 SignalDrawable 也保留系统实现。
 
-撤掉旧的 Drawable 包装、ImageView setter Hook、状态栏测量与时钟字体修改、电池 binder Hook、Compose scope / 反优化和 StateFlow Hook。没有调整 LSPosed 保护阈值，也没有添加进程终止动作。
+本次不再承诺把动态电池变成预览中的实心百分比电池。应用预览已移除这种电池展示，避免与实际功能不符。仓库中的旧电池 SVG 和设计图仅为图形研究，不能说明设备已替换。
 
-## 功能取舍
+## 生效与重启
 
-尺寸、间距、时间字体、双卡分开或堆叠排列均由系统控制。原强制双卡排列设置保留配置兼容性，但不再提供修改入口或强制应用。已识别的 C17 Compose 堆叠矢量图形可换样式，但不改变系统排列；其他绘制后端保留系统图形。隐藏 / 仅百分比的电池模式、反向充电指示、未初始化或无法识别的模型沿用系统绘制，避免覆盖系统提示。已识别状态图标、独立与堆叠信号和正常电池继续使用 iOS 图形。
+图标样式在 SystemUI 进程安装 Hook 时从完整配置快照读取一次，此后固定。新配置会保存，但资源缓存、Compose 缓存与已有 drawable 仍使用当前进程的样式。切换到 iOS 风格、切回系统默认，以及影响已加载样式的模块总开关变更，都需要重启系统界面。
 
-由于保留系统原有容器，窄电池样式下百分比图形会按可用空间缩小；预览只展示图形，不代表目标手机的最终尺寸。
+设置页提供持续提示，可在配置同步后使用右上角“重启作用域”。不会因为选择样式而自动终止系统界面。首次安装、升级或需要卸载旧绘制 Hook 时，仍应正常重启手机。
 
-## 验证
+运行报告的 `style` 表示当前进程实际加载的样式；`renderer=resources;signals=system;battery=system` 表示资源方案。选择与实际样式不一致时附带 `restart-required=true`。资源加载命中分别为 `status-bar-ios-resource-drawable` 与 `status-bar-ios-resource-xml`。
+
+## 验证边界
 
 ```sh
-python3 scripts/check_effects.py --only IosDrawSafetyCheck IosStatusBarCheck IosRenderPathCheck IosCoverageCheck
+python3 scripts/check_status_drawables.py
+python3 scripts/check_effects.py --only IosStatusBarCheck IosDrawSafetyCheck IosRenderPathCheck IosCoverageCheck
 python3 scripts/check_effects.py
-python3 scripts/check_live_settings.py
-python3 scripts/check_systemui_restart.py
 ./gradlew :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease
 ```
 
-检查使用合成 Android / Oplus 环境，验证真实 Java 处理器的对象保持、状态读取、关闭恢复、绘制异常隔离及 Canvas 恢复。图形资源检查覆盖 298 个固件资源映射，不能推出每一种系统渲染路径均已在手机命中。异常测试刻意注入渲染失败，允许报告一次回退日志。完整安装后的开机注入、深浅色切换、双卡 / 充电 / 反向充电、样式反复切换与长期稳定性仍需 ColorOS 17 真机验证。
+资源检查验证白名单与资源文件完整性、XML 无跨包引用、各级信号状态及动画时序。合成 Android / Oplus 检查验证包名与类型保护、资源和 Compose XML 入口、异常回退、关闭与开启均需重启、以及不存在状态栏绘制和状态 Hook。Android 构建验证实际资源能编译和打包。
 
-安装更新后需要正常重启手机以卸载旧 Hook、加载新实现。若框架已进入安全模式，先按框架管理器要求恢复模块状态，再正常重启手机；应用中的样式开关不能卸载已经注入到旧进程的 Hook。
+`docs/status-icons-resource-inventory.json` 记录已采集固件的资源种类及可读取的尺寸；2 个旧映射资源在采集包中没有找到，仍准备兼容资源。部分尺寸依赖固件 dimen，生成文件使用设计默认值。固件并非全部采用相同加载路径，298 个已准备资源不等于 298 个真机命中。不同 DPI、深浅色、双卡和动画的实际显示及长期稳定性仍需 ColorOS 17 真机验证。

@@ -15,7 +15,7 @@ import androidx.core.graphics.PathParser;
 import java.util.EnumMap;
 import java.util.Map;
 
-/** Shared vector renderer for the app preview and SystemUI; no module resources needed in the host. */
+/** App-only design preview. SystemUI uses compiled XML resources and native drawables. */
 final class IosIconDrawable extends Drawable {
     private record Shape(Path path, float width) { }
     private static final Map<IosStatusIcons.Kind,Shape[]> SHAPES = new EnumMap<>(IosStatusIcons.Kind.class);

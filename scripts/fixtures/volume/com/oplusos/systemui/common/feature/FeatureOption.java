@@ -1,0 +1,1 @@
+package com.oplusos.systemui.common.feature;public class FeatureOption{public static boolean alertSlider;public static boolean isOplusAlertSlider(){return alertSlider;}}

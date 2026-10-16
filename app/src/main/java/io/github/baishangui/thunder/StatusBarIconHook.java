@@ -49,7 +49,6 @@ final class StatusBarIconHook {
     }
 
     static void refresh() {
-        IosStatusBarHook.refresh();
         for (Object controller : new ArrayList<>(additions.keySet())) {
             try { apply(controller); }
             catch (Throwable error) { ShadeHook.frameworkFailure("status-icons-refresh", error); }

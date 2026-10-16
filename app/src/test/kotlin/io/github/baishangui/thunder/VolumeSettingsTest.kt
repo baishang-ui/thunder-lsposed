@@ -71,16 +71,29 @@ class VolumeSettingsTest {
         assertEquals(184,narrow.width());assertEquals(360,narrow.height());assertEquals(8,narrow.x());assertEquals(40,narrow.y())
     }
     @Test fun nativeAnimationEndpointsUsePhysicalCoordinatesWithoutAccumulatingTransforms() {
-        val bounds=VolumePanelGeometry.Bounds(100,200,320,460,true)
-        val positions=(0..3).map { VolumePanelGeometry.rowX(bounds,it,4,56,20,12) }
-        assertEquals(listOf(130f,198f,266f,334f),positions)
+        val bounds=VolumePanelGeometry.Bounds(100,200,324,144,true)
+        val positions=(0..3).map { VolumePanelGeometry.trackRowX(bounds,it,56,66,20) }
+        assertEquals(listOf(115f,191f,267f,343f),positions)
         positions.forEach { target ->
             val first=VolumePanelGeometry.translation(target,900f,0f)
             val interrupted=VolumePanelGeometry.translation(target,850f,-50f)
             assertEquals(first,interrupted,0f)
-            assertTrue(target>=bounds.x()+20 && target+56<=bounds.x()+bounds.width()-20)
+            assertTrue(target+5>=bounds.x()+20 && target+61<=bounds.x()+bounds.width()-20)
         }
-        assertEquals(232f,VolumePanelGeometry.rowX(bounds,0,1,56,20,12))
+        assertEquals(115f,VolumePanelGeometry.trackRowX(VolumePanelGeometry.Bounds(100,200,96,144,true),0,56,66,20))
+    }
+    @Test fun compactTracksHaveEqualInnerAndOuterSpacingIncludingTransparentHolderInsets() {
+        for(count in listOf(1,4,8))for(available in listOf(180,320)) {
+            val spacing=8
+            val track=VolumePanelGeometry.fitTrackWidth(available,count,56,spacing)
+            val width=VolumePanelGeometry.panelWidth(count,track,spacing)
+            assertTrue(width<=available)
+            val b=VolumePanelGeometry.Bounds(100,200,width,144,true)
+            val positions=(0 until count).map { VolumePanelGeometry.trackRowX(b,it,track,track+10,spacing)+5 }
+            assertEquals(108f,positions.first(),0f)
+            assertEquals((100+width-8).toFloat(),positions.last()+track,0f)
+            positions.zipWithNext().forEach { (left,right) -> assertEquals(8f,right-left-track,0f) }
+        }
     }
     @Test fun widthTransitionTracksNativeMotionAndReversesWithoutASecondClock() {
         val right=VolumePanelGeometry.Bounds(100,200,300,260,true)

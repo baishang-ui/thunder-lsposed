@@ -27,6 +27,8 @@ internal data class ScopeRestartReport(
 internal data class ScopeRestartTargetResult(val old: Int, val new: Int) {
     companion object {
         fun parse(output: String, target: String): ScopeRestartTargetResult? {
+            // A different pidof result alone cannot prove that the original process exited.
+            if (output.lineSequence().count { it == "THUNDER_RESTART_${target}_EXITED=1" } != 1) return null
             fun pid(suffix: String): Int? = output.lineSequence()
                 .filter { it.startsWith("THUNDER_RESTART_${target}_$suffix=") }.toList()
                 .singleOrNull()?.substringAfter('=')?.toIntOrNull()?.takeIf { it > 1 }

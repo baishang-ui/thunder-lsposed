@@ -1,0 +1,1 @@
+package android.graphics.drawable;public class RippleDrawable extends DrawableWrapper {public RippleDrawable(android.content.res.ColorStateList color,Drawable content,Drawable mask){super(content);}}

@@ -18,6 +18,8 @@ import com.oplusos.systemui.common.blurability.drawable.AutoBlurDrawable;
 public final class VolumePanelCheck {
     static final String BASE="com.oplus.systemui.volume.",OWNER=BASE+"OplusVolumeDialogImpl",VIEW=BASE+"view.OplusVolumeDialogView",BAR=BASE+"OplusVolumeSeekBar",ANIM=BASE+"anim.VolumeItemAnimator",HELPER=BASE+"utils.material.VolumePlatformBlurHostHelper";
     static int checks;
+    static final int LABEL=6045;
+    static android.content.res.Resources volumeResources(){return new android.content.res.Resources(){@Override public int getIdentifier(String name,String type,String pkg){if(type.equals("drawable"))return Math.abs(name.hashCode());return name.equals("volume_text")?LABEL:0;}};}
     static void check(boolean value,String message){if(!value)throw new AssertionError(message);checks++;System.out.println("PASS: "+message);}
     static HookCallback.Param before(String key,Object owner,Object... args)throws Throwable{HookCallback.Param p=new HookCallback.Param();p.thisObject=owner;p.args=args;Api102Runtime.callbacks.get(key).before(p);return p;}
     static Bundle config() {
@@ -29,20 +31,48 @@ public final class VolumePanelCheck {
     }
     static RecyclerView.ViewHolder holder(OplusVolumeDialogView d,int position,int x,int y) {
         ViewGroup item=new ViewGroup();item.actualWidth=154;item.actualHeight=300;item.screenX=x;item.screenY=y;item.layout=new ViewGroup.LayoutParams(154,-1);d.mVolumeRecyclerview.addView(item);
+        View label=new View();label.id=LABEL;label.setVisibility(4);item.res=volumeResources();item.addView(label);
         return new RecyclerView.ViewHolder(item,position);
     }
     static float endpoint(String method,VolumeItemAnimator a,RecyclerView.ViewHolder h)throws Throwable {
         return ((Number)CloudCheck.after(ANIM+"#"+method,a,999f,h)).floatValue();
+    }
+    static void sizeScenario(int mainHeight,int initialMode,int count,boolean noVibrator,boolean hardwareSlider)throws Throwable {
+        Bundle settings=new Bundle();settings.putBoolean("enabled",true);settings.putBoolean("volume_compact",true);CloudCheck.config(settings);
+        com.oplusos.systemui.common.feature.FeatureOption.alertSlider=hardwareSlider;
+        OplusVolumeDialogImpl owner=new OplusVolumeDialogImpl();owner.mController.vibrator=!noVibrator;owner.mState.ringerModeInternal=initialMode;
+        OplusVolumeDialogView d=owner.mOplusVolumeDialogView;d.mDialogView.res=volumeResources();d.volumeListAdapter.count=count;
+        OplusVolumeRow row=new OplusVolumeRow();owner.mRows.add(row);d.volumeListAdapter.rows.add(row);
+        RecyclerView.ViewHolder h=holder(d,0,900,300);((ViewGroup)h.itemView).addView(row.view);row.sliderFrame.parent=row.view;row.slider.parent=row.sliderFrame;
+        row.slider.actualHeight=mainHeight;row.slider.screenY=311;row.sliderFrame.setPadding(14,11,14,22);
+        row.slider.mBackgroundWidth=row.slider.mCurBackgroundWidth=209;
+        d.mVolumeRecyclerview.layout.height=mainHeight+90;
+        GradientDrawable original=new GradientDrawable();d.mDialogView.setBackground(original);
+        before(VIEW+"#expandPanel",d);d.expandPanel();CloudCheck.after(HELPER+"#mountPanelBackground",new VolumePlatformBlurHostHelper(d),null);
+        d.mDialogView.observer.dispatchOnPreDraw();d.mDialogView.getBackground().draw(new Canvas());
+        CloudCheck.after(ANIM+"#getEndX",new VolumeItemAnimator(d.volumeListAdapter),999f,h);
+        before(BAR+"#onMeasure",row.slider,0,0);
+        check(d.mVolumeRecyclerview.layout.height==mainHeight+33,"measured main height "+mainHeight+" is inherited without a fixed expanded length");
+        check(original.getBounds().top==311-22&&original.getBounds().height()==mainHeight+row.slider.layout.width+66,"panel remains anchored at the same visible Y and wraps track plus shortcuts for height "+mainHeight);
+        check(original.getBounds().width()<=1036&&row.slider.layout.width<=(count>4?208:209),"only the real usable screen width limits the track group");
+        ViewGroup quick=(ViewGroup)d.mDialogView.getChildAt(d.mDialogView.getChildCount()-1);
+        // Detach the driver to exercise the native background-progress fallback at the endpoint.
+        h.itemView.attached=false;d.mDialogView.observer.dispatchOnPreDraw();
+        quick.getChildAt(0).performClick();
+        check(owner.mState.ringerModeInternal==(hardwareSlider?2:noVibrator?0:1),"native shortcut respects vibrator capability and physical alert slider");
+        CloudCheck.after(VIEW+"#resetSliderState",d,null);
+        com.oplusos.systemui.common.feature.FeatureOption.alertSlider=false;
     }
     public static void main(String[] args)throws Throwable {
         ShadeHook.install("com.android.systemui","com.android.systemui",VolumePanelCheck.class.getClassLoader());
         check(!Api102Runtime.callbacks.containsKey(OWNER+"#computeTimeoutH$1"),"compact mode preserves native timeout policy");
         check(!Api102Runtime.callbacks.containsKey(OWNER+"#onStateChangedH"),"volume state and restrictions remain bound to native rows");
         check(Api102Runtime.callbacks.containsKey(VIEW+"#expandPanel")&&Api102Runtime.callbacks.containsKey(ANIM+"#getEndX"),"native expansion and geometry hooks are installed");
-        OplusVolumeDialogImpl owner=new OplusVolumeDialogImpl();OplusVolumeDialogView d=owner.mOplusVolumeDialogView;
+        OplusVolumeDialogImpl owner=new OplusVolumeDialogImpl();OplusVolumeDialogView d=owner.mOplusVolumeDialogView;d.mVolumeRecyclerview.res=volumeResources();d.mDialogView.res=volumeResources();
         OplusVolumeRow row=new OplusVolumeRow();owner.mRows.add(row);d.volumeListAdapter.rows.add(row);
         RecyclerView.ViewHolder h=holder(d,0,900,300);((ViewGroup)h.itemView).addView(row.view);row.sliderFrame.parent=row.view;row.slider.parent=row.sliderFrame;
-        d.mSettingsButton.layout.width=96;
+        d.mSettingsButton.layout.width=96;d.mVolumePanelTipsText.setVisibility(4);
+        row.sliderFrame.setPadding(14,11,14,22);
         // Native title text can still be empty when expandPanel's before callback runs.
         d.mVolumePanelTitleText=new View() { @Override public void measure(int w,int height) {measuredWidth=0;measuredHeight=24;} };
         d.mVolumePanelTitleText.layout=new LayoutParams(-2,24);d.mDialogView.addView(d.mVolumePanelTitleText);
@@ -90,6 +120,7 @@ public final class VolumePanelCheck {
             check(buttonBlur.platformMixConfig==buttonNativeMix,"button material preserves native backend state after submission");
         }
 
+        row.slider.screenY=311;row.slider.actualHeight=880; // Completed native layout of the 320 dp main bar.
         Object controller=owner.mController,adapter=d.volumeListAdapter,nativeAnimator=d.volumeListAdapter.nativeAnimator;
         HookCallback.Param expand=before(VIEW+"#expandPanel",d);
         check(!expand.returnEarly,"native expand method is allowed to execute");
@@ -102,22 +133,28 @@ public final class VolumePanelCheck {
         before(VIEW+"#expandPanel",d);
         check(d.mDialogView.getBackground()==bounded,"repeated expansion keeps the existing transition geometry and captured anchor");
         check(bounded instanceof DrawableWrapper&&((DrawableWrapper)bounded).getDrawable()==original,"only background bounds are wrapped; native animated drawable stays the same");
-        check(panel.width()<=880&&panel.height()<=715&&panel.right<=1072&&panel.top>=24,"compact card is at most 320 dp wide and 260 dp tall, including all accessories");
+        check(panel.width()==4*209+5*22&&panel.height()==880+209+3*22&&panel.right<=1072&&panel.top>=24,"panel wraps the measured main track plus a real shortcut row and equal spacing");
         before(BAR+"#onMeasure",row.slider,0,0);
-        check(row.slider.layout.width>0&&row.slider.layout.width<209,"compact row width fits the card when configured bars are too wide");
+        check(row.slider.layout.width==209,"expanded tracks retain the main bar width when the screen has room");
         check(d.mSettingsButton.layout.width==row.slider.layout.width&&d.mSettingsButton.layout.height==row.slider.layout.width,"compact settings button stays square and follows the fitted bar width");
-        check(d.mVolumeRecyclerview.layout.height<=396,"compact native row viewport is capped at 144 dp even with a 320 dp sidebar");
+        check(d.mVolumeRecyclerview.layout.height==880+11+22,"expanded track length follows the measured main bar instead of the former fixed 144 dp cap");
         check(d.mDialogView.layout.width==37&&d.mVolumeRecyclerview.parent==d.mDialogView,"native root and recycler hierarchy remain untouched during transition");
         VolumeItemAnimator animator=new VolumeItemAnimator(d.volumeListAdapter);
         float previous=-1,activeEndX=0,activeEndY=0;
+        int trackWidth=row.slider.layout.width;
         for(int i=0;i<4;i++) {
-            RecyclerView.ViewHolder item=i==0?h:holder(d,i,900-i*154,300);
+            RecyclerView.ViewHolder item=i==0?h:holder(d,i,900-i*154,600);
             CloudCheck.after(BASE+"VolumeListAdapter#onBindViewHolder",adapter,null,item,i);
             item.itemView.actualWidth=item.itemView.layout.width;
             item.itemView.translationX=25;item.itemView.screenX+=25;
             float x=item.itemView.screenX-item.itemView.translationX+endpoint("getEndX",animator,item);
-            float y=item.itemView.screenY+endpoint("getTranslationY",animator,item);
-            check(x>=panel.left&&x+item.itemView.layout.width<=panel.right&&x>previous&&y>=panel.top&&y+d.mVolumeRecyclerview.layout.height<=panel.bottom,"native row "+i+" animation endpoint fits card and preserves physical order");previous=x;
+            float baseY=item.itemView.screenY-item.itemView.getTranslationY();
+            float endY=endpoint("getTranslationY",animator,item),y=baseY+endY;
+            check(item.itemView.getTranslationY()==endY&&item.itemView.screenY==300,"row "+i+" starts its native spring at the final Y pose so expansion only moves horizontally");
+            float visibleLeft=x+(item.itemView.layout.width-trackWidth)/2f;
+            check(Math.abs(visibleLeft-(panel.left+22+i*(trackWidth+22)))<.01f&&y+11==panel.top+22&&y+d.mVolumeRecyclerview.layout.height-22==panel.bottom-22-209-22,"native row "+i+" has the same visible track gap and panel padding on every edge");
+            if(i>0)check(visibleLeft-previous-trackWidth==22,"adjacent painted tracks use exactly the outer panel spacing");previous=visibleLeft;
+            if(i==3)check(visibleLeft+trackWidth==panel.right-22,"last painted track has the same trailing panel padding");
             if(i==0){activeEndX=x;activeEndY=y;}
             float start=item.itemView.screenX-item.itemView.translationX+endpoint("resolvePanelStartTranslationX",animator,item);
             check(start==900,"native expand/collapse returns row "+i+" to captured sidebar anchor");
@@ -151,14 +188,34 @@ public final class VolumePanelCheck {
         check(original.getBounds().width()<halfWidth,"native collapse narrows the panel continuously toward the sidebar");
         h.itemView.screenX=Math.round(activeEndX);h.itemView.screenY=Math.round(activeEndY);
         d.mDialogView.observer.dispatchOnPreDraw();bounded.draw(new Canvas());
-        LayoutParams title=(LayoutParams)d.mVolumePanelTitleText.layout;
-        check(title.width>66&&title.leftMargin>=panel.left&&title.leftMargin+title.width<=panel.right,"native title receives space before the expansion assigns its text");
-        LayoutParams titleIcon=(LayoutParams)d.mVolumePanelTitleIcon.layout;
-        check(Math.abs((titleIcon.topMargin+titleIcon.height/2f)-(title.topMargin+title.height/2f))<=1&&title.leftMargin>titleIcon.leftMargin,"title and icon use one compact horizontal row");
+        ViewGroup quick=(ViewGroup)d.mDialogView.getChildAt(d.mDialogView.getChildCount()-1);
+        android.widget.ImageView sound=(android.widget.ImageView)quick.getChildAt(0),zen=(android.widget.ImageView)quick.getChildAt(1);
+        check(quick.getChildCount()==2&&sound.layout.width==209&&sound.layout.height==209&&zen.layout.width==209,"real ringer and DND shortcuts are square and follow the main bar width");
+        LayoutParams quickLp=(LayoutParams)quick.layout;
+        check(quickLp.topMargin==panel.bottom-22-209&&quickLp.height==209,"shortcut row sits one shared spacing below the track and one spacing above the panel bottom");
+        check(com.oplus.systemui.volume.utils.material.VolumeBlurManager.INSTANCE.shortcutMaterials>=2,"shortcuts obtain their backgrounds through the existing native shared material factory");
+        check(sound.isEnabled()&&zen.isEnabled(),"shortcuts enable when native expansion reaches its endpoint");
+        sound.performClick();check(owner.mState.ringerModeInternal==1,"ringer shortcut switches ringing to vibration through the native controller");
+        sound.performClick();check(owner.mState.ringerModeInternal==0,"ringer shortcut switches vibration to silent");
+        sound.performClick();check(owner.mState.ringerModeInternal==2&&owner.mController.ringerCalls==3,"ringer shortcut returns silent to ringing without changing stream volume");
+        owner.mState.zenMode=3;d.mDialogView.observer.dispatchOnPreDraw();
+        zen.performClick();check(owner.mState.zenMode==0,"DND shortcut disables the active native zen mode");
+        zen.performClick();check(owner.mState.zenMode==3&&owner.mController.zenCalls==2,"DND shortcut restores the previous zen mode instead of forcing a new policy");
+        int oldIcon=sound.mResource;owner.mState.ringerModeInternal=0;d.mDialogView.observer.dispatchOnPreDraw();
+        check(sound.mResource!=oldIcon&&sound.getContentDescription().toString().contains("当前静音"),"external native mode updates refresh the shortcut icon and accessibility label at stationary frames");
+        owner.mState.disallowRinger=true;d.mDialogView.observer.dispatchOnPreDraw();sound.performClick();
+        check(!sound.isEnabled()&&owner.mController.ringerCalls==3,"native ringer restrictions disable the shortcut and block writes");
+        owner.mState.disallowRinger=false;
+        View[] removed={d.mVolumePanelTitleIcon,d.mVolumePanelTitleText,d.mVolumePanelTipsText,d.mSettingsButton,d.mVolumeSettingText};
+        for(View v:removed)check(v.getVisibility()==View.GONE,"compact title/tips/settings are removed from layout and touch");
+        View label=h.itemView.findViewById(LABEL);
+        check(label.getVisibility()==View.GONE,"adapter text label contributes no height to the compact row");
+        label.setVisibility(View.VISIBLE);
+        for(View v:removed)v.setVisibility(View.VISIBLE);
+        d.mDialogView.observer.dispatchOnPreDraw();
+        for(View v:removed)check(v.getVisibility()==View.GONE,"native late visibility writes stay hidden even at unchanged animation progress");
+        check(label.getVisibility()==View.GONE,"native accessibility rebind cannot restore the text label during compact drawing");
         LayoutParams button=(LayoutParams)d.mSettingsButton.layout;
-        check(button.leftToLeft==0&&button.topToTop==0&&button.leftMargin>=panel.left&&button.topMargin<panel.bottom,"native title/settings constraints are positioned within the card");
-        LayoutParams settingsLabel=(LayoutParams)d.mVolumeSettingText.layout;
-        check(settingsLabel.leftMargin>=button.leftMargin+button.width&&settingsLabel.topMargin<button.topMargin+button.height&&settingsLabel.leftMargin+settingsLabel.width<=panel.right,"native settings label sits beside the square button inside the card");
         OplusVolumeDialogView.CustomDialog nativeDialog=new OplusVolumeDialogView.CustomDialog(d);
         HookCallback.Param inside=before(VIEW+"$CustomDialog#dispatchTouchEvent",nativeDialog,new MotionEvent(0,panel.left+5,panel.top+5));
         check(!inside.returnEarly&&owner.dismissals==0,"inside touch continues through native dialog dispatch");
@@ -168,9 +225,11 @@ public final class VolumePanelCheck {
         check(outside.returnEarly&&owner.dismissals==1,"outside tap requests native dismiss rather than destroying transition state");
         check(d.mDialogView.getBackground()==bounded,"compact surface remains through native collapse");
         CloudCheck.after(VIEW+"#resetSliderState",d,null);
-        check(d.mDialogView.getBackground()==original&&button.leftToLeft==-1&&button.topMargin==0&&button.width==209&&button.height==209,"native terminal reset restores background, constraints and configured sidebar button size");
+        check(d.mDialogView.getBackground()==original&&button.leftToLeft==-1&&button.topMargin==0&&button.width==209&&button.height==209,"native terminal reset restores background and configured sidebar button size");
         check(d.mVolumeRecyclerview.layout.height==940,"native terminal reset restores the full configured sidebar length");
+        check(d.mVolumePanelTipsText.getVisibility()==4&&d.mVolumePanelTitleText.getVisibility()==View.VISIBLE&&d.mSettingsButton.getVisibility()==View.VISIBLE,"terminal cleanup restores each accessory original visibility");
         check(d.mDialogView.observer.listeners.isEmpty(),"terminal reset removes the native frame observer");
+        check(quick.getParent()==null&&sound.click==null&&zen.click==null,"native terminal cleanup removes the shortcut row and its click listeners");
         float nativeEnd=endpoint("getEndX",animator,h);
         check(nativeEnd==999,"completed transitions no longer override native animator endpoints");
         Bundle off=config();off.putBoolean("enabled",false);CloudCheck.config(off);VolumeHook.refresh();
@@ -178,7 +237,7 @@ public final class VolumePanelCheck {
         check(d.mMoreRowStreamLl.layout.width==37&&d.mSettingsButton.layout.width==96,"turning shared sizing off restores original native button dimensions");
         expand=before(VIEW+"#expandPanel",d);check(!expand.returnEarly,"disabled mode preserves native expansion");
         Bundle defaults=new Bundle();defaults.putBoolean("enabled",true);defaults.putBoolean("volume_compact",true);CloudCheck.config(defaults);
-        h.itemView.screenX=12;h.itemView.translationX=0;owner.mExpanded=false;
+        h.itemView.screenX=12;h.itemView.translationX=0;row.slider.actualHeight=240;owner.mExpanded=false;
         expand=before(VIEW+"#expandPanel",d);d.expandPanel();owner.expandPanel();
         BlurConfig panelBlur=new BlurConfig();Object nativePath=new Object();panelBlur.pathProvider=nativePath;
         AutoBlurDrawable panelAuto=new AutoBlurDrawable(new ViewBlurProxy(panelBlur));
@@ -189,18 +248,23 @@ public final class VolumePanelCheck {
         check(panelBlur.cornerRadius==77&&panelBlur.pathProvider==nativePath,"default compact card updates cached native blur corners while retaining native shape provider");
         QsTintCheck.after(QsTintCheck.B+"ViewBlurProxy#applyConfigToPlatformBlur",draw);
         d.mDialogView.getBackground().draw(new Canvas());
-        check(panelAuto.getBounds().left==22,"left sidebar expands inward from its physical position");
+        check(panelAuto.getBounds().left==Math.max(22,12+Math.round((h.itemView.actualWidth-56)/2f)-22),"left sidebar anchors panel padding to the visible track instead of its transparent holder");
         before(BAR+"#onMeasure",row.slider,0,0);check(row.slider.mBackgroundRadius<=row.slider.mBackgroundWidth/2,"compact sizing without custom corners keeps native radius within track width");
         d.volumeListAdapter.count=1;CloudCheck.after(BASE+"VolumeListAdapter#switchToDataSourcePanel",d.volumeListAdapter,null,false);
         d.mDialogView.getBackground().draw(new Canvas());
-        check(panelAuto.getBounds().width()>=550&&panelAuto.getBounds().width()<=880,"single-stream panel still reserves readable space for native title and settings");
-        LayoutParams oneButton=(LayoutParams)d.mSettingsButton.layout,oneLabel=(LayoutParams)d.mVolumeSettingText.layout;
-        check(oneLabel.width>=132&&oneLabel.leftMargin>=oneButton.leftMargin+oneButton.width,"single-stream settings label retains space beside the shared square button");
+        check(panelAuto.getBounds().width()==2*row.slider.layout.width+3*22,"single-stream panel reserves exactly the width of its two real shortcuts without title/settings padding");
         Drawable during=d.mDialogView.getBackground();CloudCheck.config(off);VolumeHook.refresh();
         check(d.mDialogView.getBackground()==during,"settings refresh requests native collapse without stripping its compact background");
         CloudCheck.after(VIEW+"#resetSliderState",d,null);VolumeHook.refresh();
         check(row.slider.mBackgroundWidth==56&&row.slider.mBackgroundRadius==28,"default compact geometry also restores after native terminal hide");
         check(!ShadeHook.snapshot().qsCards.tint,"volume configuration remains independent of control-center materials");
+        sizeScenario(330,2,4,false,false);
+        sizeScenario(880,2,4,false,false);
+        sizeScenario(1100,2,4,false,false);
+        sizeScenario(240,2,1,false,false);
+        sizeScenario(880,2,8,false,false);
+        sizeScenario(330,2,4,true,false);
+        sizeScenario(330,2,4,false,true);
         System.out.println("Volume native preservation checks passed: "+checks);
     }
 }

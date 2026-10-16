@@ -74,7 +74,7 @@ internal object ScopeRestart {
         // Recheck the framework scope after backgrounding / the stability wait.
         if (RemoteSettings.actualScope()?.let(ModuleScope::complete) != true)
             return "等待期间 LSPosed 连接或作用域发生变化，已取消重启。"
-        progress("正在请求 Root，重新加载系统界面及插件作用域…")
+        progress("正在请求 Root，结束旧进程并重启作用域…")
         val started = SystemClock.elapsedRealtime()
         val script = context.assets.open("restart-scope.sh").bufferedReader().use { it.readText() }
         val input = """
@@ -93,10 +93,10 @@ internal object ScopeRestart {
         if (hostResult == null || (!hosted && pluginResult == null) || (hosted && pluginResult != null))
             return "命令已结束，但作用域进程结果不完整。请检查运行报告；不会自动重试。"
 
-        progress("正在分别确认两个作用域的本版 Hook 与配置…")
+        progress("作用域进程已重启，正在确认本版 Hook 与配置…")
         var hostReady = false
         var pluginReady = false
-        repeat(60) {
+        repeat(120) {
             val now = SystemClock.elapsedRealtime()
             val newHost = host()
             val newPlugin = plugin()
@@ -111,7 +111,7 @@ internal object ScopeRestart {
             delay(250)
         }
         val pending = listOfNotNull(if (!hostReady) "系统界面" else null, if (!pluginReady) "系统界面插件" else null)
-        return "重启命令已执行，但${pending.joinToString("、")}尚未确认本版 Hook 和配置。请检查 LSPosed 及运行报告；不会自动重试。"
+        return "作用域进程已重启，但${pending.joinToString("、")}尚未确认本版 Hook 和配置。请检查 LSPosed 及运行报告；不会重复结束新进程。"
     }
 
     private suspend fun execute(input: String): Pair<Int, String>? = coroutineScope {
@@ -120,7 +120,11 @@ internal object ScopeRestart {
         val output = async(Dispatchers.IO) { process.inputStream.bufferedReader().use { runCatching { it.readText() }.getOrDefault("") } }
         try {
             process.outputStream.bufferedWriter().use { it.write(input) }
-            if (!process.waitFor(60, TimeUnit.SECONDS)) {
+            val finished = withTimeoutOrNull(90_000) {
+                while (!process.waitFor(0, TimeUnit.MILLISECONDS)) delay(250)
+                true
+            } ?: false
+            if (!finished) {
                 process.destroyForcibly()
                 process.inputStream.close()
                 output.cancel()
@@ -145,6 +149,7 @@ internal object ScopeRestart {
             "SERVICE_UNAVAILABLE" -> "$target 服务不可用，未执行停止"
             "START_FAILED" -> "$target 已停止，但服务启动失败，请正常重启手机恢复"
             "STOP_FAILED" -> "$target 停止失败，已中止后续步骤"
+            "OLD_PROCESS_ALIVE" -> "$target 旧进程仍未退出，无法确认重启，已停止后续步骤"
             "NOT_STABLE" -> "$target 尚未超过稳定观察期，已取消后续步骤"
             "UNCONFIRMED_PROCESS" -> "无法核对 $target 进程身份，已取消后续步骤"
             "BAD_PID" -> "$target 存在无效或多个进程，已取消后续步骤"

@@ -14,12 +14,18 @@ final class VolumePanelGeometry {
         int y=Math.max(top,Math.min(bottom-height,anchorTop-padding));
         return new Bounds(x,y,width,height,opensLeft);
     }
-    static float rowX(Bounds b,int index,int count,int rowWidth,int inset,int gap) {
-        int n=Math.max(1,count),i=Math.max(0,Math.min(n-1,index));
-        float available=Math.max(0,b.width()-2f*inset-rowWidth);
-        float step=n==1?0:Math.min(rowWidth+gap,available/(n-1));
-        float group=rowWidth+step*(n-1);
-        return b.x()+(b.width()-group)/2f+i*step;
+    static int fitTrackWidth(int available,int count,int desired,int spacing) {
+        int n=Math.max(1,count);
+        return Math.max(1,Math.min(desired,(available-(n+1)*spacing)/n));
+    }
+    static int panelWidth(int count,int trackWidth,int spacing) {
+        int n=Math.max(1,count);
+        return n*trackWidth+(n+1)*spacing;
+    }
+    static float trackRowX(Bounds b,int index,int trackWidth,int holderWidth,int spacing) {
+        // Native holders include transparent press/elevation padding. Measure gaps from
+        // the painted track, not the holder, or inner gaps and outer padding diverge.
+        return b.x()+spacing+Math.max(0,index)*(trackWidth+spacing)-(holderWidth-trackWidth)/2f;
     }
     static float progress(float x,float y,float fromX,float fromY,float toX,float toY,float fallback) {
         float dx=toX-fromX,dy=toY-fromY,distance=dx*dx+dy*dy;

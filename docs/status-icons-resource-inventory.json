@@ -1,0 +1,1484 @@
+{
+  "stat_charge_wireless_reverse": {
+    "type": "vector",
+    "width": 20.0,
+    "height": 16.0
+  },
+  "ic_activity_down": {
+    "type": "vector",
+    "width": 4.439972,
+    "height": 15.0
+  },
+  "ic_activity_up": {
+    "type": "vector",
+    "width": 4.439972,
+    "height": 15.0
+  },
+  "ic_vowifi": {
+    "type": "vector",
+    "width": 14.0,
+    "height": 14.0
+  },
+  "ic_vowifi_calling": {
+    "type": "vector",
+    "width": 14.0,
+    "height": 14.0
+  },
+  "ic_wifi_0": {
+    "type": "vector",
+    "width": 17.0,
+    "height": 12.579988
+  },
+  "ic_wifi_0_error": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 15.659975
+  },
+  "ic_wifi_1": {
+    "type": "vector",
+    "width": 17.0,
+    "height": 12.579988
+  },
+  "ic_wifi_1_error": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 15.659975
+  },
+  "ic_wifi_2": {
+    "type": "vector",
+    "width": 17.0,
+    "height": 12.579988
+  },
+  "ic_wifi_2_error": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 15.659975
+  },
+  "ic_wifi_3": {
+    "type": "vector",
+    "width": 17.0,
+    "height": 12.579988
+  },
+  "ic_wifi_3_error": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 15.659975
+  },
+  "ic_wifi_connecting": {
+    "type": "animated-vector"
+  },
+  "ic_wifi_off": {
+    "type": "animated-vector"
+  },
+  "stat_signal_activity_default_public": {
+    "type": "vector",
+    "width": 26.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_default_public_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_in_public": {
+    "type": "vector",
+    "width": 26.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_in_public_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_inout_public": {
+    "type": "vector",
+    "width": 26.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_inout_public_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_out_public": {
+    "type": "vector",
+    "width": 26.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_out_public_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_soft_default_public": {
+    "type": "vector",
+    "width": 28.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_soft_default_public_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_soft_in_public": {
+    "type": "vector",
+    "width": 28.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_soft_in_public_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_soft_inout_public": {
+    "type": "vector",
+    "width": 28.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_soft_inout_public_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_soft_out_public": {
+    "type": "vector",
+    "width": 28.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_soft_out_public_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_wifi_in": {
+    "type": "vector",
+    "width": 20.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_wifi_in_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_wifi_inout": {
+    "type": "vector",
+    "width": 20.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_wifi_inout_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_wifi_none": {
+    "type": "vector",
+    "width": 20.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_wifi_none_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_wifi_out": {
+    "type": "vector",
+    "width": 20.0,
+    "height": 16.0
+  },
+  "stat_signal_activity_wifi_out_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_2g_lte_big": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_3g_lte_big": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_3gp_lte_big": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_4_5g_lte_big": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_4_5g_plus": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_4g_lte_big": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_4gp_lte_big": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_5g": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_big_4g": {
+    "type": "vector",
+    "width": 15.0,
+    "height": 12.0
+  },
+  "stat_signal_connected_big_4g_plus": {
+    "type": "vector",
+    "width": 20.599977,
+    "height": 12.0
+  },
+  "stat_signal_connected_big_5g": {
+    "type": "vector",
+    "width": 15.0,
+    "height": 12.0
+  },
+  "stat_signal_connected_e_lte_big": {
+    "type": "vector",
+    "width": 20.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_g_lte_big": {
+    "type": "vector",
+    "width": 20.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_h_lte_big": {
+    "type": "vector",
+    "width": 20.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_h_p_lte_big": {
+    "type": "vector",
+    "width": 20.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_lte_big": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_lte_plus_big": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_soft_2g_lte_big": {
+    "type": "vector",
+    "width": 24.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_soft_3g_lte_big": {
+    "type": "vector",
+    "width": 24.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_soft_3gp_lte_big": {
+    "type": "vector",
+    "width": 24.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_soft_4g_lte_big": {
+    "type": "vector",
+    "width": 24.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_soft_4gp_lte_big": {
+    "type": "vector",
+    "width": 24.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_soft_5g": {
+    "type": "vector",
+    "width": 24.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_soft_e_lte_big": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_soft_g_lte_big": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_soft_h_lte_big": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_soft_h_p_lte_big": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_soft_lte_big": {
+    "type": "vector",
+    "width": 24.0,
+    "height": 16.0
+  },
+  "stat_signal_connected_soft_lte_plus_big": {
+    "type": "vector",
+    "width": 24.0,
+    "height": 16.0
+  },
+  "stat_signal_cu_no_call_hd": {
+    "type": "vector",
+    "width": 18.0,
+    "height": 16.0
+  },
+  "stat_signal_hd_plus_newicon": {
+    "type": "vector",
+    "width": 25.0,
+    "height": 16.0
+  },
+  "stat_signal_hd_plus_newicon_both": {
+    "type": "vector",
+    "width": 29.0,
+    "height": 16.0
+  },
+  "stat_signal_hd_plus_newicon_sim1": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_hd_plus_newicon_sim2": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_hd_plus_newicon_single_sim1": {
+    "type": "vector",
+    "width": 29.0,
+    "height": 16.0
+  },
+  "stat_signal_hd_plus_newicon_single_sim2": {
+    "type": "vector",
+    "width": 29.0,
+    "height": 16.0
+  },
+  "stat_signal_letter_vowifi": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_signal_letter_vowifi_both": {
+    "type": "vector",
+    "width": 26.0,
+    "height": 16.0
+  },
+  "stat_signal_letter_vowifi_sim1": {
+    "type": "vector",
+    "width": 26.0,
+    "height": 16.0
+  },
+  "stat_signal_letter_vowifi_sim2": {
+    "type": "vector",
+    "width": 26.0,
+    "height": 16.0
+  },
+  "stat_signal_lte_signal_stacked_primary_0": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_lte_signal_stacked_primary_1": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_lte_signal_stacked_primary_2": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_lte_signal_stacked_primary_3": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_lte_signal_stacked_primary_4": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_lte_signal_stacked_primary_noservice": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_lte_signal_stacked_secondary_0": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_lte_signal_stacked_secondary_1": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_lte_signal_stacked_secondary_2": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_lte_signal_stacked_secondary_3": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_lte_signal_stacked_secondary_4": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_noservice_lte": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_noservice_lte_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_roma_lte": {
+    "type": "vector",
+    "width": 26.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_lte_single_0": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_lte_single_0_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_lte_single_1": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_lte_single_1_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_lte_single_2": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_lte_single_2_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_lte_single_3": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_lte_single_3_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_lte_single_4": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_lte_single_4_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_novoice_1": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 12.0
+  },
+  "stat_signal_signal_novoice_1_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_novoice_2": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 12.0
+  },
+  "stat_signal_signal_novoice_2_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_novoice_3": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 12.0
+  },
+  "stat_signal_signal_novoice_3_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_novoice_4": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 12.0
+  },
+  "stat_signal_signal_novoice_4_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_null_lte": {
+    "type": "vector",
+    "width": 16.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_stacked_novoice_1": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_stacked_novoice_2": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_stacked_novoice_3": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_signal_stacked_novoice_4": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_single_novoice_0": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 12.0
+  },
+  "stat_signal_single_novoice_0_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_single_stacked_novoice_0": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_single_stacked_novoice_secondary_0": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_single_stacked_novoice_secondary_1": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_single_stacked_novoice_secondary_2": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_single_stacked_novoice_secondary_3": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_single_stacked_novoice_secondary_4": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_noservice": {
+    "type": "vector",
+    "width": 24.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_noservice_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_roma_lte": {
+    "type": "vector",
+    "width": 28.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_0": {
+    "type": "vector",
+    "width": 22.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_0_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_1": {
+    "type": "vector",
+    "width": 22.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_1_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_2": {
+    "type": "vector",
+    "width": 22.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_2_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_3": {
+    "type": "vector",
+    "width": 22.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_3_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_4": {
+    "type": "vector",
+    "width": 22.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_4_os17": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_stacked_primary_0": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_stacked_primary_1": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_stacked_primary_2": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_stacked_primary_3": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_stacked_primary_4": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_stacked_primary_noservice": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_stacked_secondary_0": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_stacked_secondary_1": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_stacked_secondary_2": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_stacked_secondary_3": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_signal_stacked_secondary_4": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_stacked_activity_default_public": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_stacked_activity_in_public": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_stacked_activity_inout_public": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_soft_stacked_activity_out_public": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_stacked_activity_default_public": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_stacked_activity_in_public": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_stacked_activity_inout_public": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_stacked_activity_out_public": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_vo5g": {
+    "type": "vector",
+    "width": 14.0,
+    "height": 16.0
+  },
+  "stat_signal_vo5g1_volte2": {
+    "type": "vector",
+    "width": 26.0,
+    "height": 16.0
+  },
+  "stat_signal_vo5g_both": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_vo5g_sim1": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_vo5g_sim2": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_vodata_sim1": {
+    "type": "vector",
+    "width": 20.0,
+    "height": 12.0
+  },
+  "stat_signal_vodata_sim2": {
+    "type": "vector",
+    "width": 20.0,
+    "height": 12.0
+  },
+  "stat_signal_volte": {
+    "type": "vector",
+    "width": 20.0,
+    "height": 16.0
+  },
+  "stat_signal_volte1_vo5g2": {
+    "type": "vector",
+    "width": 26.0,
+    "height": 16.0
+  },
+  "stat_signal_volte1_vonr2": {
+    "type": "vector",
+    "width": 26.0,
+    "height": 16.0
+  },
+  "stat_signal_volte_exp": {
+    "type": "vector",
+    "width": 16.0,
+    "height": 16.0
+  },
+  "stat_signal_volte_exp_sim1": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_signal_volte_exp_sim2": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_signal_volte_exp_sim_both": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_signal_volte_sim1": {
+    "type": "vector",
+    "width": 24.0,
+    "height": 16.0
+  },
+  "stat_signal_volte_sim2": {
+    "type": "vector",
+    "width": 24.0,
+    "height": 16.0
+  },
+  "stat_signal_volte_sim_both": {
+    "type": "vector",
+    "width": 24.0,
+    "height": 16.0
+  },
+  "stat_signal_vonr": {
+    "type": "vector",
+    "width": 14.0,
+    "height": 16.0
+  },
+  "stat_signal_vonr1_volte2": {
+    "type": "vector",
+    "width": 26.0,
+    "height": 16.0
+  },
+  "stat_signal_vonr_both": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_vonr_sim1": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_vonr_sim2": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_signal_vowifi": {
+    "type": "vector",
+    "width": 18.0,
+    "height": 16.0
+  },
+  "stat_signal_vowifi_both": {
+    "type": "vector",
+    "width": 22.0,
+    "height": 16.0
+  },
+  "stat_signal_vowifi_sim1": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_signal_vowifi_sim2": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_signal_wifi_6": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_wifi_6e": {
+    "type": "vector",
+    "width": 24.0,
+    "height": 16.0
+  },
+  "stat_signal_wifi_7": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_wifi_double": {
+    "type": "vector",
+    "width": 24.0,
+    "height": 16.0
+  },
+  "stat_signal_wifi_double_os17": {
+    "type": "vector",
+    "width": 26.0,
+    "height": 16.0
+  },
+  "stat_signal_wifi_h_passpoint": {
+    "type": "vector",
+    "width": 21,
+    "height": 20
+  },
+  "stat_signal_wifi_passpoint": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_wifi_r_passpoint": {
+    "type": "vector",
+    "width": 21,
+    "height": 20
+  },
+  "stat_signal_wifi_signal_0": {
+    "type": "vector",
+    "width": 22.0,
+    "height": 16.0
+  },
+  "stat_signal_wifi_signal_0_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_wifi_signal_1": {
+    "type": "vector",
+    "width": 22.0,
+    "height": 16.0
+  },
+  "stat_signal_wifi_signal_1_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_wifi_signal_2": {
+    "type": "vector",
+    "width": 22.0,
+    "height": 16.0
+  },
+  "stat_signal_wifi_signal_2_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_wifi_signal_3": {
+    "type": "vector",
+    "width": 22.0,
+    "height": 16.0
+  },
+  "stat_signal_wifi_signal_3_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_signal_wifi_signal_4": {
+    "type": "vector",
+    "width": 22.0,
+    "height": 16.0
+  },
+  "stat_signal_wifi_signal_4_os17": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_stealth_mode": {
+    "type": "vector",
+    "width": 16.0,
+    "height": 16.0
+  },
+  "stat_sys_airplane_mode": {
+    "type": "vector",
+    "width": 17.0,
+    "height": 16.0
+  },
+  "stat_sys_alarm": {
+    "type": "vector",
+    "width": 18.0,
+    "height": 16.0
+  },
+  "stat_sys_bluetooth_acquiring_anim": {
+    "type": "animation-list",
+    "frames": [
+      {
+        "name": "stat_sys_data_bluetooth_connected_ing",
+        "duration": 500
+      },
+      {
+        "name": "stat_sys_data_bluetooth_connected_stop",
+        "duration": 500
+      }
+    ]
+  },
+  "stat_sys_branded_vpn": {
+    "type": "vector",
+    "width": 17.0,
+    "height": 17.0
+  },
+  "stat_sys_camera": {
+    "type": "unverified",
+    "width": 21,
+    "height": 20
+  },
+  "stat_sys_cast": {
+    "type": "vector",
+    "width": 18.0,
+    "height": 12.0
+  },
+  "stat_sys_connected_display": {
+    "type": "vector",
+    "width": 19.0,
+    "height": 16.0
+  },
+  "stat_sys_data_bluetooth": {
+    "type": "vector",
+    "width": 13.0,
+    "height": 16.0
+  },
+  "stat_sys_data_bluetooth_connected": {
+    "type": "vector",
+    "width": 17.0,
+    "height": 16.0
+  },
+  "stat_sys_data_bluetooth_connected_ing": {
+    "type": "vector",
+    "width": 17.0,
+    "height": 16.0
+  },
+  "stat_sys_data_bluetooth_connected_stop": {
+    "type": "vector",
+    "width": 17.0,
+    "height": 16.0
+  },
+  "stat_sys_data_fully_connected_2g": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_data_fully_connected_3g": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_data_fully_connected_5_dot_5g": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_sys_data_fully_connected_5g_a": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_sys_data_fully_connected_5g_e": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_sys_data_fully_connected_5g_plus": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_sys_data_fully_connected_5g_plus_plus": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 16.0
+  },
+  "stat_sys_data_fully_connected_5g_uc": {
+    "type": "vector",
+    "width": 33.0,
+    "height": 14.0
+  },
+  "stat_sys_data_fully_connected_5g_uwb_global": {
+    "type": "vector",
+    "width": 33.0,
+    "height": 14.0
+  },
+  "stat_sys_data_fully_connected_e": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_data_fully_connected_g": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_data_fully_connected_h": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_data_fully_connected_h_plus": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_data_fully_connected_tmo_4g_lte": {
+    "type": "inset"
+  },
+  "stat_sys_data_fully_connected_tmo_4g_plus_lte": {
+    "type": "inset"
+  },
+  "stat_sys_data_fully_connected_tmo_5g": {
+    "type": "inset"
+  },
+  "stat_sys_data_saver": {
+    "type": "vector",
+    "width": 16.0,
+    "height": 16.0
+  },
+  "stat_sys_dnd": {
+    "type": "vector",
+    "width": 18.0,
+    "height": 16.0
+  },
+  "stat_sys_ethernet": {
+    "type": "vector",
+    "width": 18.769991,
+    "height": 17.0
+  },
+  "stat_sys_ethernet_fully": {
+    "type": "vector",
+    "width": 18.769991,
+    "height": 17.0
+  },
+  "stat_sys_flavor_one_ringer_vibrate": {
+    "type": "unverified",
+    "width": 21,
+    "height": 20
+  },
+  "stat_sys_headset": {
+    "type": "vector",
+    "width": 18.0,
+    "height": 16.0
+  },
+  "stat_sys_high_performance": {
+    "type": "vector",
+    "width": 18.0,
+    "height": 16.0
+  },
+  "stat_sys_hotspot": {
+    "type": "inset"
+  },
+  "stat_sys_location": {
+    "type": "vector",
+    "width": 18.0,
+    "height": 16.0
+  },
+  "stat_sys_logging": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  },
+  "stat_sys_managed_profile_status": {
+    "type": "vector",
+    "width": 24.0,
+    "height": 24.0
+  },
+  "stat_sys_mic_none": {
+    "type": "vector",
+    "width": 18.0,
+    "height": 18.0
+  },
+  "stat_sys_nfc": {
+    "type": "vector",
+    "width": 18.0,
+    "height": 16.0
+  },
+  "stat_sys_no_internet_branded_vpn": {
+    "type": "vector",
+    "width": 17.0,
+    "height": 17.0
+  },
+  "stat_sys_no_internet_vpn_ic": {
+    "type": "vector",
+    "width": 17.0,
+    "height": 17.0
+  },
+  "stat_sys_ringer_silent": {
+    "type": "vector",
+    "width": 18.0,
+    "height": 16.0
+  },
+  "stat_sys_ringer_vibrate": {
+    "type": "vector",
+    "width": 18.0,
+    "height": 16.0
+  },
+  "stat_sys_roaming": {
+    "type": "vector",
+    "width": 20.0,
+    "height": 20.0
+  },
+  "stat_sys_roaming_updated": {
+    "type": "vector",
+    "width": 7.0,
+    "height": 11.51999
+  },
+  "stat_sys_rotate_landscape": {
+    "type": "inset"
+  },
+  "stat_sys_rotate_portrait": {
+    "type": "inset"
+  },
+  "stat_sys_signal_0": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_0_fully": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_1": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_1_fully": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_2": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_2_fully": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_3": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_3_fully": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_4": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_4_fully": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_5_bar_0": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_5_bar_0_fully": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_5_bar_1": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_5_bar_1_fully": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_5_bar_2": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_5_bar_2_fully": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_5_bar_3": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_5_bar_3_fully": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_5_bar_4": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_5_bar_4_fully": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_5_bar_5": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_5_bar_5_fully": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_null": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_roaming_5_bar_signal_0": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_roaming_5_bar_signal_1": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_roaming_5_bar_signal_2": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_roaming_5_bar_signal_3": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_roaming_5_bar_signal_4": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_roaming_5_bar_signal_5": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_roaming_signal_0": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_roaming_signal_1": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_roaming_signal_2": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_roaming_signal_3": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_roaming_signal_4": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_soft_5_bar_signal_0": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_soft_5_bar_signal_1": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_soft_5_bar_signal_2": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_soft_5_bar_signal_3": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_soft_5_bar_signal_4": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_soft_5_bar_signal_5": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_soft_signal_0": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_soft_signal_1": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_soft_signal_2": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_soft_signal_3": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_signal_soft_signal_4": {
+    "type": "vector",
+    "width": 16.500001,
+    "height": 16.500001
+  },
+  "stat_sys_sos": {
+    "type": "vector",
+    "width": 22.0,
+    "height": 16.0
+  },
+  "stat_sys_tool_block_banner_on": {
+    "type": "vector",
+    "width": 18.0,
+    "height": 16.0
+  },
+  "stat_sys_tty_mode": {
+    "type": "vector",
+    "width": 21.0,
+    "height": 21.0
+  },
+  "stat_sys_vpn_ic": {
+    "type": "vector",
+    "width": 23.0,
+    "height": 16.0
+  }
+}

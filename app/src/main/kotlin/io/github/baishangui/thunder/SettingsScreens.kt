@@ -1,7 +1,6 @@
 package io.github.baishangui.thunder
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -97,7 +96,7 @@ private fun Area.summary(corner: Boolean = true, relativeCorners: Boolean = fals
             if (settings.cloud) {
                 if (page == SettingsPage.CloudCapsule) {
                     SettingsGroup {
-                        LiquidSwitchRow("自定义高度", "默认 34 dp", settings.cloudHeightEnabled) { change(settings.copy(cloudHeightEnabled = it)) }
+                        LiquidSwitchRow("自定义高度", "", settings.cloudHeightEnabled) { change(settings.copy(cloudHeightEnabled = it)) }
                         if (settings.cloudHeightEnabled) LiquidValueSlider("胶囊高度", settings.cloudHeight, 20..64, " dp") { change(settings.copy(cloudHeight = it)) }
                     }
                     AreaControls("胶囊材质", settings.cloudArea.copy(cornerEnabled = settings.cloudCornerEnabled, corner = settings.cloudCorner), cornerRange = 0..48) {
@@ -114,24 +113,27 @@ private fun Area.summary(corner: Boolean = true, relativeCorners: Boolean = fals
         }
         SettingsPage.StatusStyle -> StatusIconStyleSettings(settings, change)
         SettingsPage.StatusIcons -> {
-            UiText("开启以隐藏图标。", 13, muted = true)
-            val icons = listOf(
-                StatusBarIcons.BLUETOOTH to "蓝牙", StatusBarIcons.ALARM to "闹钟",
-                StatusBarIcons.VOLUME to "静音 / 振动", StatusBarIcons.ZEN to "勿扰模式",
-                StatusBarIcons.VPN to "VPN", StatusBarIcons.HOTSPOT to "个人热点",
-                StatusBarIcons.ROTATE to "旋转锁定", StatusBarIcons.HEADSET to "耳机",
-                StatusBarIcons.NFC to "NFC", StatusBarIcons.HIGH_PERFORMANCE to "高性能模式"
+            val groups = listOf(
+                "连接图标" to listOf(StatusBarIcons.BLUETOOTH to "蓝牙", StatusBarIcons.VPN to "VPN",
+                    StatusBarIcons.HOTSPOT to "个人热点", StatusBarIcons.HEADSET to "耳机", StatusBarIcons.NFC to "NFC"),
+                "系统图标" to listOf(StatusBarIcons.ALARM to "闹钟", StatusBarIcons.VOLUME to "静音 / 振动",
+                    StatusBarIcons.ZEN to "勿扰模式", StatusBarIcons.ROTATE to "旋转锁定", StatusBarIcons.HIGH_PERFORMANCE to "高性能模式")
             )
-            icons.chunked(5).forEach { group ->
-                SettingsGroup {
-                    group.forEach { (bit, label) ->
-                        LiquidSwitchRow(label, "", settings.hiddenStatusIcons and bit != 0) { hide ->
+            SettingsGroup {
+                groups.forEachIndexed { index, (title, icons) ->
+                    if (index > 0) SettingsDivider()
+                    UiText(title, 14, muted = true)
+                    icons.forEach { (bit, label) ->
+                        LiquidSwitchRow("隐藏$label", "", settings.hiddenStatusIcons and bit != 0) { hide ->
                             change(settings.copy(hiddenStatusIcons = if (hide) settings.hiddenStatusIcons or bit else settings.hiddenStatusIcons and bit.inv()))
                         }
                     }
                 }
+                if (settings.hiddenStatusIcons != 0) {
+                    SettingsDivider()
+                    LiquidAction("恢复系统显示", Modifier.fillMaxWidth()) { change(settings.copy(hiddenStatusIcons = 0)) }
+                }
             }
-            LiquidAction("恢复系统显示", Modifier.fillMaxWidth()) { change(settings.copy(hiddenStatusIcons = 0)) }
         }
         else -> Unit
     }
@@ -139,35 +141,24 @@ private fun Area.summary(corner: Boolean = true, relativeCorners: Boolean = fals
 
 @Composable internal fun AppearanceSettings(settings: Settings, change: (Settings) -> Unit) {
     SettingsGroup {
-        UiText("明暗模式", 16, bold = true)
+        UiText("明暗模式", 14, muted = true)
         ChoiceTabs(listOf("跟随系统", "浅色", "深色"), settings.theme) { change(settings.copy(theme = it)) }
     }
     SettingsGroup {
-        UiText("界面配色", 16, bold = true)
+        UiText("界面配色", 14, muted = true)
         ChoiceTabs(listOf("自定义", "壁纸取色", "自选取色"), settings.colorMode) { change(settings.copy(colorMode = it)) }
         when (settings.colorMode) {
             0 -> {
                 LiquidColorSetting("强调色", settings.accent, opaque = true) { change(settings.copy(accent = it)) }
                 LiquidColorSetting("背景底色", settings.backdropColor, opaque = true) { change(settings.copy(backdropColor = it)) }
             }
-            1 -> UiText("Monet · 跟随系统壁纸配色", 12, muted = true)
             2 -> LiquidColorSetting("Monet 种子色", settings.accent, opaque = true) { change(settings.copy(accent = it)) }
         }
-        ThemePalettePreview()
     }
     SettingsGroup {
-        UiText("玻璃与形状", 16, bold = true)
+        UiText("玻璃与形状", 14, muted = true)
         LiquidValueSlider("玻璃雾度", settings.glassStrength, 0..100, "%") { change(settings.copy(glassStrength = it)) }
         LiquidValueSlider("玻璃折射", settings.refraction, 0..100, "%") { change(settings.copy(refraction = it)) }
         LiquidValueSlider("界面圆角", settings.roundness, 16..36, " dp") { change(settings.copy(roundness = it)) }
-    }
-}
-
-@Composable private fun ThemePalettePreview() {
-    val colors = LocalGlass.current.colors
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(colors.primary, colors.secondaryContainer, colors.tertiaryContainer, colors.surfaceContainerHigh).forEach { color ->
-            Box(Modifier.weight(1f).height(32.dp).background(color, androidx.compose.foundation.shape.RoundedCornerShape(10.dp)))
-        }
     }
 }

@@ -2,7 +2,6 @@
 // Local changes: theme/effect parameters, see THIRD_PARTY.md.
 package com.kyant.backdrop.catalog.components
 
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.isSpecified
@@ -104,9 +104,12 @@ fun LiquidButton(
                     }
                 }
             )
+            // Keep the press overlay inside the same capsule as the glass surface.
+            .clip(Capsule())
             .clickable(
+                enabled = isInteractive,
                 interactionSource = null,
-                indication = if (isInteractive) null else LocalIndication.current,
+                indication = null,
                 role = Role.Button,
                 onClick = onClick
             )

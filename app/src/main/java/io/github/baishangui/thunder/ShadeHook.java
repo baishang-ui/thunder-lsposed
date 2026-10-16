@@ -49,11 +49,7 @@ public final class ShadeHook {
         initialize(processName);
         install("gesture-bar", () -> GestureBarHook.install(loader));
         install("status-bar-icons", () -> StatusBarIconHook.install(loader));
-        install("status-bar-ios-view-drawing", () -> IosStatusBarHook.install(loader));
-        install("status-bar-ios-symbol-sources", () -> IosStatusBarHook.installSymbols(loader));
-        install("status-bar-ios-resource-sources", () -> IosStatusBarHook.installResources(loader));
-        install("status-bar-ios-stacked-drawing", IosStatusBarHook::installStackedDrawing);
-        install("status-bar-ios-battery-drawing", () -> IosStatusBarHook.installBattery(loader));
+        install("status-bar-ios-resources", () -> IosStatusBarHook.install(loader));
         install("qs-card-backgrounds", () -> QsCardHook.install(loader));
         install("volume-panel", () -> VolumeHook.install(loader));
         install("notification-backgrounds", () -> NotificationCardHook.install(loader));
@@ -172,6 +168,7 @@ public final class ShadeHook {
                     try {
                         Object proxy = p.getResult();
                         Object blur = Reflect.callMethod(proxy, "getBlurConfig");
+                        NotificationCardHook.trackBlur((View)p.args[0],blur);
                         String role="FULLSCREENBANNER".equals(type)?"banner":"notification-card";
                         Object base=Reflect.getAdditionalInstanceField(blur,"thunder.base-role");
                         // A repeated request while heads-up is active must not revert it to list styling.
@@ -225,38 +222,12 @@ public final class ShadeHook {
             install("native-"+method, () -> Api102Runtime.findAndHookMethod(BLUR+"ViewBlurProxy",loader,method,new HookCallback() {
                 @Override protected void beforeHookedMethod(HookCallback.Param p) {
                     Object blur=Reflect.callMethod(p.thisObject,"getBlurConfig");
-                    // Producer replacements can live in BlurConfig. Unwrap them even when
-                    // customization is disabled, including native consumers bypassing getters.
-                    p.setObjectExtra("config",blur);
-                    Object stored=Reflect.getObjectField(blur,"platformMixConfig");
-                    Object nativeMix=nativeMix(stored);
-                    if(nativeMix!=stored)temporary(p,blur,"platformMixConfig",nativeMix);
-                    HookConfig.Area area=area(blur);if(area==null)return;
-                    String role=String.valueOf(Reflect.getAdditionalInstanceField(blur,ROLE));
                     Object type=Reflect.callMethod(p.thisObject,"getBlurType");
                     String backend=type==null?"unknown":type.getClass().getSimpleName();
-                    Reflect.setAdditionalInstanceField(blur,"thunder-backend",backend);
-                    NotificationCardHook.overrideCorners(p,blur,area);
-                    if(area.blur) {
-                        temporary(p,blur,"blurRadius",area.radius);
-                        temporary(p,blur,"motionBlurRadius",area.radius);
-                        if("panel".equals(role))temporary(p,blur,"scaleBlurRadiusWithAmount",true);
-                    }
-                    if(area.tint && QsCardHook.useCustomTint(blur)) {
-                        Object platform=Reflect.getObjectField(blur,"platformMixConfig");
-                        temporary(p,blur,"platformMixConfig","panel".equals(role)?panelMix(platform,area):
-                            backgroundMix(platform,area));
-                        temporary(p,blur,"motionBlurMixConfig",motionMix(Reflect.getObjectField(blur,"motionBlurMixConfig"),area));
-                    }
-                    observed(role+"-native",backend+" radius="+(area.blur?area.radius:"system")+" ARGB="+(area.tint?Integer.toHexString(area.color):"system"));
+                    overrideNativeConfig(p,blur,backend);
                 }
                 @Override protected void afterHookedMethod(HookCallback.Param p) {
-                    Object blur=p.getObjectExtra("config");if(blur==null)return;
-                    for(String field:new String[]{"blurRadius","motionBlurRadius","platformMixConfig","motionBlurMixConfig","scaleBlurRadiusWithAmount","cornerRadius","leftTopCornerRadius","rightTopCornerRadius",
-                            "leftBottomCornerRadius","rightBottomCornerRadius","pathProvider","gradientStrokeCornerParam","radiusWeight","enableMotionSmoothCorner"}) {
-                        Object saved=p.getObjectExtra(field);
-                        if(saved instanceof Object[])Reflect.setObjectField(blur,field,((Object[])saved)[0]);
-                    }
+                    restoreNativeConfig(p);
                 }
             }));
         }
@@ -385,6 +356,36 @@ public final class ShadeHook {
             }
         }));
     }
+    static void overrideNativeConfig(HookCallback.Param p,Object blur,String backend) {
+        // Producer replacements may remain cached even after customization is disabled.
+        p.setObjectExtra("config",blur);
+        Object stored=Reflect.getObjectField(blur,"platformMixConfig");
+        Object original=nativeMix(stored);
+        if(original!=stored)temporary(p,blur,"platformMixConfig",original);
+        HookConfig.Area area=area(blur);if(area==null)return;
+        String role=String.valueOf(Reflect.getAdditionalInstanceField(blur,ROLE));
+        Reflect.setAdditionalInstanceField(blur,"thunder-backend",backend);
+        NotificationCardHook.overrideCorners(p,blur,area);
+        if(area.blur) {
+            temporary(p,blur,"blurRadius",area.radius);
+            temporary(p,blur,"motionBlurRadius",area.radius);
+            if("panel".equals(role))temporary(p,blur,"scaleBlurRadiusWithAmount",true);
+        }
+        if(area.tint && QsCardHook.useCustomTint(blur)) {
+            Object platform=Reflect.getObjectField(blur,"platformMixConfig");
+            temporary(p,blur,"platformMixConfig","panel".equals(role)?panelMix(platform,area):backgroundMix(platform,area));
+            temporary(p,blur,"motionBlurMixConfig",motionMix(Reflect.getObjectField(blur,"motionBlurMixConfig"),area));
+        }
+        observed(role+"-native",backend+" radius="+(area.blur?area.radius:"system")+" ARGB="+(area.tint?Integer.toHexString(area.color):"system"));
+    }
+    static void restoreNativeConfig(HookCallback.Param p) {
+        Object blur=p.getObjectExtra("config");if(blur==null)return;
+        for(String field:new String[]{"blurRadius","motionBlurRadius","platformMixConfig","motionBlurMixConfig","scaleBlurRadiusWithAmount","cornerRadius","leftTopCornerRadius","rightTopCornerRadius",
+                "leftBottomCornerRadius","rightBottomCornerRadius","pathProvider","gradientStrokeCornerParam","radiusWeight","enableMotionSmoothCorner"}) {
+            Object saved=p.getObjectExtra(field);
+            if(saved instanceof Object[])Reflect.setObjectField(blur,field,((Object[])saved)[0]);
+        }
+    }
     private static HookConfig.Area area(Object blur) {
         HookConfig snapshot = config;
         if (!snapshot.enabled) return null;
@@ -435,6 +436,10 @@ public final class ShadeHook {
                 @Override protected void afterHookedMethod(HookCallback.Param p) {
                     context = ((Context) p.args[0]).getApplicationContext();
                     if (context == null) context = (Context) p.args[0];
+                    if ("com.android.systemui".equals(reportProcess)) {
+                        try { IosStatusBarHook.prepare(context); }
+                        catch (Exception error) { failed("status-bar-ios-resources", error); }
+                    }
                     if ("com.android.systemui".equals(reportProcess)) AdaptiveTextHook.startWallpaper(context, worker, main);
                     // API 102 config is already loaded. Provider is only a fallback
                     // and a diagnostic return channel; never block SystemUI startup.
@@ -471,7 +476,7 @@ public final class ShadeHook {
     }
     static void resourceHit(String key) { hit(key); }
     static void statusIconsObserved(String slots) {
-        observed("status-bar-icons", (IosStatusIcons.active(snapshot()) ? "style=ios;renderer=view;signals=system" : "style=system") + (slots.isEmpty() ? "" : ";hidden="+slots));
+        observed("status-bar-icons", IosStatusBarHook.state() + (slots.isEmpty() ? "" : ";hidden="+slots));
     }
     private static void capturePanel(Object owner) {
         try {

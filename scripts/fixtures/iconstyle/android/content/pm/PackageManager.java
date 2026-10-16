@@ -1,0 +1,1 @@
+package android.content.pm;public class PackageManager {public int getPackageUid(String p,int flags){if(p.equals("com.android.launcher"))return 10234;return p.equals("com.oplus.systemui.plugins")?4000:1000;}public static class NameNotFoundException extends Exception {}}

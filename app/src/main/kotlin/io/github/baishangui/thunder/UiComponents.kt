@@ -36,11 +36,24 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.effect
 import com.kyant.backdrop.catalog.components.*
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.ColorPicker
 import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.basic.HsvHueSlider
+import top.yukonga.miuix.kmp.basic.HsvSaturationSlider
+import top.yukonga.miuix.kmp.basic.HsvValueSlider
+import top.yukonga.miuix.kmp.basic.HsvAlphaSlider
+import top.yukonga.miuix.kmp.basic.drawCheckerboard
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.draw.clip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.miuixShape
+import top.yukonga.miuix.kmp.theme.miuixCapsuleShape
 import top.yukonga.miuix.kmp.theme.Colors
 import top.yukonga.miuix.kmp.window.WindowDialog
 import kotlin.math.roundToInt
@@ -71,6 +84,10 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
     Card(modifier.fillMaxWidth(), cornerRadius = LocalGlass.current.settings.roundness.dp, insideMargin = PaddingValues(0.dp)) {
         Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
     }
+}
+
+@Composable internal fun SettingsDivider() {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(LocalGlass.current.colors.dividerLine))
 }
 
 @Composable internal fun LiquidAction(text: String, modifier: Modifier = Modifier, enabled: Boolean = true,
@@ -137,7 +154,7 @@ internal val LocalControlHistory = staticCompositionLocalOf { ControlHistory() }
 internal val LocalControlScope = staticCompositionLocalOf { "" }
 @Composable private fun UndoAction(restore: (() -> Unit)?) {
     if (restore != null) UiText("回退", 12, color = LocalGlass.current.accent,
-        modifier = Modifier.heightIn(min = 48.dp).clickable(onClickLabel = "回退此项修改", onClick = restore).wrapContentHeight().padding(horizontal = 8.dp))
+        modifier = Modifier.heightIn(min = 48.dp).clip(miuixCapsuleShape()).clickable(onClickLabel = "回退此项修改", onClick = restore).wrapContentHeight().padding(horizontal = 8.dp))
 }
 @Composable internal fun LiquidColorSetting(title: String, color: Int, opaque: Boolean = false, change: (Int) -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
@@ -146,7 +163,7 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
     SideEffect { history.register(key, color) }
     val original = history.original(key, color)
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Row(Modifier.weight(1f).heightIn(min = 52.dp).clickable(onClickLabel = "选择$title") { open = true },
+        Row(Modifier.weight(1f).heightIn(min = 52.dp).clip(miuixShape(12.dp)).clickable(onClickLabel = "选择$title") { open = true },
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.size(32.dp).background(LocalGlass.current.colors.secondaryContainer, CircleShape)
                 .background(Color(color), CircleShape).border(1.dp, LocalGlass.current.colors.outline.copy(alpha = .3f), CircleShape))
@@ -173,6 +190,7 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
     val latestChange = rememberUpdatedState<(Boolean) -> Unit> { history.record(key, checked, it); change(it) }
     Row(Modifier.fillMaxWidth().heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f).heightIn(min = 48.dp)
+            .clip(miuixShape(12.dp))
             .clickable(onClickLabel = title) { latestChange.value(!latestChecked.value) }
             .wrapContentHeight().padding(end = 12.dp)) {
             UiText(title, bold = true)
@@ -248,15 +266,24 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
     }
 }
 
-@Composable internal fun SettingsDialog(title: String, dismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+@Composable internal fun SettingsDialog(title: String, dismiss: () -> Unit,
+    footer: (@Composable () -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     val parent = LocalGlass.current
-    WindowDialog(show = true, title = title, onDismissRequest = dismiss) {
+    WindowDialog(show = true, title = title, backgroundColor = MiuixTheme.colorScheme.surfaceContainer,
+        onDismissRequest = dismiss) {
         val backdrop = rememberLayerBackdrop()
-        Box(Modifier.fillMaxWidth()) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
             Box(Modifier.matchParentSize().layerBackdrop(backdrop).background(MiuixTheme.colorScheme.surfaceContainer))
             CompositionLocalProvider(LocalGlass provides parent.copy(source = backdrop)) {
-                Column(Modifier.fillMaxWidth().heightIn(max = with(LocalDensity.current) { (LocalWindowInfo.current.containerSize.height * .65f).toDp() })
-                    .verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp), content = content)
+                val screenLimit = with(LocalDensity.current) { (LocalWindowInfo.current.containerSize.height * .7f).toDp() }
+                Column(Modifier.fillMaxWidth().heightIn(max = minOf(maxHeight, screenLimit))) {
+                    Column(Modifier.weight(1f, fill = false).fillMaxWidth().verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(16.dp), content = content)
+                    if (footer != null) {
+                        Spacer(Modifier.height(16.dp))
+                        footer()
+                    }
+                }
             }
         }
     }
@@ -265,26 +292,67 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
 internal fun hex(color: Int) = "#%08X".format(color)
 
 @Composable internal fun ColorDialog(initial: Int, opaque: Boolean = false, dismiss: () -> Unit, confirm: (Int) -> Unit) {
-    var color by remember { mutableIntStateOf(initial) }
-    var input by remember { mutableStateOf(hex(initial)) }
-    var invalid by remember { mutableStateOf(false) }
-    fun set(value: Int) { color = value; input = hex(value); invalid = false }
-    SettingsDialog("选择颜色", dismiss) {
-        ColorPicker(color = Color(color), onColorChanged = { selected ->
-            set(if (opaque) selected.copy(alpha = 1f).toArgb() else selected.toArgb())
-        }, modifier = Modifier.fillMaxWidth())
+    var selection by rememberSaveable(stateSaver = PickerColor.saver) { mutableStateOf(PickerColor.from(initial)) }
+    fun formatted(color: Int) = if (opaque) "#%06X".format(color and 0xffffff) else hex(color)
+    var input by rememberSaveable { mutableStateOf(formatted(initial)) }
+    var invalid by rememberSaveable { mutableStateOf(false) }
+    fun update(next: PickerColor) { selection = next; input = formatted(next.argb); invalid = false }
+    SettingsDialog("选择颜色", dismiss, footer = {
+        val keyboard = LocalSoftwareKeyboardController.current
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LiquidAction("取消", Modifier.weight(1f)) { keyboard?.hide(); dismiss() }
+            LiquidAction("确定", Modifier.weight(1f), enabled = !invalid, selected = true) {
+                keyboard?.hide()
+                confirm(parsePickerColor(input, opaque) ?: selection.argb)
+            }
+        }
+    }) {
+        val keyboard = LocalSoftwareKeyboardController.current
+        Box(Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(12.dp))
+            .drawCheckerboard().background(Color(selection.argb)))
+        ColorChannel("色相", "${selection.hue.roundToInt()}°", selection.hue / 360f,
+            { update(selection.copy(hue = it * 360f)) }) {
+            HsvHueSlider(selection.hue, { update(selection.copy(hue = it * 360f)) })
+        }
+        ColorChannel("饱和度", "${(selection.saturation * 100).roundToInt()}%", selection.saturation,
+            { update(selection.copy(saturation = it)) }) {
+            HsvSaturationSlider(selection.hue, selection.saturation, { update(selection.copy(saturation = it)) })
+        }
+        ColorChannel("亮度", "${(selection.brightness * 100).roundToInt()}%", selection.brightness,
+            { update(selection.copy(brightness = it)) }) {
+            HsvValueSlider(selection.hue, selection.saturation, selection.brightness, { update(selection.copy(brightness = it)) })
+        }
+        if (!opaque) ColorChannel("不透明度", "${(selection.alpha * 100).roundToInt()}%", selection.alpha,
+            { update(selection.copy(alpha = it)) }) {
+            HsvAlphaSlider(selection.hue, selection.saturation, selection.brightness, selection.alpha,
+                { update(selection.copy(alpha = it)) })
+        }
         TextField(value = input, onValueChange = { text ->
             input = text
-            val raw = text.removePrefix("#")
-            val parsed = if (raw.matches(Regex("[0-9a-fA-F]{6}([0-9a-fA-F]{2})?"))) raw.toLongOrNull(16) else null
-            invalid = parsed == null || (opaque && raw.length == 8 && (parsed ushr 24) != 255L)
-            if (!invalid && parsed != null) color = (if (raw.length == 6) parsed or 0xff000000 else parsed).toInt()
-        }, modifier = Modifier.fillMaxWidth(), label = "RGB / ARGB", singleLine = true)
-        if (invalid) UiText("请输入有效的 6 位 RGB 或 8 位 ARGB 颜色" + if (opaque) "，界面颜色须不透明" else "", 12, color = MiuixTheme.colorScheme.error)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            LiquidAction("取消", Modifier.weight(1f), onClick = dismiss)
-            LiquidAction("确定", Modifier.weight(1f), enabled = !invalid, selected = true) { confirm(color) }
+            val parsed = parsePickerColor(text, opaque)
+            invalid = parsed == null
+            if (parsed != null) selection = PickerColor.from(parsed, selection)
+        }, modifier = Modifier.fillMaxWidth(), label = if (opaque) "HEX · RRGGBB" else "HEX · AARRGGBB / RRGGBB",
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters,
+                keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { keyboard?.hide() }))
+        if (invalid) UiText(if (opaque) "请输入 6 位 RGB 或 FF 开头的 8 位 ARGB" else "请输入 6 位 RGB 或 8 位 ARGB", 12, color = MiuixTheme.colorScheme.error)
+    }
+}
+
+@Composable private fun ColorChannel(title: String, value: String, progress: Float, change: (Float) -> Unit, content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            UiText(title, 13)
+            UiText(value, 12, muted = true)
         }
+        Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics(mergeDescendants = true) {
+            contentDescription = title
+            stateDescription = value
+            progressBarRangeInfo = ProgressBarRangeInfo(progress, 0f..1f)
+            setProgress { change(it.coerceIn(0f, 1f)); true }
+        }.focusable(), contentAlignment = Alignment.Center) { content() }
     }
 }
 // Kyant0 Backdrop tutorial: alpha-masked progressive blur. The mask is applied

@@ -12,6 +12,11 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.content.res.ColorStateList;
+import android.content.res.Configuration;
+import android.graphics.drawable.RippleDrawable;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -58,6 +63,9 @@ final class VolumeHook {
                 try { preparePanel(p.thisObject); }
                 catch(Throwable error) { restorePanel(p.thisObject);ShadeHook.frameworkFailure("volume-native-panel",error); }
             }
+            @Override protected void afterHookedMethod(Param p) {
+                Compact panel=panels.get(p.thisObject);if(panel!=null)panel.hideAccessories();
+            }
         });
         hook(loader,BASE+"VolumeListAdapter",new String[]{"switchToDataSourcePanel"},new HookCallback() {
             @Override protected void afterHookedMethod(Param p) {
@@ -74,7 +82,7 @@ final class VolumeHook {
                 styleRow(row,panel==null?c:panel.config);
                 int labelId=item.getResources().getIdentifier("volume_text","id","com.android.systemui");
                 View label=labelId==0?null:item.findViewById(labelId);
-                if(label!=null)size(label,panel==null?0:panel.rowWidth+panel.gap-dp(item,4),0,panel!=null,true,false);
+                if(panel!=null)panel.hide(label);
             }
         });
         for(String method:new String[]{"getEndX","getTranslationY","resolvePanelStartTranslationX"}) {
@@ -89,6 +97,8 @@ final class VolumeHook {
                         p.setResult(VolumePanelGeometry.translation(panel.anchorX,xy[0],item.getTranslationX()));
                     } else if(method.equals("getTranslationY")) {
                         float y=VolumePanelGeometry.translation(panel.rowTop,xy[1],item.getTranslationY());
+                        // Start and end at the same vertical pose; retain the native X spring.
+                        item.setTranslationY(y);
                         Reflect.setObjectField(p.thisObject,"cachedPanelBiasTranslationY",y);p.setResult(y);
                     } else {
                         Object adapter=Reflect.getObjectField(p.thisObject,"adapter");panel.arrange(adapter);
@@ -97,7 +107,7 @@ final class VolumeHook {
                         if(index<0)index=((Number)Reflect.callMethod(p.args[0],"getOldPosition")).intValue();
                         if(index<0)return;
                         // Native LayoutManager keeps physical LTR order on both key sides.
-                        float x=VolumePanelGeometry.rowX(panel.bounds,index,panel.count,item.getWidth(),panel.inset,panel.gap);
+                        float x=VolumePanelGeometry.trackRowX(panel.bounds,index,panel.barWidth(),item.getWidth(),panel.inset)+panel.rowOffset;
                         panel.follow(item,x);
                         p.setResult(VolumePanelGeometry.translation(x,xy[0],item.getTranslationX()));
                     }
@@ -387,7 +397,6 @@ final class VolumeHook {
         } catch(Throwable error) {ShadeHook.frameworkFailure("volume-refresh",error);}
     }
 
-    private static final String[] CONSTRAINTS={"leftToLeft","leftToRight","rightToLeft","rightToRight","startToStart","startToEnd","endToStart","endToEnd","topToTop","topToBottom","bottomToTop","bottomToBottom","leftMargin","rightMargin","topMargin","bottomMargin","width","height","horizontalBias","verticalBias"};
     private static final class Compact {
         final HookConfig config;
         final WeakReference<Object> dialog;
@@ -397,67 +406,161 @@ final class VolumeHook {
         float targetX,targetY,backgroundProgress=Float.NaN,lastProgress=-1;
         ViewTreeObserver observer;
         final ViewTreeObserver.OnPreDrawListener frame=()->{tick();return true;};
-        final Map<View,Map<String,Object>> accessories=new WeakHashMap<>();
+        final Map<View,Integer> hidden=new WeakHashMap<>();
         final Rect usable=new Rect();
-        final int anchorX,anchorY,anchorRight,inset,gap,sourceHeight;
-        int header,footer,rowHeight;
+        final int anchorX,anchorY,anchorRight,inset,sourceHeight,trackTop,trackBottom,sourceRowHeight,anchorTrackY;
+        int rowHeight;
         VolumePanelGeometry.Bounds bounds;
         int rowTop,count,arrangedCount=-1;
+        final int labelId;
         NativePanelSurface surface;
         boolean outsideGesture;
         int rowWidth;
+        float rowOffset;
+        FrameLayout shortcuts;
+        ImageView soundButton,zenButton;
+        int shownRinger=-1,shownZen=-1,lastZen=1;
+        boolean hasVibrator,alertSlider;
         Compact(Object d,View r,View list,View item,View bar) {
             anchorItem=new WeakReference<>(item);
             startBarWidth=((Number)Reflect.getObjectField(bar,"mBackgroundWidth")).floatValue();
             startBarRadius=((Number)Reflect.getObjectField(bar,"mBackgroundRadius")).floatValue();
+            labelId=list.getResources().getIdentifier("volume_text","id","com.android.systemui");
             config=ShadeHook.snapshot();dialog=new WeakReference<>(d);root=new WeakReference<>(r);recycler=new WeakReference<>(list);
-            int[] xy=location(item);anchorX=Math.round(xy[0]-item.getTranslationX());anchorY=Math.round(xy[1]-item.getTranslationY());anchorRight=anchorX+item.getWidth();
+            int[] xy=location(item);anchorX=xy[0];anchorY=xy[1];anchorRight=anchorX+item.getWidth();
             r.getWindowVisibleDisplayFrame(usable);int[] origin=location(r);
             usable.left=Math.max(usable.left,origin[0]);usable.top=Math.max(usable.top,origin[1]);
             usable.right=Math.min(usable.right,origin[0]+r.getWidth());usable.bottom=Math.min(usable.bottom,origin[1]+r.getHeight());
-            inset=dp(r,8);gap=dp(r,6);sourceHeight=height(list);
+            inset=dp(r,8);sourceHeight=height(list);
+            View frame=(View)bar.getParent();
+            float padding=((Number)Reflect.getObjectField(bar,"mPaddingVertical")).floatValue();
+            int endPadding=Math.max(0,Math.round(padding-startBarRadius));
+            // Panel binding clears the sidebar's negative reveal margin. Only the native
+            // frame/seekbar padding then separates the holder edge from the visible track.
+            trackTop=(frame==null?0:frame.getPaddingTop())+bar.getPaddingTop()+endPadding;
+            trackBottom=(frame==null?0:frame.getPaddingBottom())+bar.getPaddingBottom()+endPadding;
+            sourceRowHeight=bar.getHeight()+(frame==null?0:frame.getPaddingTop()+frame.getPaddingBottom());
+            anchorTrackY=location(bar)[1]+bar.getPaddingTop()+endPadding;
         }
         void arrange(Object adapter) {
             View r=root.get(),list=recycler.get();Object d=dialog.get();if(r==null||list==null||d==null)return;
+            hideAccessories();
             int n=((java.util.List<?>)Reflect.callMethod(adapter,"getPanelShowList")).size();
             if(n==0)n=((Number)Reflect.callMethod(adapter,"getItemCount")).intValue();
             n=Math.max(1,n);if(arrangedCount==n)return;arrangedCount=n;count=n;
-            // Cap both dimensions, even if the sidebar is configured very wide or long.
-            rowWidth=Math.min(dp(r,66),config.volumeSize?dp(r,config.volumeWidth+10):dp(r,56));
-            int margin=dp(r,8),usableWidth=Math.min(dp(r,320),Math.max(1,usable.width()-2*margin));
-            rowWidth=Math.min(rowWidth,Math.max(1,(usableWidth-2*inset-(count-1)*gap)/count));
-            int cardWidth=Math.min(usableWidth,Math.max(dp(r,200),count*rowWidth+(count-1)*gap+2*inset)),contentWidth=cardWidth-2*inset;
+            int margin=dp(r,8),usableWidth=Math.max(1,usable.width()-2*margin);
+            int columns=Math.max(2,count);
+            int panelTop=anchorTrackY-inset;
+            int available=Math.max(1,usable.bottom-margin-panelTop);
+            int desiredWidth=Math.min(Math.round(startBarWidth),Math.max(1,available-3*inset-1));
+            int trackWidth=VolumePanelGeometry.fitTrackWidth(usableWidth,columns,desiredWidth,inset);
+            rowWidth=trackWidth+dp(r,10);
+            int cardWidth=VolumePanelGeometry.panelWidth(columns,trackWidth,inset);
+            rowOffset=(cardWidth-VolumePanelGeometry.panelWidth(count,trackWidth,inset))/2f;
             styleButtons(d,config,this);
-            View icon=view(d,ACCESSORIES[0]),title=view(d,ACCESSORIES[1]),tips=view(d,ACCESSORIES[2]);
-            View button=view(d,ACCESSORIES[3]),label=view(d,ACCESSORIES[4]);
-            int iconSide=icon==null?0:dp(r,20),titleGap=icon==null?0:gap;
-            int titleWidth=title==null?0:Math.max(1,Math.min(dp(r,128),contentWidth-iconSide-titleGap));
-            measureAccessory(title,titleWidth);
-            measureAccessory(tips,contentWidth);
-            measureAccessory(label,contentWidth-(button==null?0:height(button)+gap));
-            int titleHeight=Math.max(iconSide,height(title));
-            header=inset+titleHeight+dp(r,4)+height(tips)+gap;
-            footer=2*inset+Math.max(height(button),height(label));
-            int available=Math.min(dp(r,260),Math.max(1,usable.height()-2*margin));
-            rowHeight=Math.max(1,Math.min(Math.min(sourceHeight,dp(r,144)),available-header-footer));
+            // Keep the visible top anchored. Only a real screen edge can shorten the row.
+            rowHeight=Math.max(trackTop+trackBottom+1,Math.min(sourceRowHeight,available-3*inset-trackWidth+trackTop+trackBottom));
+            int contentHeight=Math.max(1,rowHeight-trackTop-trackBottom);
+            // Size to the visible track and its native bottom icon, excluding frame elevation
+            // padding and the adapter's text-label row. There is no header/footer minimum.
+            int holderInset=Math.round((anchorRight-anchorX-startBarWidth)/2f);
             bounds=VolumePanelGeometry.place(usable.left+margin,usable.top+margin,usable.right-margin,usable.bottom-margin,
-                    anchorX,anchorY-header+inset,anchorRight,anchorY+sourceHeight,
-                    cardWidth,Math.min(available,header+rowHeight+footer),inset);
-            rowTop=bounds.y()+header;
+                    anchorX+holderInset,anchorY+trackTop,anchorRight-holderInset,anchorY+sourceHeight,
+                    cardWidth,contentHeight+trackWidth+3*inset,inset);
+            bounds=new VolumePanelGeometry.Bounds(bounds.x(),panelTop,bounds.width(),contentHeight+trackWidth+3*inset,bounds.opensLeft());
+            rowTop=anchorTrackY-trackTop;
             size(list,0,rowHeight,true,false,true);
-            int[] origin=location(r);
-            // Native title text is assigned during expansion; reserve its width even when still empty.
-            int titleGroup=iconSide+titleGap+titleWidth;
-            int titleLeft=bounds.x()+(bounds.width()-titleGroup)/2,titleTop=bounds.y()+inset;
-            placeAccessory(d,ACCESSORIES[0],titleLeft,titleTop+(titleHeight-iconSide)/2,iconSide,iconSide,origin);
-            placeAccessory(d,ACCESSORIES[1],titleLeft+iconSide+titleGap,titleTop+(titleHeight-height(title))/2,titleWidth,height(title),origin);
-            placeAccessory(d,ACCESSORIES[2],bounds.x()+inset,titleTop+titleHeight+dp(r,4),contentWidth,height(tips),origin);
-            int buttonSide=height(button),labelWidth=accessoryWidth(label),settingsHeight=Math.max(buttonSide,height(label));
-            int settingsGroup=buttonSide+(button==null?0:gap)+labelWidth;
-            int settingsLeft=bounds.x()+(bounds.width()-settingsGroup)/2,settingsTop=bounds.y()+bounds.height()-footer+inset;
-            placeAccessory(d,ACCESSORIES[3],settingsLeft,settingsTop+(settingsHeight-buttonSide)/2,buttonSide,buttonSide,origin);
-            placeAccessory(d,ACCESSORIES[4],settingsLeft+buttonSide+(button==null?0:gap),settingsTop+(settingsHeight-height(label))/2,labelWidth,height(label),origin);
+            arrangeShortcuts();
             if(surface!=null)surface.invalidateSelf();
+        }
+        void arrangeShortcuts() {
+            View r=root.get();Object d=dialog.get();if(!(r instanceof ViewGroup parent)||d==null)return;
+            if(shortcuts==null) {
+                shortcuts=new FrameLayout(r.getContext());
+                soundButton=new ImageView(r.getContext());zenButton=new ImageView(r.getContext());
+                shortcuts.addView(soundButton);shortcuts.addView(zenButton);
+                Object owner=Reflect.getObjectField(d,"volumeInteractor"),controller=Reflect.getObjectField(owner,"mController");
+                hasVibrator=(Boolean)Reflect.callMethod(controller,"hasVibrator");
+                try {
+                    Class<?> feature=Reflect.findClass("com.oplusos.systemui.common.feature.FeatureOption",d.getClass().getClassLoader());
+                    alertSlider=(Boolean)feature.getDeclaredMethod("isOplusAlertSlider").invoke(null);
+                } catch(ReflectiveOperationException error) {throw new IllegalStateException(error);}
+                soundButton.setOnClickListener(v->shortcut(false));zenButton.setOnClickListener(v->shortcut(true));
+                parent.addView(shortcuts);
+            }
+            int side=barWidth(),innerWidth=bounds.width()-2*inset;
+            Object lp=Reflect.newInstance(recycler.get().getLayoutParams().getClass(),innerWidth,side);
+            Reflect.setIntField(lp,"leftToLeft",0);Reflect.setIntField(lp,"topToTop",0);
+            int[] origin=location(r);
+            Reflect.setIntField(lp,"leftMargin",bounds.x()+inset-origin[0]);
+            Reflect.setIntField(lp,"topMargin",bounds.y()+bounds.height()-inset-side-origin[1]);
+            shortcuts.setLayoutParams((ViewGroup.LayoutParams)lp);
+            Object manager;
+            try {manager=Reflect.findClass(MATERIAL+"VolumeBlurManager",d.getClass().getClassLoader()).getDeclaredField("INSTANCE").get(null);}
+            catch(ReflectiveOperationException error){throw new IllegalStateException(error);}
+            boolean dark=(r.getResources().getConfiguration().uiMode&Configuration.UI_MODE_NIGHT_MASK)==Configuration.UI_MODE_NIGHT_YES;
+            int foreground=dark?0xffffffff:0xff000000;
+            if(config.volumeBar.tint)foreground=AdaptiveTextColor.foreground(AdaptiveTextColor.composite(config.volumeBar.color,dark?0xff202124:0xfffafafa));
+            int start=(innerWidth-(2*side+inset))/2,index=0;
+            for(ImageView button:new ImageView[]{soundButton,zenButton}) {
+                FrameLayout.LayoutParams child=new FrameLayout.LayoutParams(side,side);
+                child.leftMargin=start+index++*(side+inset);button.setLayoutParams(child);
+                int padding=Math.max(0,(side-Math.min(side,dp(r,24)))/2);
+                button.setPadding(padding,padding,padding,padding);button.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                button.setImageTintList(ColorStateList.valueOf(foreground));
+                Drawable material=(Drawable)Reflect.callMethod(manager,"getVolumeSideAccessoryBackground",r.getContext(),r,button,
+                        Reflect.callMethod(d,"getMIsDefaultVolumeTheme"));
+                button.setBackground(new RippleDrawable(ColorStateList.valueOf((foreground&0xffffff)|0x24000000),material,null));
+                button.setFocusable(true);
+            }
+            shownRinger=shownZen=-1;lastProgress=-1;updateShortcutState();
+            shortcuts.setAlpha(0f);
+        }
+        void shortcut(boolean zen) {
+            Object d=dialog.get();if(d==null||progress()<.95f)return;
+            try {
+                Object owner=Reflect.getObjectField(d,"volumeInteractor"),state=Reflect.getObjectField(owner,"mState");
+                if(state==null)return;
+                Object controller=Reflect.getObjectField(owner,"mController");
+                if(zen) {
+                    int current=Reflect.getIntField(state,"zenMode");
+                    if(current!=0)lastZen=current;
+                    Reflect.callMethod(controller,"setZenMode",current==0?lastZen:0);
+                } else {
+                    if(alertSlider||Reflect.getBooleanField(state,"disallowRinger"))return;
+                    int current=Reflect.getIntField(state,"ringerModeInternal");
+                    int next=current==2?(hasVibrator?1:0):current==1?0:2;
+                    Reflect.callMethod(controller,"setRingerMode",next,false);
+                }
+                Reflect.callMethod(owner,"rescheduleTimeoutH");
+                updateShortcutState();
+            } catch(Throwable error) {ShadeHook.frameworkFailure("volume-shortcut",error);}
+        }
+        void updateShortcutState() {
+            if(shortcuts==null)return;Object d=dialog.get();if(d==null)return;
+            Object state=Reflect.getObjectField(Reflect.getObjectField(d,"volumeInteractor"),"mState");
+            boolean ready=state!=null&&progress()>=.95f;
+            soundButton.setEnabled(ready&&!alertSlider&&state!=null&&!Reflect.getBooleanField(state,"disallowRinger"));
+            zenButton.setEnabled(ready);
+            soundButton.setAlpha(soundButton.isEnabled()?1f:.38f);
+            zenButton.setAlpha(zenButton.isEnabled()?1f:.38f);
+            if(state==null)return;
+            int ringer=Reflect.getIntField(state,"ringerModeInternal"),zen=Reflect.getIntField(state,"zenMode");
+            if(zen!=0)lastZen=zen;
+            if(ringer!=shownRinger) {
+                shownRinger=ringer;
+                icon(soundButton,ringer==2?"ic_volume_ringer":ringer==1?"ic_volume_ringer_vibrate":"ic_volume_ringer_mute");
+                soundButton.setContentDescription(alertSlider?"声音模式由实体拨杆控制":ringer==2?"当前响铃，点击切换"+(hasVibrator?"振动":"静音"):ringer==1?"当前振动，点击切换静音":"当前静音，点击切换响铃");
+            }
+            if(zen!=shownZen) {
+                shownZen=zen;icon(zenButton,zen==0?"qs_dnd_icon_off":"qs_dnd_icon_on");
+                zenButton.setSelected(zen!=0);zenButton.setContentDescription(zen==0?"开启免打扰":"关闭免打扰");
+            }
+        }
+        void icon(ImageView button,String name) {
+            View r=root.get();if(r==null)return;
+            int id=r.getResources().getIdentifier(name,"drawable","com.android.systemui");
+            if(id!=0)button.setImageResource(id);
         }
         void follow(View item,float x) {
             // Prefer the original active holder, but allow the native adapter to replace it.
@@ -470,15 +573,23 @@ final class VolumeHook {
             float fallback=Float.isNaN(backgroundProgress)?(surface==null?0:surface.getDrawable().getAlpha()/255f):backgroundProgress;
             if(item==null||!item.isAttachedToWindow()||item.getParent()!=recycler.get())return VolumePanelGeometry.clamp(fallback);
             int[] xy=location(item);
-            return VolumePanelGeometry.progress(xy[0],xy[1],anchorX,anchorY,targetX,targetY,fallback);
+            return VolumePanelGeometry.progress(xy[0],0,anchorX,0,targetX,0,fallback);
         }
         VolumePanelGeometry.Bounds visualBounds() {
-            View r=root.get();return VolumePanelGeometry.widthAt(bounds,Math.round(startBarWidth)+(r==null?0:dp(r,10))+2*inset,progress());
+            return VolumePanelGeometry.widthAt(bounds,Math.round(startBarWidth)+2*inset,progress());
         }
         void watch() {View r=root.get();if(r!=null){observer=r.getViewTreeObserver();observer.addOnPreDrawListener(frame);}}
         void tick() {
+            hideAccessories();
+            updateShortcutState();
             float progress=progress();if(Math.abs(progress-lastProgress)<.0001f)return;lastProgress=progress;
             if(surface!=null)surface.invalidateSelf();
+            if(shortcuts!=null) {
+                VolumePanelGeometry.Bounds visible=visualBounds();
+                int left=visible.x()-bounds.x(),right=left+visible.width()-2*inset;
+                shortcuts.setClipBounds(new Rect(Math.max(0,left),0,Math.max(0,right),barWidth()));
+                shortcuts.setAlpha(VolumePanelGeometry.clamp((progress-.25f)/.75f));
+            }
             View list=recycler.get();if(list!=null)invalidateTree(list);
         }
         void invalidateTree(View v) {
@@ -486,25 +597,17 @@ final class VolumeHook {
             if(v instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++)invalidateTree(group.getChildAt(i));
         }
         int barWidth() {View r=root.get();return r==null?1:Math.max(1,rowWidth-dp(r,10));}
-        void measureAccessory(View v,int width) {
+        void hide(View v) {
             if(v==null)return;
-            v.measure(View.MeasureSpec.makeMeasureSpec(Math.max(1,width),View.MeasureSpec.AT_MOST),
-                    View.MeasureSpec.makeMeasureSpec(dp(v,72),View.MeasureSpec.AT_MOST));
+            hidden.putIfAbsent(v,v.getVisibility());
+            if(v.getVisibility()!=View.GONE)v.setVisibility(View.GONE);
         }
-        int accessoryWidth(View v) {return v==null?0:v.getMeasuredWidth();}
-        void placeAccessory(Object d,String key,int left,int top,int width,int height,int[] origin) {
-            View v=view(d,key);if(v==null)return;Object lp=v.getLayoutParams();if(lp==null)return;
-            accessories.computeIfAbsent(v,k->{
-                Map<String,Object> values=new LinkedHashMap<>();for(String field:CONSTRAINTS)values.put(field,Reflect.getObjectField(lp,field));
-                values.put("relativeMargins",Reflect.callMethod(lp,"isMarginRelative"));values.put("marginStart",Reflect.callMethod(lp,"getMarginStart"));values.put("marginEnd",Reflect.callMethod(lp,"getMarginEnd"));return values;
-            });
-            for(String keyField:CONSTRAINTS)if(keyField.contains("To"))Reflect.setIntField(lp,keyField,-1);
-            Reflect.setIntField(lp,"leftToLeft",0);Reflect.setIntField(lp,"topToTop",0);
-            Reflect.setIntField(lp,"width",Math.max(1,width));Reflect.setIntField(lp,"height",Math.max(1,height));
-            Reflect.setIntField(lp,"leftMargin",left-origin[0]);Reflect.setIntField(lp,"topMargin",top-origin[1]);
-            Reflect.setIntField(lp,"rightMargin",0);Reflect.setIntField(lp,"bottomMargin",0);
-            Reflect.callMethod(lp,"setMarginStart",Integer.MIN_VALUE);Reflect.callMethod(lp,"setMarginEnd",Integer.MIN_VALUE);
-            v.setLayoutParams((ViewGroup.LayoutParams)lp);
+        void hideAccessories() {
+            Object d=dialog.get();if(d!=null)for(String key:ACCESSORIES)hide(view(d,key));
+            // Native bindPanelAccessibility can reveal a label again during a row refresh.
+            View list=recycler.get();
+            if(labelId!=0&&list instanceof ViewGroup group)
+                for(int i=0;i<group.getChildCount();i++)hide(group.getChildAt(i).findViewById(labelId));
         }
         void mount() {
             View r=root.get();if(r==null||bounds==null)return;
@@ -524,15 +627,15 @@ final class VolumeHook {
         }
         void restore() {
             View r=root.get(),list=recycler.get();
+            if(shortcuts!=null) {
+                soundButton.setOnClickListener(null);zenButton.setOnClickListener(null);
+                soundButton.setBackground(null);zenButton.setBackground(null);
+                if(shortcuts.getParent() instanceof ViewGroup parent)parent.removeView(shortcuts);
+            }
             if(observer!=null&&observer.isAlive())observer.removeOnPreDrawListener(frame);
             else if(r!=null)r.getViewTreeObserver().removeOnPreDrawListener(frame);
             if(r!=null&&r.getBackground()==surface)r.setBackground(surface.getDrawable());
-            for(Map.Entry<View,Map<String,Object>> entry:accessories.entrySet()) {
-                View v=entry.getKey();Object lp=v.getLayoutParams();
-                for(String field:CONSTRAINTS)Reflect.setObjectField(lp,field,entry.getValue().get(field));
-                Reflect.callMethod(lp,"setMarginStart",entry.getValue().get("marginStart"));Reflect.callMethod(lp,"setMarginEnd",entry.getValue().get("marginEnd"));
-                v.setLayoutParams((ViewGroup.LayoutParams)lp);
-            }
+            for(Map.Entry<View,Integer> entry:hidden.entrySet())entry.getKey().setVisibility(entry.getValue());
             if(list!=null)size(list,0,0,false,false,true);
         }
     }
