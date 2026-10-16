@@ -52,6 +52,8 @@ public final class ShadeHook {
         initialize(processName);
         install("gesture-bar", () -> GestureBarHook.install(loader));
         install("status-bar-icons", () -> StatusBarIconHook.install(loader));
+        install("status-bar-layout", () -> StatusBarLayoutHook.install(loader));
+        install("status-bar-clock", () -> StatusBarClockHook.install(loader));
         install("status-bar-ios-resources", () -> IosStatusBarHook.install(loader));
         install("qs-card-backgrounds", () -> QsCardHook.install(loader));
         install("volume-panel", () -> VolumeHook.install(loader));
@@ -428,6 +430,8 @@ public final class ShadeHook {
                 main.post(() -> {
                     refreshProxies();
                     StatusBarIconHook.refresh();
+                    StatusBarLayoutHook.refresh();
+                    StatusBarClockHook.refresh();
                     GestureBarHook.refresh();
                     requestReport();
                 });
@@ -586,7 +590,7 @@ public final class ShadeHook {
             Bundle data = context.getContentResolver().call(URI, "settings", null, null);
             if (data == null) throw new IllegalStateException("No settings response");
             config = new HookConfig(data); settingsSource="provider fallback";
-            main.post(() -> { refreshProxies(); StatusBarIconHook.refresh(); GestureBarHook.refresh(); }); requestReport();
+            main.post(() -> { refreshProxies(); StatusBarIconHook.refresh(); StatusBarLayoutHook.refresh(); StatusBarClockHook.refresh(); GestureBarHook.refresh(); }); requestReport();
         } catch (Throwable error) {
             if (attempt < 4) worker.postDelayed(() -> readSettings(attempt+1), 2500);
             else failed("settings-read", error);

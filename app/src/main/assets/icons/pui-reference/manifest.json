@@ -1,0 +1,545 @@
+{
+  "sources": {
+    "ic_bluetooth_connected": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/ic_bluetooth_connected.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "a5c720980eb63e2c09ef6849dd8d7c5c24fdd436d1530e0df4da455ff2bee48a"
+    },
+    "stat_sys_airplane_mode": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/stat_sys_airplane_mode.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "9f4c9bfcd141ac795d3ec25a1e7428c4ddf79ca36a5f92303e6e8ba149cb73db"
+    },
+    "stat_sys_alarm": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/stat_sys_alarm.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "d015fcfd4afc5671b73735feb33ec9b79bd01c96b8f71435e1876cd0442f3b22"
+    },
+    "stat_sys_data_bluetooth": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/stat_sys_data_bluetooth.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "a5c720980eb63e2c09ef6849dd8d7c5c24fdd436d1530e0df4da455ff2bee48a"
+    },
+    "stat_sys_data_bluetooth_connected": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/stat_sys_data_bluetooth_connected.xml",
+      "conversion": "original C17 XML paths; native tint mask; referenced original vector inlined for native type contract",
+      "sha256": "c65327069c3464fb18915028dd516d64bb0a3db25edb6b9fd8e5d4a56fc17a0c"
+    },
+    "stat_sys_data_bluetooth_connected_ing": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/stat_sys_data_bluetooth_connected_ing.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "a5c720980eb63e2c09ef6849dd8d7c5c24fdd436d1530e0df4da455ff2bee48a"
+    },
+    "stat_sys_data_bluetooth_connected_stop": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/stat_sys_data_bluetooth_connected_stop.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "a5c720980eb63e2c09ef6849dd8d7c5c24fdd436d1530e0df4da455ff2bee48a"
+    },
+    "stat_sys_data_saver": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/stat_sys_data_saver.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "62e348f422d55a604c13f67f7c5569e09e3591fff65c5f2f0083cb9e6cfcf0b1"
+    },
+    "stat_sys_dnd": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/stat_sys_dnd.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "1291effddb1c833b96f1748fc58a9f27d8308d671cc80b440ed7c330a6019bc1"
+    },
+    "stat_sys_headset": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/stat_sys_headset.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "104ac89aeef75326c8c01e1643db2c456baeeaf1944a361aa1a1e2e672771c60"
+    },
+    "stat_sys_headset_mic": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/stat_sys_headset_mic.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "234f45668039401400e60d41ba15026a7e5ba1284eb2ab2112029be5387097de"
+    },
+    "stat_sys_high_performance": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/stat_sys_high_performance.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "86812cfe75b4e30111d4bc9616d99c70b5088880bbaa2b97af01e2ac4d1ec4a5"
+    },
+    "stat_sys_location": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/stat_sys_location.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "24056ac7e8947bd69ec59364e70b98279432e3620647440e0032bce15ce871bb"
+    },
+    "stat_sys_nfc": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/stat_sys_nfc.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "8ab633d2912f485f86bb5b6aa072e8bb73d72ce91ee887e04576867205e10b90"
+    },
+    "stat_sys_ringer_silent": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/stat_sys_ringer_silent.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "f01f071c619d36832d1a5fdb27c0d363d8321cb1f2a331cc62d042b64456f35a"
+    },
+    "stat_sys_ringer_vibrate": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/stat_sys_ringer_vibrate.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "9c6ccdf5c97ddfa651b36b3194b18b7f4c094728d2a48cf61ed8477e6cd9e7ac"
+    },
+    "stat_sys_vpn_ic": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeStatusIcon/drawable/stat_sys_vpn_ic.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "2ec197b8da4f77f9704c9706d22471e124c18e81b910a560a0b8dfa0048e4f98"
+    },
+    "stat_signal_activity_wifi_out_os17": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_activity_wifi_out_os17.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "107c103e8acd10bace66d78ded9969246e2e79f7b11a78f925f5dfaafc2c03a0"
+    },
+    "stat_signal_lte_signal_stacked_primary_0": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_lte_signal_stacked_primary_0.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "fb94aadecde87cf06d4f1d0e87c54f76e6be1590c7b0faf941827f6d00319264"
+    },
+    "stat_signal_lte_signal_stacked_primary_1": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_lte_signal_stacked_primary_1.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "eaafb4ac20a76b410b1e35c512cb3d99bc63f01235e4b95756958d69172dc196"
+    },
+    "stat_signal_lte_signal_stacked_primary_2": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_lte_signal_stacked_primary_2.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "719836b42a9e1febac4631c72c697dafdb2b8ca4b1861946b5d5c5ea62fd53ff"
+    },
+    "stat_signal_lte_signal_stacked_primary_3": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_lte_signal_stacked_primary_3.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "1a2b94f58e603a8d4ab382ce484b854f384ea829cb726058ca6f55df6c002b3d"
+    },
+    "stat_signal_lte_signal_stacked_primary_4": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_lte_signal_stacked_primary_4.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "93110be0c8739cb74109e6238c64be003b9e1a7b54ee7bebe597ed299193777c"
+    },
+    "stat_signal_lte_signal_stacked_primary_noservice": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_lte_signal_stacked_primary_noservice.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "fb94aadecde87cf06d4f1d0e87c54f76e6be1590c7b0faf941827f6d00319264"
+    },
+    "stat_signal_lte_signal_stacked_secondary_0": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_lte_signal_stacked_secondary_0.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "4ddf92c9f28d9679ad3e94597bc2b64177fe19998a2a59a7b8544a33248f09a5"
+    },
+    "stat_signal_lte_signal_stacked_secondary_1": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_lte_signal_stacked_secondary_1.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "d8cf01f3e8bc754b0af55589962cd2735a3b5df794122e6478c6d139ba1e6f9a"
+    },
+    "stat_signal_lte_signal_stacked_secondary_2": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_lte_signal_stacked_secondary_2.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "d2f0012a09e0e35df073dd5db98ce719f68444e05a21626bfc51ee450b183370"
+    },
+    "stat_signal_lte_signal_stacked_secondary_3": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_lte_signal_stacked_secondary_3.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "f57a0cc7ffc9c0316dc6fe81a0ffb3ce6ae07fca78b1f78ef57feec8e8344925"
+    },
+    "stat_signal_lte_signal_stacked_secondary_4": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_lte_signal_stacked_secondary_4.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "3064cadf0d60c1bc7fe651ede4ab613fbd72ac91195149270009f25b6e7a24d8"
+    },
+    "stat_signal_signal_lte_single_0_os17": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_signal_lte_single_0_os17.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "64456243fcb8a36a79438da4b11c20eba24de9d948aebe03968161f3bb52c5b7"
+    },
+    "stat_signal_signal_lte_single_1_os17": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_signal_lte_single_1_os17.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "91ebd00ee3e814108d9ec630239a10801d96a6c81341f175142dfd1ec2775c3c"
+    },
+    "stat_signal_signal_lte_single_2_os17": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_signal_lte_single_2_os17.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "62aab12c5c769746ac645c040a0273465007478156e30c56da9085b1a095f3e9"
+    },
+    "stat_signal_signal_lte_single_3_os17": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_signal_lte_single_3_os17.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "6c1ddaae6d02988d36d632c3e51085fb003463776ddad2047c43a5a91997bbb5"
+    },
+    "stat_signal_signal_lte_single_4_os17": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_signal_lte_single_4_os17.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "eb903a7e0c25fd6e9ad34fa14e720829868063ba3473a750056feaa87232b771"
+    },
+    "stat_signal_signal_null_lte": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_signal_null_lte.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "c1765d573b952c12f4e4c49f792d8f32b81abc5ce60062723aad85fca910a019"
+    },
+    "stat_signal_soft_signal_stacked_secondary_0": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_soft_signal_stacked_secondary_0.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "4ddf92c9f28d9679ad3e94597bc2b64177fe19998a2a59a7b8544a33248f09a5"
+    },
+    "stat_signal_soft_signal_stacked_secondary_1": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_soft_signal_stacked_secondary_1.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "d8cf01f3e8bc754b0af55589962cd2735a3b5df794122e6478c6d139ba1e6f9a"
+    },
+    "stat_signal_soft_signal_stacked_secondary_2": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_soft_signal_stacked_secondary_2.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "d2f0012a09e0e35df073dd5db98ce719f68444e05a21626bfc51ee450b183370"
+    },
+    "stat_signal_soft_signal_stacked_secondary_3": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_soft_signal_stacked_secondary_3.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "f57a0cc7ffc9c0316dc6fe81a0ffb3ce6ae07fca78b1f78ef57feec8e8344925"
+    },
+    "stat_signal_soft_signal_stacked_secondary_4": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_soft_signal_stacked_secondary_4.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "3064cadf0d60c1bc7fe651ede4ab613fbd72ac91195149270009f25b6e7a24d8"
+    },
+    "stat_signal_wifi_passpoint": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_wifi_passpoint.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "80dde6429c4df5eb54f613d95821a4bb1f193facead465e01e160d659d2b4744"
+    },
+    "stat_signal_wifi_signal_0_os17": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_wifi_signal_0_os17.xml",
+      "conversion": "original C17 XML paths; native tint mask; original inset padding baked into vector canvas for native type contract",
+      "sha256": "5d880b6159a270fadf6e0ff419de74424b02c18ac13937aa65b0820dc886b268"
+    },
+    "stat_signal_wifi_signal_1_os17": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_wifi_signal_1_os17.xml",
+      "conversion": "original C17 XML paths; native tint mask; original inset padding baked into vector canvas for native type contract",
+      "sha256": "25b2275d833682af36dfa1468e4f0d61c072e9bbe34a66c21139afeb029e925e"
+    },
+    "stat_signal_wifi_signal_2_os17": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_wifi_signal_2_os17.xml",
+      "conversion": "original C17 XML paths; native tint mask; original inset padding baked into vector canvas for native type contract",
+      "sha256": "caaabdafdaff4c1f57de980ff882f10f4c22fb1297e812a4d9eb56af3fa971ab"
+    },
+    "stat_signal_wifi_signal_3_os17": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_wifi_signal_3_os17.xml",
+      "conversion": "original C17 XML paths; native tint mask; original inset padding baked into vector canvas for native type contract",
+      "sha256": "caaabdafdaff4c1f57de980ff882f10f4c22fb1297e812a4d9eb56af3fa971ab"
+    },
+    "stat_signal_wifi_signal_4_os17": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeSignalIcon/drawable/stat_signal_wifi_signal_4_os17.xml",
+      "conversion": "original C17 XML paths; native tint mask; original inset padding baked into vector canvas for native type contract",
+      "sha256": "db8c13ba44517f3149e56fc0f88c84dbc3085db944e230e68e16177f0a086b69"
+    },
+    "stat_battery_horizontal_bg": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBatteryHorizontal/drawable/stat_battery_horizontal_bg.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "be3c3ac7fc43b704fe54f67fb9809fffaaacef7bef51c062cbb46dcc1c5ba240"
+    },
+    "stat_battery_horizontal_frame": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBatteryHorizontal/drawable/stat_battery_horizontal_frame.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "6392dd2fb0271ba9aadc107e801934b3136b7c81469133e782479017f436258d"
+    },
+    "stat_battery_horizontal_percent_out_bg": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBatteryHorizontal/drawable/stat_battery_horizontal_percent_out_bg.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "e4b86ec6d15ceab9e20a4375201398c254d334c456bcf18267f115365a4e0ea9"
+    },
+    "stat_battery_horizontal_percent_out_no_padding_bg": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBatteryHorizontal/drawable/stat_battery_horizontal_percent_out_no_padding_bg.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "e4b86ec6d15ceab9e20a4375201398c254d334c456bcf18267f115365a4e0ea9"
+    },
+    "stat_battery_horizontal_percent_out_no_padding_progress_bg": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBatteryHorizontal/drawable/stat_battery_horizontal_percent_out_no_padding_progress_bg.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "77fe0d104d8838ca1fbc548ca82c40fd46a3dc59718bbe044cf1bae173c302a8"
+    },
+    "stat_battery_horizontal_progress_bg": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBatteryHorizontal/drawable/stat_battery_horizontal_progress_bg.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "be3c3ac7fc43b704fe54f67fb9809fffaaacef7bef51c062cbb46dcc1c5ba240"
+    },
+    "stat_battery_pb": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBatteryHorizontal/drawable/stat_battery_pb.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "15ef9572bdf010aa773e555f92483e01cf417a982f7b799248a3f66b55884618"
+    },
+    "stat_battery_vertical_bg": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBatteryVerticalIcon/drawable/stat_battery_vertical_bg.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "679a58b6ad5e27072c8e6da0fc6fafb77b85da0668cc5ab4bcdbb9dba9e9a74f"
+    },
+    "stat_battery_vertical_frame": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBatteryVerticalIcon/drawable/stat_battery_vertical_frame.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "5aeec044782722938730fa80e41e990915124cadfa0eddc8778a1fb958e13e2d"
+    },
+    "stat_bt_battery_black_0": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBluetoothBatteryIcon/drawable/stat_bt_battery_black_0.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "dd585701e6003ac15385bd20d8ea7525ad9cc5093327420b727b24be2a34c29a"
+    },
+    "stat_bt_battery_black_3": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBluetoothBatteryIcon/drawable/stat_bt_battery_black_3.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "1b605c5392f5d3c231b9964ddb71e9c7b888b3847e38adfcfecdf1ec9bb7f07d"
+    },
+    "stat_bt_battery_black_4": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBluetoothBatteryIcon/drawable/stat_bt_battery_black_4.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "418a7a9d144f455bcc5032f9ec667d92c9057ba47b47061981dac801c895358f"
+    },
+    "stat_bt_battery_black_5": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBluetoothBatteryIcon/drawable/stat_bt_battery_black_5.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "db6886006d2884d24cdee4d894b62d45018228783951db2efe9afafdf0a546c0"
+    },
+    "stat_bt_battery_black_6": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBluetoothBatteryIcon/drawable/stat_bt_battery_black_6.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "8a3723c436a71b3a6842a1b57215cff9c94b523eb62bd53122b407035fb9b3bc"
+    },
+    "stat_bt_battery_black_7": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBluetoothBatteryIcon/drawable/stat_bt_battery_black_7.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "9bda0b24a98de099881703d26a3487df31070e8c126dd2ed0116f83ce6c9aadf"
+    },
+    "stat_bt_battery_black_8": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBluetoothBatteryIcon/drawable/stat_bt_battery_black_8.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "0ef72303b39b2e0278da0f7c5d1817c128c897c2c0b9f0ab5b5371bab02032c7"
+    },
+    "stat_bt_battery_black_9": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBluetoothBatteryIcon/drawable/stat_bt_battery_black_9.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "a96c36995e053f9620cdc38ed41a95799f5f90a808cd42dc46df4e0abdc996a7"
+    },
+    "stat_bt_battery_low_1": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBluetoothBatteryIcon/drawable/stat_bt_battery_low_1.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "51df850518fd00dcf970943db8a9f53806b77acbac2af6ddfe6a62cf72dae6ae"
+    },
+    "stat_bt_battery_low_2": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBluetoothBatteryIcon/drawable/stat_bt_battery_low_2.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "55ea9071baa347b38e171a42a1c0f98fa650b3fd0fd5d1f32e4496d95694b132"
+    },
+    "usb_notification_icon": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeAdbStatusIcon/drawable-xxhdpi/usb_notification_icon.xml",
+      "conversion": "original C17 XML paths; native tint mask",
+      "sha256": "9c5408803df4d857f8513ac91b5854852c1c5ba26fc27ad9d4df2926ba9ecf11"
+    },
+    "stat_battery_horizontal_progress": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBatteryHorizontal/stat_battery_horizontal_progress_bg.xml",
+      "conversion": "native progress wrapper around original C17 artwork"
+    },
+    "stat_battery_horizontal_percent_out_progress": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBatteryHorizontal/stat_battery_horizontal_progress_bg.xml",
+      "conversion": "native progress wrapper around original C17 artwork"
+    },
+    "stat_battery_horizontal_percent_out_no_padding_progress": {
+      "archive": "PUI Theme For ColorOS 17_v17.0.0.137.zip",
+      "entry": "PuiThemeBatteryHorizontal/stat_battery_horizontal_percent_out_no_padding_progress_bg.xml",
+      "conversion": "native progress wrapper around original C17 artwork"
+    }
+  },
+  "overrides": {
+    "ic_bluetooth_connected": "ic_bluetooth_connected",
+    "stat_sys_airplane_mode": "stat_sys_airplane_mode",
+    "stat_sys_alarm": "stat_sys_alarm",
+    "stat_sys_data_bluetooth": "stat_sys_data_bluetooth",
+    "stat_sys_data_bluetooth_connected": "stat_sys_data_bluetooth_connected",
+    "stat_sys_data_bluetooth_connected_ing": "stat_sys_data_bluetooth_connected_ing",
+    "stat_sys_data_bluetooth_connected_stop": "stat_sys_data_bluetooth_connected_stop",
+    "stat_sys_data_saver": "stat_sys_data_saver",
+    "stat_sys_dnd": "stat_sys_dnd",
+    "stat_sys_headset": "stat_sys_headset",
+    "stat_sys_headset_mic": "stat_sys_headset_mic",
+    "stat_sys_high_performance": "stat_sys_high_performance",
+    "stat_sys_location": "stat_sys_location",
+    "stat_sys_nfc": "stat_sys_nfc",
+    "stat_sys_ringer_silent": "stat_sys_ringer_silent",
+    "stat_sys_ringer_vibrate": "stat_sys_ringer_vibrate",
+    "stat_sys_vpn_ic": "stat_sys_vpn_ic",
+    "stat_signal_activity_wifi_out_os17": "stat_signal_activity_wifi_out_os17",
+    "stat_signal_lte_signal_stacked_primary_0": "stat_signal_lte_signal_stacked_primary_0",
+    "stat_signal_lte_signal_stacked_primary_1": "stat_signal_lte_signal_stacked_primary_1",
+    "stat_signal_lte_signal_stacked_primary_2": "stat_signal_lte_signal_stacked_primary_2",
+    "stat_signal_lte_signal_stacked_primary_3": "stat_signal_lte_signal_stacked_primary_3",
+    "stat_signal_lte_signal_stacked_primary_4": "stat_signal_lte_signal_stacked_primary_4",
+    "stat_signal_lte_signal_stacked_primary_noservice": "stat_signal_lte_signal_stacked_primary_noservice",
+    "stat_signal_lte_signal_stacked_secondary_0": "stat_signal_lte_signal_stacked_secondary_0",
+    "stat_signal_lte_signal_stacked_secondary_1": "stat_signal_lte_signal_stacked_secondary_1",
+    "stat_signal_lte_signal_stacked_secondary_2": "stat_signal_lte_signal_stacked_secondary_2",
+    "stat_signal_lte_signal_stacked_secondary_3": "stat_signal_lte_signal_stacked_secondary_3",
+    "stat_signal_lte_signal_stacked_secondary_4": "stat_signal_lte_signal_stacked_secondary_4",
+    "stat_signal_signal_lte_single_0_os17": "stat_signal_signal_lte_single_0_os17",
+    "stat_signal_signal_lte_single_1_os17": "stat_signal_signal_lte_single_1_os17",
+    "stat_signal_signal_lte_single_2_os17": "stat_signal_signal_lte_single_2_os17",
+    "stat_signal_signal_lte_single_3_os17": "stat_signal_signal_lte_single_3_os17",
+    "stat_signal_signal_lte_single_4_os17": "stat_signal_signal_lte_single_4_os17",
+    "stat_signal_signal_null_lte": "stat_signal_signal_null_lte",
+    "stat_signal_soft_signal_stacked_secondary_0": "stat_signal_soft_signal_stacked_secondary_0",
+    "stat_signal_soft_signal_stacked_secondary_1": "stat_signal_soft_signal_stacked_secondary_1",
+    "stat_signal_soft_signal_stacked_secondary_2": "stat_signal_soft_signal_stacked_secondary_2",
+    "stat_signal_soft_signal_stacked_secondary_3": "stat_signal_soft_signal_stacked_secondary_3",
+    "stat_signal_soft_signal_stacked_secondary_4": "stat_signal_soft_signal_stacked_secondary_4",
+    "stat_signal_wifi_passpoint": "stat_signal_wifi_passpoint",
+    "stat_signal_wifi_signal_0_os17": "stat_signal_wifi_signal_0_os17",
+    "stat_signal_wifi_signal_1_os17": "stat_signal_wifi_signal_1_os17",
+    "stat_signal_wifi_signal_2_os17": "stat_signal_wifi_signal_2_os17",
+    "stat_signal_wifi_signal_3_os17": "stat_signal_wifi_signal_3_os17",
+    "stat_signal_wifi_signal_4_os17": "stat_signal_wifi_signal_4_os17",
+    "stat_battery_horizontal_bg": "stat_battery_horizontal_bg",
+    "stat_battery_horizontal_frame": "stat_battery_horizontal_frame",
+    "stat_battery_horizontal_percent_out_bg": "stat_battery_horizontal_percent_out_bg",
+    "stat_battery_horizontal_percent_out_no_padding_bg": "stat_battery_horizontal_percent_out_no_padding_bg",
+    "stat_battery_horizontal_percent_out_no_padding_progress_bg": "stat_battery_horizontal_percent_out_no_padding_progress_bg",
+    "stat_battery_horizontal_progress_bg": "stat_battery_horizontal_progress_bg",
+    "stat_battery_pb": "stat_battery_pb",
+    "stat_battery_vertical_bg": "stat_battery_vertical_bg",
+    "stat_battery_vertical_frame": "stat_battery_vertical_frame",
+    "stat_bt_battery_black_0": "stat_bt_battery_black_0",
+    "stat_bt_battery_black_3": "stat_bt_battery_black_3",
+    "stat_bt_battery_black_4": "stat_bt_battery_black_4",
+    "stat_bt_battery_black_5": "stat_bt_battery_black_5",
+    "stat_bt_battery_black_6": "stat_bt_battery_black_6",
+    "stat_bt_battery_black_7": "stat_bt_battery_black_7",
+    "stat_bt_battery_black_8": "stat_bt_battery_black_8",
+    "stat_bt_battery_black_9": "stat_bt_battery_black_9",
+    "stat_bt_battery_low_1": "stat_bt_battery_low_1",
+    "stat_bt_battery_low_2": "stat_bt_battery_low_2",
+    "usb_notification_icon": "usb_notification_icon",
+    "stat_sys_flavor_one_ringer_vibrate": "stat_sys_ringer_vibrate",
+    "stat_sys_branded_vpn": "stat_sys_vpn_ic",
+    "stat_signal_soft_signal_stacked_primary_0": "stat_signal_lte_signal_stacked_primary_0",
+    "stat_signal_signal_lte_single_0": "stat_signal_signal_lte_single_0_os17",
+    "stat_signal_soft_signal_0": "stat_signal_signal_lte_single_0_os17",
+    "stat_signal_soft_signal_0_os17": "stat_signal_signal_lte_single_0_os17",
+    "stat_signal_wifi_signal_0": "stat_signal_wifi_signal_0_os17",
+    "stat_signal_soft_signal_stacked_primary_1": "stat_signal_lte_signal_stacked_primary_1",
+    "stat_signal_signal_lte_single_1": "stat_signal_signal_lte_single_1_os17",
+    "stat_signal_soft_signal_1": "stat_signal_signal_lte_single_1_os17",
+    "stat_signal_soft_signal_1_os17": "stat_signal_signal_lte_single_1_os17",
+    "stat_signal_wifi_signal_1": "stat_signal_wifi_signal_1_os17",
+    "stat_signal_soft_signal_stacked_primary_2": "stat_signal_lte_signal_stacked_primary_2",
+    "stat_signal_signal_lte_single_2": "stat_signal_signal_lte_single_2_os17",
+    "stat_signal_soft_signal_2": "stat_signal_signal_lte_single_2_os17",
+    "stat_signal_soft_signal_2_os17": "stat_signal_signal_lte_single_2_os17",
+    "stat_signal_wifi_signal_2": "stat_signal_wifi_signal_2_os17",
+    "stat_signal_soft_signal_stacked_primary_3": "stat_signal_lte_signal_stacked_primary_3",
+    "stat_signal_signal_lte_single_3": "stat_signal_signal_lte_single_3_os17",
+    "stat_signal_soft_signal_3": "stat_signal_signal_lte_single_3_os17",
+    "stat_signal_soft_signal_3_os17": "stat_signal_signal_lte_single_3_os17",
+    "stat_signal_wifi_signal_3": "stat_signal_wifi_signal_3_os17",
+    "stat_signal_soft_signal_stacked_primary_4": "stat_signal_lte_signal_stacked_primary_4",
+    "stat_signal_signal_lte_single_4": "stat_signal_signal_lte_single_4_os17",
+    "stat_signal_soft_signal_4": "stat_signal_signal_lte_single_4_os17",
+    "stat_signal_soft_signal_4_os17": "stat_signal_signal_lte_single_4_os17",
+    "stat_signal_wifi_signal_4": "stat_signal_wifi_signal_4_os17",
+    "ic_wifi_0": "stat_signal_wifi_signal_0_os17",
+    "ic_wifi_0_error": "stat_signal_wifi_signal_0_os17",
+    "ic_wifi_1": "stat_signal_wifi_signal_1_os17",
+    "ic_wifi_1_error": "stat_signal_wifi_signal_1_os17",
+    "ic_wifi_2": "stat_signal_wifi_signal_2_os17",
+    "ic_wifi_2_error": "stat_signal_wifi_signal_2_os17",
+    "ic_wifi_3": "stat_signal_wifi_signal_4_os17",
+    "ic_wifi_3_error": "stat_signal_wifi_signal_4_os17",
+    "ic_wifi_off": "stat_signal_wifi_signal_0_os17",
+    "ic_wifi_connecting": "stat_signal_wifi_signal_1_os17",
+    "stat_signal_soft_signal_stacked_primary_noservice": "stat_signal_lte_signal_stacked_primary_noservice",
+    "stat_battery_horizontal_progress": "stat_battery_horizontal_progress",
+    "stat_battery_horizontal_percent_out_progress": "stat_battery_horizontal_percent_out_progress",
+    "stat_battery_horizontal_percent_out_no_padding_progress": "stat_battery_horizontal_percent_out_no_padding_progress"
+  },
+  "dimensions": {
+    "battery_progress_corner_radius": 2.2,
+    "status_bar_battery_horizontal_progress_start": 3.0,
+    "status_bar_battery_horizontal_progress_end": 6.95,
+    "status_bar_battery_horizontal_progress_top": 4.45,
+    "status_bar_battery_horizontal_progress_bottom": 4.3,
+    "battery_percent_in_text_size": 10.0,
+    "status_bar_battery_horizontal_width": 29.0,
+    "status_bar_battery_horizontal_height": 17.0,
+    "battery_percent_in_text_margin_top": 0.14,
+    "battery_percent_in_text_offset_x": 1.0,
+    "battery_percent_in_text_offset_y": 0.25,
+    "status_bar_battery_icon_width_bar": 8.3,
+    "status_bar_battery_icon_height_bar": 12.0,
+    "signal_cluster_battery_padding": 1.2,
+    "stat_bt_battery_height": 16.0,
+    "stat_bt_battery_width": 16.0,
+    "stat_bt_battery_inset_left": -3.0,
+    "stat_bt_battery_inset_right": -1.0,
+    "status_bar_wifi_left_text_margin_end": 6.0
+  }
+}

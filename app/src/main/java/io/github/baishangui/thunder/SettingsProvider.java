@@ -58,6 +58,15 @@ public final class SettingsProvider extends ContentProvider {
             result.putBoolean("status_bar_stack_signals", prefs.getBoolean("status_bar_stack_signals", false));
             result.putInt("status_bar_icon_style", prefs.getInt("status_bar_icon_style", 0) == 1 ? 1 : 0);
             result.putInt("status_bar_hidden_icons", prefs.getInt("status_bar_hidden_icons", 0) & StatusBarIcons.ALL);
+            for (String key : new String[]{"status_bar_margins", "status_bar_center_enabled", "status_bar_compress_clock",
+                    "status_bar_clock", "status_bar_clock_seconds", "status_bar_clock_weekday", "status_bar_clock_bold"})
+                result.putBoolean(key, prefs.getBoolean(key, false));
+            result.putInt("status_bar_left", Math.max(0, Math.min(64, prefs.getInt("status_bar_left", 16))));
+            result.putInt("status_bar_right", Math.max(0, Math.min(64, prefs.getInt("status_bar_right", 16))));
+            result.putInt("status_bar_center", Math.max(0, Math.min(80, prefs.getInt("status_bar_center", 8))));
+            result.putInt("status_bar_clock_hour_format", Math.max(0, Math.min(2, prefs.getInt("status_bar_clock_hour_format", 0))));
+            result.putInt("status_bar_clock_date", Math.max(0, Math.min(2, prefs.getInt("status_bar_clock_date", 0))));
+            result.putInt("status_bar_clock_size", Math.max(8, Math.min(24, prefs.getInt("status_bar_clock_size", 14))));
             result.putBoolean("qs_card_tint", prefs.getBoolean("qs_card_tint", false));
             result.putInt("qs_card_color", prefs.getInt("qs_card_color", 0x33ffffff));
             for (String area : new String[]{"panel", "banner", "notification_card", "cloud_card", "volume_bar", "volume_panel"}) {

@@ -117,7 +117,9 @@ final class QsCardHook {
         // Separate control center uses SepQSResPool and bgDrawable/themeDrawable, not mBgDrawable.
         HookCallback owner=new HookCallback() {
             @Override protected void afterHookedMethod(Param p) {
-                if(p.hasThrowable()||!isWideCard(p.thisObject))return;
+                if(p.hasThrowable())return;
+                QsCornerHook.trackTile(p.thisObject);
+                if(!isWideCard(p.thisObject))return;
                 trackCardSurface((Drawable)Reflect.getObjectField(p.thisObject,"bgDrawable"));
                 trackCardSurface((Drawable)Reflect.getObjectField(p.thisObject,"themeDrawable"));
             }

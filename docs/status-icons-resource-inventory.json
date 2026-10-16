@@ -1480,5 +1480,104 @@
     "type": "vector",
     "width": 23.0,
     "height": 16.0
+  },
+  "stat_battery_horizontal_bg": {
+    "type": "vector",
+    "width": 25,
+    "height": 12,
+    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+  },
+  "stat_battery_horizontal_frame": {
+    "type": "vector",
+    "width": 25,
+    "height": 12,
+    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+  },
+  "stat_battery_horizontal_progress_bg": {
+    "type": "vector",
+    "width": 25,
+    "height": 12,
+    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+  },
+  "stat_battery_horizontal_progress": {
+    "type": "layer-list",
+    "width": 25,
+    "height": 12,
+    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+  },
+  "stat_battery_horizontal_percent_out_progress": {
+    "type": "layer-list",
+    "width": 25,
+    "height": 12,
+    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+  },
+  "stat_battery_horizontal_percent_out_no_padding_progress": {
+    "type": "layer-list",
+    "width": 25,
+    "height": 12,
+    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+  },
+  "stat_battery_horizontal_percent_out_bg": {
+    "type": "vector",
+    "width": 25,
+    "height": 12,
+    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+  },
+  "stat_battery_horizontal_percent_out_no_padding_bg": {
+    "type": "vector",
+    "width": 25,
+    "height": 12,
+    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+  },
+  "stat_battery_horizontal_percent_out_no_padding_progress_bg": {
+    "type": "vector",
+    "width": 25,
+    "height": 12,
+    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+  },
+  "stat_sys_headset_mic": {
+    "type": "vector",
+    "width": 22.67,
+    "height": 16,
+    "source": "PUI legacy alias"
+  },
+  "stat_battery_pb": {
+    "type": "vector"
+  },
+  "stat_battery_vertical_bg": {
+    "type": "vector"
+  },
+  "stat_battery_vertical_frame": {
+    "type": "vector"
+  },
+  "stat_bt_battery_black_0": {
+    "type": "vector"
+  },
+  "stat_bt_battery_black_3": {
+    "type": "vector"
+  },
+  "stat_bt_battery_black_4": {
+    "type": "vector"
+  },
+  "stat_bt_battery_black_5": {
+    "type": "vector"
+  },
+  "stat_bt_battery_black_6": {
+    "type": "vector"
+  },
+  "stat_bt_battery_black_7": {
+    "type": "vector"
+  },
+  "stat_bt_battery_black_8": {
+    "type": "vector"
+  },
+  "stat_bt_battery_black_9": {
+    "type": "vector"
+  },
+  "stat_bt_battery_low_1": {
+    "type": "vector"
+  },
+  "stat_bt_battery_low_2": {
+    "type": "vector"
   }
 }

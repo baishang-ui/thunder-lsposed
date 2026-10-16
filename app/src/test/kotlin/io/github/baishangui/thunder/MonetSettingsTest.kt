@@ -17,7 +17,7 @@ class MonetSettingsTest {
 
     @Test fun versionFifteenRetainsCustomColorsInsteadOfEnablingMonet() {
         val settings = Settings(accent = 0xff567843.toInt(), backdropColor = 0xffeee7da.toInt())
-        val legacy = JSONObject(settings.json()).put("version", 15)
+        val legacy = JSONObject(settings.json()).legacyVersion(15)
         legacy.getJSONObject("settings").remove("color_mode")
         assertEquals(settings, Settings.parse(legacy.toString()))
         assertEquals(0, Settings.from(Bundle()).colorMode)

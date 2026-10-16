@@ -69,7 +69,7 @@ public final class NotificationStyleCheck {
         for(String backend:new String[]{"applyBlurConfig","applyConfigToPlatformBlur","applyConfigToMotionBlur","applyConfigToStaticBlur","applyConfigToBlendWallpaper"}) {
             HookCallback.Param qsFrame=before(B+"ViewBlurProxy#"+backend,qsProxy);
             HookCallback.Param rowFrame=before(B+"ViewBlurProxy#"+backend,proxy);
-            check(qs.cornerRadius==31*density&&c.cornerRadius==13*density&&qs.blurRadius==142&&c.blurRadius==73&&
+            check(qs.cornerRadius==31f*density&&c.cornerRadius==13*density&&qs.blurRadius==142&&c.blurRadius==73&&
                 qs.motionBlurRadius==142&&c.motionBlurRadius==73,"independent blur and corners reach both card surfaces in "+backend);
             QsTintCheck.after(B+"ViewBlurProxy#"+backend,rowFrame);QsTintCheck.after(B+"ViewBlurProxy#"+backend,qsFrame);
         }

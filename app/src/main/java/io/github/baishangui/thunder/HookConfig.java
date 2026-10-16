@@ -16,6 +16,10 @@ final class HookConfig {
     final int margin;
     final int hiddenStatusIcons, statusIconStyle;
     final boolean statusBarStackSignals;
+    final boolean statusBarMargins, statusBarCenterEnabled, statusBarCompressClock;
+    final int statusBarLeft, statusBarRight, statusBarCenter;
+    final boolean statusBarClock, statusBarClockSeconds, statusBarClockWeekday, statusBarClockBold;
+    final int statusBarClockHourFormat, statusBarClockDate, statusBarClockSize;
     final boolean hideGestureBar, removeGestureBarInset;
     HookConfig(Bundle data) {
         volumeSize = data != null && data.getBoolean("volume_size",false);
@@ -29,6 +33,19 @@ final class HookConfig {
         hideGestureBar = data != null && data.getBoolean("gesture_bar_hidden", false);
         removeGestureBarInset = data != null && data.getBoolean("gesture_bar_remove_inset", false);
         statusBarStackSignals = data != null && data.getBoolean("status_bar_stack_signals",false);
+        statusBarMargins = data != null && data.getBoolean("status_bar_margins", false);
+        statusBarCenterEnabled = data != null && data.getBoolean("status_bar_center_enabled", false);
+        statusBarCompressClock = data != null && data.getBoolean("status_bar_compress_clock", false);
+        statusBarLeft = bounded(data,"status_bar_left",16,0,64);
+        statusBarRight = bounded(data,"status_bar_right",16,0,64);
+        statusBarCenter = bounded(data,"status_bar_center",8,0,80);
+        statusBarClock = data != null && data.getBoolean("status_bar_clock", false);
+        statusBarClockSeconds = data != null && data.getBoolean("status_bar_clock_seconds", false);
+        statusBarClockWeekday = data != null && data.getBoolean("status_bar_clock_weekday", false);
+        statusBarClockBold = data != null && data.getBoolean("status_bar_clock_bold", false);
+        statusBarClockHourFormat = bounded(data,"status_bar_clock_hour_format",0,0,2);
+        statusBarClockDate = bounded(data,"status_bar_clock_date",0,0,2);
+        statusBarClockSize = bounded(data,"status_bar_clock_size",14,8,24);
         statusIconStyle = data != null && data.getInt("status_bar_icon_style", 0) == 1 ? 1 : 0;
         hiddenStatusIcons = data == null ? 0 : data.getInt("status_bar_hidden_icons", 0) & StatusBarIcons.ALL;
         shade = new Area(data, data != null && data.containsKey("panel_radius") ? "panel" : "shade");

@@ -32,8 +32,10 @@ internal fun AnimatedMenuContent(
         modifier = modifier,
         contentAlignment = Alignment.TopCenter,
         transitionSpec = {
-            val enteringDetail = initialState.detail == null && targetState.detail != null
-            val leavingDetail = initialState.detail != null && targetState.detail == null
+            val enteringDetail = (initialState.detail == null && targetState.detail != null) ||
+                (targetState.detail?.parent != null && targetState.detail?.parent == initialState.detail)
+            val leavingDetail = (initialState.detail != null && targetState.detail == null) ||
+                (initialState.detail?.parent != null && initialState.detail?.parent == targetState.detail)
             val forward = if (enteringDetail || leavingDetail) enteringDetail else targetState.page > initialState.page
             val direction = if (forward) 1 else -1
             val enter = slideInHorizontally(tween(320, easing = MenuEasing)) { width ->

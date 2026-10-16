@@ -39,7 +39,7 @@ public final class QsStateCheck {
             check(motion==c.motionBlurMixConfig,state+" retains native motion tint");
             p=QsTintCheck.before(B+"ViewBlurProxy#applyConfigToPlatformBlur",proxy);
             check(c.platformMixConfig==nativeMix,state+" native backend receives native state color");
-            check(c.cornerRadius==19*android.content.res.Resources.getSystem().getDisplayMetrics().density,state+" custom corners remain independent of native state color");
+            check(c.cornerRadius==19f*android.content.res.Resources.getSystem().getDisplayMetrics().density,state+" custom corners remain independent of native state color");
             QsTintCheck.after(B+"ViewBlurProxy#applyConfigToPlatformBlur",p);
             check(c.cornerRadius==47,state+" native corner fields restore after drawing");
         }

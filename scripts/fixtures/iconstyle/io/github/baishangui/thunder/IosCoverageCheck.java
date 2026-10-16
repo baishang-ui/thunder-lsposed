@@ -1,36 +1,23 @@
 package io.github.baishangui.thunder;
-import java.nio.file.*;
-import android.graphics.*;
+
+/** Actual resource allowlist coverage; geometry is audited against C17 XML by Python. */
 public final class IosCoverageCheck {
- static int checks,failures;
- static void check(boolean v,String s){checks++;if(!v){failures++;System.out.println("FAIL: "+s);}}
- public static void main(String[] args)throws Throwable{
-  for(String n:Files.readAllLines(java.nio.file.Path.of("scripts/fixtures/iconstyle/status-resources.txt"))){
-   var s=IosStatusIcons.system("com.android.systemui:drawable/"+n);
-   check(s!=null,"C17 asset has replacement: "+n);
-   if(s==null)continue;
-   var icon=new IosIconDrawable(s);icon.setBounds(0,0,120,80);Canvas c=new Canvas();icon.draw(c);
-   check(c.depth==0 && (!c.operations.isEmpty() || n.contains("activity_")),"drawable geometry exists: "+n);
-  }
-  float previousRight=Float.NaN,x=0;
-  for(var kind:new IosStatusIcons.Kind[]{IosStatusIcons.Kind.WIFI,IosStatusIcons.Kind.CELLULAR,IosStatusIcons.Kind.BLUETOOTH}) {
-   var plain=new IosStatusIcons.Symbol(kind);var original=new IosIconDrawable(plain);original.setBounds(0,0,210,200);
-   Canvas before=new Canvas();original.draw(before);
-   for(int flag:new int[]{IosStatusIcons.WARNING,IosStatusIcons.ROAMING,IosStatusIcons.NO_VOICE,IosStatusIcons.CONNECTING}) {
-    var marked=plain.marked(flag);var changed=new IosIconDrawable(marked);changed.setBounds(0,0,210,200);Canvas after=new Canvas();changed.draw(after);
-    check(IosIconDrawable.cellWidth(plain)==IosIconDrawable.cellWidth(marked),"status changes keep cell width: "+kind+"/"+flag);
-    check(java.util.Arrays.equals(before.pathBounds.get(0),after.pathBounds.get(0)),"status changes keep base glyph position and size: "+kind+"/"+flag);
-   }
-  }
-  for(var kind:new IosStatusIcons.Kind[]{IosStatusIcons.Kind.CELLULAR,IosStatusIcons.Kind.WIFI,IosStatusIcons.Kind.BATTERY}){
-   var symbol=new IosStatusIcons.Symbol(kind);float w=IosIconDrawable.cellWidth(symbol);
-   var drawable=new IosIconDrawable(symbol);drawable.setBounds(0,0,Math.round(w*10),200);Canvas canvas=new Canvas();drawable.draw(canvas);
-   float l=canvas.pathBounds.stream().map(a->a[0]).min(Float::compare).orElse(0f)/10+x;
-   float r=canvas.pathBounds.stream().map(a->a[2]).max(Float::compare).orElse(0f)/10+x;
-   if(!Float.isNaN(previousRight))check(Math.abs(l-previousRight-3)<.15f,"signal/Wi-Fi/battery share a 3 dp visible gap");
-   previousRight=r;x+=w;
-  }
-  if(failures>0)throw new AssertionError(failures+"/"+checks+" coverage checks failed");
-  System.out.println("Verified "+checks+" firmware artwork checks; native layout is preserved.");
- }
+    public static void main(String[] args) {
+        for (String name : new String[]{"stat_sys_airplane_mode", "stat_sys_alarm", "stat_sys_dnd",
+                "stat_sys_data_bluetooth", "stat_sys_data_bluetooth_connected", "stat_sys_headset",
+                "stat_sys_headset_mic", "stat_sys_high_performance", "stat_sys_location", "stat_sys_nfc",
+                "stat_sys_ringer_silent", "stat_sys_ringer_vibrate", "stat_sys_vpn_ic", "stat_sys_data_saver",
+                "stat_battery_horizontal_bg", "stat_battery_vertical_bg", "stat_bt_battery_black_0"})
+            IosStatusBarCheck.check(IosStatusResources.replacement("com.android.systemui:drawable/"+name)!=0,"original C17 asset available: "+name);
+        for (String name : new String[]{"stat_sys_hotspot", "stat_sys_cast", "stat_sys_rotate_portrait",
+                "stat_sys_managed_profile_status", "stat_sys_sos", "ic_wifi_connecting", "ic_wifi_off"})
+            IosStatusBarCheck.check(IosStatusResources.replacement("com.android.systemui:drawable/"+name)==0,"unprovided or incompatible resource remains native: "+name);
+        for (int level=0;level<5;level++) {
+            int primary=IosStatusResources.replacement("com.android.systemui:drawable/stat_signal_lte_signal_stacked_primary_"+level);
+            int secondary=IosStatusResources.replacement("com.android.systemui:drawable/stat_signal_lte_signal_stacked_secondary_"+level);
+            int wifi=IosStatusResources.replacement("com.android.systemui:drawable/stat_signal_wifi_signal_"+level+"_os17");
+            IosStatusBarCheck.check(primary!=0 && secondary!=0 && primary!=secondary && wifi!=0,"native C17 row/state resources: "+level);
+        }
+        System.out.println("Verified C17-only allowlist, native fallbacks and dual-SIM state resources.");
+    }
 }

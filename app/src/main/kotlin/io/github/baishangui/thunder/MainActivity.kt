@@ -121,7 +121,7 @@ class MainActivity : ComponentActivity() {
                 if (message.isNotEmpty()) { delay(5000); message = "" }
             }
             fun navigateBack() {
-                if (detail != null) detail = null
+                if (detail != null) detail = detail?.parent
                 else if (page != 0) page = 0
                 else { SettingsWriter.submit(this@MainActivity, draft, immediate = true); finish() }
             }
@@ -207,7 +207,7 @@ class MainActivity : ComponentActivity() {
                                                 Summary("适配系统", "ColorOS 17")
                                                 UiText("LSPosed API 102\nMiuix UI & Icons 0.9.0\nLiquid Glass · Kyant0 Backdrop 1.0.6", 13, muted = true)
                                             }
-                                            else -> AdjustmentDetails(currentDetail, draft, { draft = it }, { testNotification() })
+                                            else -> AdjustmentDetails(currentDetail, draft, { draft = it }, { testNotification() }, { detail = it })
                                         }
                                     } else when(destination.page) {
                                         0 -> {
@@ -384,7 +384,7 @@ private fun alphaPercent(c: Int)=TintColor.percent(c)
 }
 
 @Composable internal fun AreaControls(title: String,area: Area,blur: Boolean=true,corner: Boolean=true,
-                                    cornerRange: IntRange=0..64,relativeCorners: Boolean=false,
+                                    cornerRange: IntRange=0..64,unifiedCorners: Boolean=false,
                                     showTitle: Boolean=false,onChange: (Area)->Unit) {
     CompositionLocalProvider(LocalControlScope provides "${LocalControlScope.current}:$title") {
         if (showTitle) UiText(title,14,muted=true,modifier=Modifier.padding(start=8.dp,top=4.dp))
@@ -398,8 +398,8 @@ private fun alphaPercent(c: Int)=TintColor.percent(c)
             if (area.tint) LiquidColorSetting("混色颜色",area.color) { onChange(area.copy(color=it)) }
             if (corner) {
                 SettingsDivider()
-                LiquidSwitchRow("自定义圆角", "", area.cornerEnabled) { onChange(area.copy(cornerEnabled=it)) }
-                if (area.cornerEnabled) LiquidValueSlider(if(relativeCorners) "圆角程度" else "圆角半径",area.corner,cornerRange,if(relativeCorners) " / 64" else " dp") { onChange(area.copy(corner=it)) }
+                LiquidSwitchRow("自定义圆角", if(unifiedCorners) "所有磁贴统一半径，与通知条使用相同的 dp 单位" else "", area.cornerEnabled) { onChange(area.copy(cornerEnabled=it)) }
+                if (area.cornerEnabled) LiquidValueSlider("圆角半径",area.corner,cornerRange," dp") { onChange(area.copy(corner=it)) }
             }
             if (area.blur || area.tint || area.cornerEnabled) {
                 SettingsDivider()

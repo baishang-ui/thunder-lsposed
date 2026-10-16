@@ -16,7 +16,7 @@ class StatusIconStyleTest {
     }
     @Test fun oldConfigKeepsNativeStyleAndExistingVisibility() {
         val s = Settings(hiddenStatusIcons = StatusBarIcons.ALL, panel = Area(tint = true))
-        val old = JSONObject(s.json()).put("version", 8).removeV13Fields().removeNotificationFields()
+        val old = JSONObject(s.json()).legacyVersion(8).removeV13Fields().removeNotificationFields()
         old.getJSONObject("settings").apply { remove("status_bar_icon_style"); remove("status_bar_stack_signals") }
         assertEquals(s, Settings.parse(old.toString()))
     }
@@ -25,7 +25,7 @@ class StatusIconStyleTest {
         assertEquals(value, Settings.parse(value.json()))
         assertEquals(value, Settings.from(value.bundle()))
         assertTrue(HookConfig(value.bundle()).statusBarStackSignals)
-        val old = JSONObject(value.json()).put("version", 10).removeV13Fields().removeNotificationFields()
+        val old = JSONObject(value.json()).legacyVersion(10).removeV13Fields().removeNotificationFields()
         old.getJSONObject("settings").remove("status_bar_stack_signals")
         assertEquals(value.copy(statusBarStackSignals = false), Settings.parse(old.toString()))
         for (wrong in listOf("true", 1, JSONObject.NULL)) {

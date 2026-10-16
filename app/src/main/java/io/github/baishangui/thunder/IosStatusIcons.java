@@ -136,6 +136,7 @@ final class IosStatusIcons {
         Symbol s=signal(resource,true);if(s!=null)return s;
         s=signal(resource,false);if(s!=null)return s;
         String n=name(resource);
+        if (n.startsWith("stat_battery_horizontal_") && IosBatteryResources.contains(n)) return new Symbol(Kind.BATTERY);
         return switch(n) {
             case "stat_charge_wireless_reverse" -> new Symbol(Kind.REVERSE_CHARGE);
             case "ic_activity_down" -> new Symbol(Kind.ACTIVITY_IN);
@@ -150,7 +151,7 @@ final class IosStatusIcons {
             case "stat_sys_data_saver" -> new Symbol(Kind.DATA_SAVER);
             case "stat_sys_dnd" -> new Symbol(Kind.MOON);
             case "stat_sys_ethernet", "stat_sys_ethernet_fully" -> new Symbol(Kind.ETHERNET);
-            case "stat_sys_headset" -> new Symbol(Kind.HEADPHONES);
+            case "stat_sys_headset", "stat_sys_headset_mic" -> new Symbol(Kind.HEADPHONES);
             case "stat_sys_high_performance" -> new Symbol(Kind.PERFORMANCE);
             case "stat_sys_hotspot" -> new Symbol(Kind.HOTSPOT);
             case "stat_sys_location" -> new Symbol(Kind.LOCATION);

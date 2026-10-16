@@ -25,6 +25,7 @@ final class ResourceOverrides {
                     if (p.hasThrowable()) return;
                     try {
                         Resources r=(Resources)p.thisObject;
+                        if(IosStatusBarHook.dimensionResult(p,getter,r,(Integer)p.args[0]))return;
                         Integer dp=dimension(name(r,(Integer)p.args[0]), ShadeHook.snapshot());
                         if(dp==null)return;
                         float px=dp*r.getDisplayMetrics().density;
@@ -53,6 +54,7 @@ final class ResourceOverrides {
             @Override protected void afterHookedMethod(HookCallback.Param p) {
                 if(p.hasThrowable())return;
                 try {
+                    if(IosStatusBarHook.dimensionValue(p))return;
                     String resource=name((Resources)p.thisObject,(Integer)p.args[0]);
                     Integer c=color(resource,ShadeHook.snapshot());
                     Integer dp=dimension(resource,ShadeHook.snapshot());
@@ -69,9 +71,11 @@ final class ResourceOverrides {
         for(String getter:new String[]{"getColor","getColorStateList","getDimension","getDimensionPixelSize","getDimensionPixelOffset"}) {
             HookCallback callback=new HookCallback() {
                 @Override protected void afterHookedMethod(HookCallback.Param p) {
-                    if(p.hasThrowable()||!ShadeHook.snapshot().enabled)return;
+                    if(p.hasThrowable())return;
                     TypedArray array=(TypedArray)p.thisObject;int id=array.getResourceId((Integer)p.args[0],0);
                     if(id==0)return;
+                    if(!getter.startsWith("getColor") && IosStatusBarHook.dimensionResult(p,getter,array.getResources(),id))return;
+                    if(!ShadeHook.snapshot().enabled)return;
                     try {
                         String resource=name(array.getResources(),id);
                         if(getter.startsWith("getColor")) {
@@ -93,7 +97,7 @@ final class ResourceOverrides {
         }
     }
 
-    private static String name(Resources resources,int id) {
+    static String name(Resources resources,int id) {
         synchronized(names) {
             Map<Integer,String> cache=names.computeIfAbsent(resources,k->new HashMap<>());
             String value=cache.get(id);

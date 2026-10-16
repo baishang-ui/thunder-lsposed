@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
@@ -31,8 +32,8 @@ import top.yukonga.miuix.kmp.basic.Text
     SettingsGroup {
         UiText("iOS 风格预览", 15)
         StatusStrip(dark = false, stacked = false)
-        StatusStrip(dark = true, stacked = false)
-        UiText("图形示意，实际状态与排列跟随系统。电池样式、百分比和充电显示由系统处理。", 12, muted = true)
+        StatusStrip(dark = true, stacked = true)
+        UiText("图标、Wi-Fi 和电池全部直接使用 PUI ColorOS 17 包内原始资源，Wi-Fi 与移动信号不显示角标、5G 文字和上下行箭头；状态栏加高 4dp，图标放大 12%，图标间距额外增加约 2dp，横向电池高度为 17dp；深色行展示 C17 主卡信号柱与副卡圆点。横向电池使用 PUI 外观，电量、百分比位置、充电状态与双卡排列跟随系统设置。", 12, muted = true)
     }
     SettingsGroup {
         UiText("状态图标", 15)
@@ -42,15 +43,10 @@ import top.yukonga.miuix.kmp.basic.Text
             IosStatusIcons.Kind.NFC to "NFC", IosStatusIcons.Kind.PERFORMANCE to "高性能",
             IosStatusIcons.Kind.ALARM to "闹钟",
             IosStatusIcons.Kind.MOON to "勿扰", IosStatusIcons.Kind.VPN to "VPN",
-            IosStatusIcons.Kind.HOTSPOT to "个人热点", IosStatusIcons.Kind.ROTATION to "旋转锁定",
             IosStatusIcons.Kind.HEADPHONES to "耳机",
             IosStatusIcons.Kind.AIRPLANE to "飞行模式",
             IosStatusIcons.Kind.LOCATION to "定位",
-            IosStatusIcons.Kind.CAST to "投屏", IosStatusIcons.Kind.ETHERNET to "有线网络",
-            IosStatusIcons.Kind.WORK to "工作资料", IosStatusIcons.Kind.DATA_SAVER to "流量节省",
-            IosStatusIcons.Kind.CAMERA to "相机", IosStatusIcons.Kind.MICROPHONE to "麦克风",
-            IosStatusIcons.Kind.RECORDING to "录制", IosStatusIcons.Kind.STEALTH to "隐私保护",
-            IosStatusIcons.Kind.REVERSE_CHARGE to "反向充电", IosStatusIcons.Kind.TTY to "文字电话", IosStatusIcons.Kind.NO_SERVICE to "无服务"
+            IosStatusIcons.Kind.DATA_SAVER to "流量节省"
         )
         val minCellWidth = with(LocalDensity.current) { 44.sp.toDp() } + 16.dp
         BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -79,9 +75,9 @@ import top.yukonga.miuix.kmp.basic.Text
         .padding(20.dp), horizontalArrangement = Arrangement.SpaceBetween,
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("9:41", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = ink)
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             if (stacked) {
-                Box(Modifier.size(IosIconDrawable.cellWidth(IosStatusIcons.Symbol(IosStatusIcons.Kind.CELLULAR, 3, 4, 1)).dp, IosIconDrawable.cellHeight().dp)) {
+                Box(Modifier.size(24.64.dp, 22.4.dp)) {
                     StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.CELLULAR, 3, 4, 1), ink, "SIM 1 信号，三格")
                     StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.CELLULAR, 2, 4, 2), ink, "SIM 2 信号，两格")
                 }
@@ -90,17 +86,69 @@ import top.yukonga.miuix.kmp.basic.Text
                 StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.CELLULAR, 2, 4), ink, "SIM 2 信号，两格")
             }
             StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.WIFI, 4, 4), ink, "Wi-Fi 信号，满格")
+            StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.BATTERY, 75, 100), ink, "横向电池，电量百分之七十五", cutout = if (dark) Color(0xff17191d) else Color(0xfff1f3f7))
         }
     }
 }
 
-@Composable private fun StatusGlyph(symbol: IosStatusIcons.Symbol, color: Color, label: String, battery: Boolean = false, charging: Boolean = false, large: Boolean = false) {
-    val drawable = remember(symbol) { IosIconDrawable(symbol) }
-    Canvas(Modifier.size((IosIconDrawable.cellWidth(symbol) * if (large) 2.4f else 1f).dp, (IosIconDrawable.cellHeight() * if (large) 2.4f else 1f).dp).semantics { contentDescription = label }) {
-        drawable.color(android.graphics.Color.argb((color.alpha * 255).toInt(), (color.red * 255).toInt(),
-            (color.green * 255).toInt(), (color.blue * 255).toInt()))
-        if (battery) drawable.battery(charging, android.graphics.Color.argb(255, (color.red * 255).toInt(), (color.green * 255).toInt(), (color.blue * 255).toInt()))
-        drawable.setBounds(0, 0, size.width.toInt(), size.height.toInt())
-        drawable.draw(drawContext.canvas.nativeCanvas)
+@Composable private fun StatusGlyph(symbol: IosStatusIcons.Symbol, color: Color, label: String, cutout: Color = Color.White) {
+    val resources = LocalResources.current
+    val density = LocalDensity.current.density
+    val battery = symbol.kind() == IosStatusIcons.Kind.BATTERY
+    val drawable = remember(symbol, resources) {
+        val id = IosStatusResources.replacement("com.android.systemui:drawable/" + previewResource(symbol))
+        require(id != 0) { "Preview must use an original C17 resource" }
+        resources.getDrawable(id, null)!!.mutate()
     }
+    val progress = remember(resources) { resources.getDrawable(R.drawable.thunder_ios_stat_battery_horizontal_progress, null)!!.mutate().apply { level = 7500 } }
+    val percentPaint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+        textAlign = android.graphics.Paint.Align.CENTER
+    } }
+    val width = if (symbol.row() > 0 || symbol.kind() == IosStatusIcons.Kind.CELLULAR) 22f
+        else if (battery) 29f else (drawable.intrinsicWidth / density).coerceIn(16f, 30f) + 3f
+    Canvas(Modifier.size((width * 1.12f).dp, 22.4.dp).semantics { contentDescription = label }) {
+        val tint = android.graphics.Color.argb((color.alpha * 255).toInt(), (color.red * 255).toInt(), (color.green * 255).toInt(), (color.blue * 255).toInt())
+        val scale = minOf((size.width - 3.dp.toPx()) / drawable.intrinsicWidth.coerceAtLeast(1), size.height / drawable.intrinsicHeight.coerceAtLeast(1))
+        val w = (drawable.intrinsicWidth * scale).toInt()
+        val h = (drawable.intrinsicHeight * scale * if (battery) (17f / 19.04f) else 1f).toInt()
+        val y = ((size.height - h) / 2).toInt()
+        drawable.setTint(tint)
+        drawable.setBounds(0, y, w, y + h)
+        drawable.alpha = if (battery) 64 else 255
+        drawable.draw(drawContext.canvas.nativeCanvas)
+        if (battery) {
+            progress.setTint(tint)
+            progress.setBounds(0, y, w, y + h)
+            progress.draw(drawContext.canvas.nativeCanvas)
+            percentPaint.color = android.graphics.Color.rgb((cutout.red * 255).toInt(), (cutout.green * 255).toInt(), (cutout.blue * 255).toInt())
+            percentPaint.textSize = h * .62f
+            drawContext.canvas.nativeCanvas.drawText("75", w * .47f, y + h / 2f - (percentPaint.ascent() + percentPaint.descent()) / 2f, percentPaint)
+        }
+    }
+}
+
+private fun previewResource(symbol: IosStatusIcons.Symbol): String = when (symbol.kind()) {
+    IosStatusIcons.Kind.CELLULAR -> if (symbol.row() > 0)
+        "stat_signal_lte_signal_stacked_${if (symbol.row() == 1) "primary" else "secondary"}_${symbol.level()}"
+        else "stat_signal_signal_lte_single_${symbol.level()}_os17"
+    IosStatusIcons.Kind.WIFI -> "stat_signal_wifi_signal_${symbol.level()}_os17"
+    IosStatusIcons.Kind.BATTERY -> "stat_battery_horizontal_bg"
+    IosStatusIcons.Kind.BLUETOOTH -> "stat_sys_data_bluetooth_connected_stop"
+    IosStatusIcons.Kind.SILENT -> "stat_sys_ringer_silent"
+    IosStatusIcons.Kind.VIBRATE -> "stat_sys_flavor_one_ringer_vibrate"
+    IosStatusIcons.Kind.MOON -> "stat_sys_dnd"
+    IosStatusIcons.Kind.VPN -> "stat_sys_vpn_ic"
+    IosStatusIcons.Kind.PERFORMANCE -> "stat_sys_high_performance"
+    IosStatusIcons.Kind.ROTATION -> "stat_sys_rotate_portrait"
+    IosStatusIcons.Kind.HEADPHONES -> "stat_sys_headset"
+    IosStatusIcons.Kind.AIRPLANE -> "stat_sys_airplane_mode"
+    IosStatusIcons.Kind.WORK -> "stat_sys_managed_profile_status"
+    IosStatusIcons.Kind.MICROPHONE -> "stat_sys_mic_none"
+    IosStatusIcons.Kind.RECORDING -> "stat_sys_logging"
+    IosStatusIcons.Kind.STEALTH -> "stat_stealth_mode"
+    IosStatusIcons.Kind.REVERSE_CHARGE -> "stat_charge_wireless_reverse"
+    IosStatusIcons.Kind.TTY -> "stat_sys_tty_mode"
+    IosStatusIcons.Kind.NO_SERVICE -> "stat_signal_signal_null_lte"
+    else -> "stat_sys_${symbol.kind().name.lowercase()}"
 }

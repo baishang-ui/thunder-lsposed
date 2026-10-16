@@ -1,0 +1,1 @@
+package android.content.res;public class Configuration {public android.os.LocaleList getLocales(){return new android.os.LocaleList();}public static final int UI_MODE_NIGHT_MASK=48,UI_MODE_NIGHT_YES=32;public int uiMode=32;}

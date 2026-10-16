@@ -29,9 +29,9 @@ class SettingsTest {
     }
     @Test fun wrongVersionOrForeignFormatFails() {
         val root=JSONObject(Settings().json())
-        root.put("version",17)
+        root.put("version",18)
         assertThrows(IllegalArgumentException::class.java) { Settings.parse(root.toString()) }
-        root.put("version",3).removeV13Fields().put("format","other")
+        root.legacyVersion(3).removeV13Fields().put("format","other")
         assertThrows(IllegalArgumentException::class.java) { Settings.parse(root.toString()) }
     }
     @Test fun missingAndUnknownFieldsFail() {
@@ -59,7 +59,7 @@ class SettingsTest {
         assertEquals(s,Settings.parse(s.json()))
     }
     @Test fun v3ImportRetainsValuesAndAddsNativeCloudDefaults() {
-        val old = JSONObject(Settings(panel=Area(true,78,true,0x557799aa)).json()).put("version",3).removeV13Fields()
+        val old = JSONObject(Settings(panel=Area(true,78,true,0x557799aa)).json()).legacyVersion(3).removeV13Fields()
         old.removeV7Fields()
         val data=old.getJSONObject("settings")
         listOf("cloud_height_enabled","cloud_height","cloud_corner_enabled","cloud_corner",
@@ -74,7 +74,7 @@ class SettingsTest {
     }
     @Test fun v4ImportKeepsCloudAndDefaultsStatusIconsToSystem() {
         val settings=Settings(cloudHeightEnabled=true,cloudHeight=41,hiddenStatusIcons=StatusBarIcons.ALL)
-        val old=JSONObject(settings.json()).put("version",4).removeV13Fields()
+        val old=JSONObject(settings.json()).legacyVersion(4).removeV13Fields()
         old.removeV7Fields()
         old.getJSONObject("settings").remove("status_bar_hidden_icons")
         old.getJSONObject("settings").apply { remove("qs_card_tint");remove("qs_card_color") }

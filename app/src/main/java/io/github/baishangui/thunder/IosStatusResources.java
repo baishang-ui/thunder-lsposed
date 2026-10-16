@@ -4,7 +4,6 @@ package io.github.baishangui.thunder;
 final class IosStatusResources {
     static int replacement(String name) {
         return switch(name) {
-            case "com.android.systemui:drawable/stat_charge_wireless_reverse" -> R.drawable.thunder_ios_stat_charge_wireless_reverse;
             case "com.android.systemui:drawable/ic_activity_down" -> R.drawable.thunder_ios_ic_activity_down;
             case "com.android.systemui:drawable/ic_activity_up" -> R.drawable.thunder_ios_ic_activity_up;
             case "com.android.systemui:drawable/ic_vowifi" -> R.drawable.thunder_ios_ic_vowifi;
@@ -17,8 +16,6 @@ final class IosStatusResources {
             case "com.android.systemui:drawable/ic_wifi_2_error" -> R.drawable.thunder_ios_ic_wifi_2_error;
             case "com.android.systemui:drawable/ic_wifi_3" -> R.drawable.thunder_ios_ic_wifi_3;
             case "com.android.systemui:drawable/ic_wifi_3_error" -> R.drawable.thunder_ios_ic_wifi_3_error;
-            case "com.android.systemui:drawable/ic_wifi_connecting" -> R.drawable.thunder_ios_ic_wifi_connecting;
-            case "com.android.systemui:drawable/ic_wifi_off" -> R.drawable.thunder_ios_ic_wifi_off;
             case "com.android.systemui:drawable/stat_signal_activity_default_public" -> R.drawable.thunder_ios_stat_signal_activity_default_public;
             case "com.android.systemui:drawable/stat_signal_activity_default_public_os17" -> R.drawable.thunder_ios_stat_signal_activity_default_public_os17;
             case "com.android.systemui:drawable/stat_signal_activity_in_public" -> R.drawable.thunder_ios_stat_signal_activity_in_public;
@@ -204,14 +201,10 @@ final class IosStatusResources {
             case "com.android.systemui:drawable/stat_signal_wifi_signal_3_os17" -> R.drawable.thunder_ios_stat_signal_wifi_signal_3_os17;
             case "com.android.systemui:drawable/stat_signal_wifi_signal_4" -> R.drawable.thunder_ios_stat_signal_wifi_signal_4;
             case "com.android.systemui:drawable/stat_signal_wifi_signal_4_os17" -> R.drawable.thunder_ios_stat_signal_wifi_signal_4_os17;
-            case "com.android.systemui:drawable/stat_stealth_mode" -> R.drawable.thunder_ios_stat_stealth_mode;
             case "com.android.systemui:drawable/stat_sys_airplane_mode" -> R.drawable.thunder_ios_stat_sys_airplane_mode;
             case "com.android.systemui:drawable/stat_sys_alarm" -> R.drawable.thunder_ios_stat_sys_alarm;
             case "com.android.systemui:drawable/stat_sys_bluetooth_acquiring_anim" -> R.drawable.thunder_ios_stat_sys_bluetooth_acquiring_anim;
             case "com.android.systemui:drawable/stat_sys_branded_vpn" -> R.drawable.thunder_ios_stat_sys_branded_vpn;
-            case "com.android.systemui:drawable/stat_sys_camera" -> R.drawable.thunder_ios_stat_sys_camera;
-            case "com.android.systemui:drawable/stat_sys_cast" -> R.drawable.thunder_ios_stat_sys_cast;
-            case "com.android.systemui:drawable/stat_sys_connected_display" -> R.drawable.thunder_ios_stat_sys_connected_display;
             case "com.android.systemui:drawable/stat_sys_data_bluetooth" -> R.drawable.thunder_ios_stat_sys_data_bluetooth;
             case "com.android.systemui:drawable/stat_sys_data_bluetooth_connected" -> R.drawable.thunder_ios_stat_sys_data_bluetooth_connected;
             case "com.android.systemui:drawable/stat_sys_data_bluetooth_connected_ing" -> R.drawable.thunder_ios_stat_sys_data_bluetooth_connected_ing;
@@ -234,25 +227,15 @@ final class IosStatusResources {
             case "com.android.systemui:drawable/stat_sys_data_fully_connected_tmo_5g" -> R.drawable.thunder_ios_stat_sys_data_fully_connected_tmo_5g;
             case "com.android.systemui:drawable/stat_sys_data_saver" -> R.drawable.thunder_ios_stat_sys_data_saver;
             case "com.android.systemui:drawable/stat_sys_dnd" -> R.drawable.thunder_ios_stat_sys_dnd;
-            case "com.android.systemui:drawable/stat_sys_ethernet" -> R.drawable.thunder_ios_stat_sys_ethernet;
-            case "com.android.systemui:drawable/stat_sys_ethernet_fully" -> R.drawable.thunder_ios_stat_sys_ethernet_fully;
             case "com.android.systemui:drawable/stat_sys_flavor_one_ringer_vibrate" -> R.drawable.thunder_ios_stat_sys_flavor_one_ringer_vibrate;
             case "com.android.systemui:drawable/stat_sys_headset" -> R.drawable.thunder_ios_stat_sys_headset;
             case "com.android.systemui:drawable/stat_sys_high_performance" -> R.drawable.thunder_ios_stat_sys_high_performance;
-            case "com.android.systemui:drawable/stat_sys_hotspot" -> R.drawable.thunder_ios_stat_sys_hotspot;
             case "com.android.systemui:drawable/stat_sys_location" -> R.drawable.thunder_ios_stat_sys_location;
-            case "com.android.systemui:drawable/stat_sys_logging" -> R.drawable.thunder_ios_stat_sys_logging;
-            case "com.android.systemui:drawable/stat_sys_managed_profile_status" -> R.drawable.thunder_ios_stat_sys_managed_profile_status;
-            case "com.android.systemui:drawable/stat_sys_mic_none" -> R.drawable.thunder_ios_stat_sys_mic_none;
             case "com.android.systemui:drawable/stat_sys_nfc" -> R.drawable.thunder_ios_stat_sys_nfc;
-            case "com.android.systemui:drawable/stat_sys_no_internet_branded_vpn" -> R.drawable.thunder_ios_stat_sys_no_internet_branded_vpn;
-            case "com.android.systemui:drawable/stat_sys_no_internet_vpn_ic" -> R.drawable.thunder_ios_stat_sys_no_internet_vpn_ic;
             case "com.android.systemui:drawable/stat_sys_ringer_silent" -> R.drawable.thunder_ios_stat_sys_ringer_silent;
             case "com.android.systemui:drawable/stat_sys_ringer_vibrate" -> R.drawable.thunder_ios_stat_sys_ringer_vibrate;
             case "com.android.systemui:drawable/stat_sys_roaming" -> R.drawable.thunder_ios_stat_sys_roaming;
             case "com.android.systemui:drawable/stat_sys_roaming_updated" -> R.drawable.thunder_ios_stat_sys_roaming_updated;
-            case "com.android.systemui:drawable/stat_sys_rotate_landscape" -> R.drawable.thunder_ios_stat_sys_rotate_landscape;
-            case "com.android.systemui:drawable/stat_sys_rotate_portrait" -> R.drawable.thunder_ios_stat_sys_rotate_portrait;
             case "com.android.systemui:drawable/stat_sys_signal_0" -> R.drawable.thunder_ios_stat_sys_signal_0;
             case "com.android.systemui:drawable/stat_sys_signal_0_fully" -> R.drawable.thunder_ios_stat_sys_signal_0_fully;
             case "com.android.systemui:drawable/stat_sys_signal_1" -> R.drawable.thunder_ios_stat_sys_signal_1;
@@ -298,16 +281,35 @@ final class IosStatusResources {
             case "com.android.systemui:drawable/stat_sys_signal_soft_signal_2" -> R.drawable.thunder_ios_stat_sys_signal_soft_signal_2;
             case "com.android.systemui:drawable/stat_sys_signal_soft_signal_3" -> R.drawable.thunder_ios_stat_sys_signal_soft_signal_3;
             case "com.android.systemui:drawable/stat_sys_signal_soft_signal_4" -> R.drawable.thunder_ios_stat_sys_signal_soft_signal_4;
-            case "com.android.systemui:drawable/stat_sys_sos" -> R.drawable.thunder_ios_stat_sys_sos;
-            case "com.android.systemui:drawable/stat_sys_tool_block_banner_on" -> R.drawable.thunder_ios_stat_sys_tool_block_banner_on;
-            case "com.android.systemui:drawable/stat_sys_tty_mode" -> R.drawable.thunder_ios_stat_sys_tty_mode;
             case "com.android.systemui:drawable/stat_sys_vpn_ic" -> R.drawable.thunder_ios_stat_sys_vpn_ic;
+            case "com.android.systemui:drawable/stat_battery_horizontal_bg" -> R.drawable.thunder_ios_stat_battery_horizontal_bg;
+            case "com.android.systemui:drawable/stat_battery_horizontal_frame" -> R.drawable.thunder_ios_stat_battery_horizontal_frame;
+            case "com.android.systemui:drawable/stat_battery_horizontal_progress_bg" -> R.drawable.thunder_ios_stat_battery_horizontal_progress_bg;
+            case "com.android.systemui:drawable/stat_battery_horizontal_progress" -> R.drawable.thunder_ios_stat_battery_horizontal_progress;
+            case "com.android.systemui:drawable/stat_battery_horizontal_percent_out_progress" -> R.drawable.thunder_ios_stat_battery_horizontal_percent_out_progress;
+            case "com.android.systemui:drawable/stat_battery_horizontal_percent_out_no_padding_progress" -> R.drawable.thunder_ios_stat_battery_horizontal_percent_out_no_padding_progress;
+            case "com.android.systemui:drawable/stat_battery_horizontal_percent_out_bg" -> R.drawable.thunder_ios_stat_battery_horizontal_percent_out_bg;
+            case "com.android.systemui:drawable/stat_battery_horizontal_percent_out_no_padding_bg" -> R.drawable.thunder_ios_stat_battery_horizontal_percent_out_no_padding_bg;
+            case "com.android.systemui:drawable/stat_battery_horizontal_percent_out_no_padding_progress_bg" -> R.drawable.thunder_ios_stat_battery_horizontal_percent_out_no_padding_progress_bg;
+            case "com.android.systemui:drawable/stat_sys_headset_mic" -> R.drawable.thunder_ios_stat_sys_headset_mic;
+            case "com.android.systemui:drawable/stat_battery_pb" -> R.drawable.thunder_ios_stat_battery_pb;
+            case "com.android.systemui:drawable/stat_battery_vertical_bg" -> R.drawable.thunder_ios_stat_battery_vertical_bg;
+            case "com.android.systemui:drawable/stat_battery_vertical_frame" -> R.drawable.thunder_ios_stat_battery_vertical_frame;
+            case "com.android.systemui:drawable/stat_bt_battery_black_0" -> R.drawable.thunder_ios_stat_bt_battery_black_0;
+            case "com.android.systemui:drawable/stat_bt_battery_black_3" -> R.drawable.thunder_ios_stat_bt_battery_black_3;
+            case "com.android.systemui:drawable/stat_bt_battery_black_4" -> R.drawable.thunder_ios_stat_bt_battery_black_4;
+            case "com.android.systemui:drawable/stat_bt_battery_black_5" -> R.drawable.thunder_ios_stat_bt_battery_black_5;
+            case "com.android.systemui:drawable/stat_bt_battery_black_6" -> R.drawable.thunder_ios_stat_bt_battery_black_6;
+            case "com.android.systemui:drawable/stat_bt_battery_black_7" -> R.drawable.thunder_ios_stat_bt_battery_black_7;
+            case "com.android.systemui:drawable/stat_bt_battery_black_8" -> R.drawable.thunder_ios_stat_bt_battery_black_8;
+            case "com.android.systemui:drawable/stat_bt_battery_black_9" -> R.drawable.thunder_ios_stat_bt_battery_black_9;
+            case "com.android.systemui:drawable/stat_bt_battery_low_1" -> R.drawable.thunder_ios_stat_bt_battery_low_1;
+            case "com.android.systemui:drawable/stat_bt_battery_low_2" -> R.drawable.thunder_ios_stat_bt_battery_low_2;
             default -> 0;
         };
     }
     static int xmlReplacement(String name) {
         return switch(name) {
-            case "com.android.systemui:drawable/stat_charge_wireless_reverse" -> R.drawable.thunder_ios_stat_charge_wireless_reverse;
             case "com.android.systemui:drawable/ic_activity_down" -> R.drawable.thunder_ios_ic_activity_down;
             case "com.android.systemui:drawable/ic_activity_up" -> R.drawable.thunder_ios_ic_activity_up;
             case "com.android.systemui:drawable/ic_vowifi" -> R.drawable.thunder_ios_ic_vowifi;
@@ -505,12 +507,9 @@ final class IosStatusResources {
             case "com.android.systemui:drawable/stat_signal_wifi_signal_3_os17" -> R.drawable.thunder_ios_stat_signal_wifi_signal_3_os17;
             case "com.android.systemui:drawable/stat_signal_wifi_signal_4" -> R.drawable.thunder_ios_stat_signal_wifi_signal_4;
             case "com.android.systemui:drawable/stat_signal_wifi_signal_4_os17" -> R.drawable.thunder_ios_stat_signal_wifi_signal_4_os17;
-            case "com.android.systemui:drawable/stat_stealth_mode" -> R.drawable.thunder_ios_stat_stealth_mode;
             case "com.android.systemui:drawable/stat_sys_airplane_mode" -> R.drawable.thunder_ios_stat_sys_airplane_mode;
             case "com.android.systemui:drawable/stat_sys_alarm" -> R.drawable.thunder_ios_stat_sys_alarm;
             case "com.android.systemui:drawable/stat_sys_branded_vpn" -> R.drawable.thunder_ios_stat_sys_branded_vpn;
-            case "com.android.systemui:drawable/stat_sys_cast" -> R.drawable.thunder_ios_stat_sys_cast;
-            case "com.android.systemui:drawable/stat_sys_connected_display" -> R.drawable.thunder_ios_stat_sys_connected_display;
             case "com.android.systemui:drawable/stat_sys_data_bluetooth" -> R.drawable.thunder_ios_stat_sys_data_bluetooth;
             case "com.android.systemui:drawable/stat_sys_data_bluetooth_connected" -> R.drawable.thunder_ios_stat_sys_data_bluetooth_connected;
             case "com.android.systemui:drawable/stat_sys_data_bluetooth_connected_ing" -> R.drawable.thunder_ios_stat_sys_data_bluetooth_connected_ing;
@@ -530,17 +529,11 @@ final class IosStatusResources {
             case "com.android.systemui:drawable/stat_sys_data_fully_connected_h_plus" -> R.drawable.thunder_ios_stat_sys_data_fully_connected_h_plus;
             case "com.android.systemui:drawable/stat_sys_data_saver" -> R.drawable.thunder_ios_stat_sys_data_saver;
             case "com.android.systemui:drawable/stat_sys_dnd" -> R.drawable.thunder_ios_stat_sys_dnd;
-            case "com.android.systemui:drawable/stat_sys_ethernet" -> R.drawable.thunder_ios_stat_sys_ethernet;
-            case "com.android.systemui:drawable/stat_sys_ethernet_fully" -> R.drawable.thunder_ios_stat_sys_ethernet_fully;
+            case "com.android.systemui:drawable/stat_sys_flavor_one_ringer_vibrate" -> R.drawable.thunder_ios_stat_sys_flavor_one_ringer_vibrate;
             case "com.android.systemui:drawable/stat_sys_headset" -> R.drawable.thunder_ios_stat_sys_headset;
             case "com.android.systemui:drawable/stat_sys_high_performance" -> R.drawable.thunder_ios_stat_sys_high_performance;
             case "com.android.systemui:drawable/stat_sys_location" -> R.drawable.thunder_ios_stat_sys_location;
-            case "com.android.systemui:drawable/stat_sys_logging" -> R.drawable.thunder_ios_stat_sys_logging;
-            case "com.android.systemui:drawable/stat_sys_managed_profile_status" -> R.drawable.thunder_ios_stat_sys_managed_profile_status;
-            case "com.android.systemui:drawable/stat_sys_mic_none" -> R.drawable.thunder_ios_stat_sys_mic_none;
             case "com.android.systemui:drawable/stat_sys_nfc" -> R.drawable.thunder_ios_stat_sys_nfc;
-            case "com.android.systemui:drawable/stat_sys_no_internet_branded_vpn" -> R.drawable.thunder_ios_stat_sys_no_internet_branded_vpn;
-            case "com.android.systemui:drawable/stat_sys_no_internet_vpn_ic" -> R.drawable.thunder_ios_stat_sys_no_internet_vpn_ic;
             case "com.android.systemui:drawable/stat_sys_ringer_silent" -> R.drawable.thunder_ios_stat_sys_ringer_silent;
             case "com.android.systemui:drawable/stat_sys_ringer_vibrate" -> R.drawable.thunder_ios_stat_sys_ringer_vibrate;
             case "com.android.systemui:drawable/stat_sys_roaming" -> R.drawable.thunder_ios_stat_sys_roaming;
@@ -590,11 +583,52 @@ final class IosStatusResources {
             case "com.android.systemui:drawable/stat_sys_signal_soft_signal_2" -> R.drawable.thunder_ios_stat_sys_signal_soft_signal_2;
             case "com.android.systemui:drawable/stat_sys_signal_soft_signal_3" -> R.drawable.thunder_ios_stat_sys_signal_soft_signal_3;
             case "com.android.systemui:drawable/stat_sys_signal_soft_signal_4" -> R.drawable.thunder_ios_stat_sys_signal_soft_signal_4;
-            case "com.android.systemui:drawable/stat_sys_sos" -> R.drawable.thunder_ios_stat_sys_sos;
-            case "com.android.systemui:drawable/stat_sys_tool_block_banner_on" -> R.drawable.thunder_ios_stat_sys_tool_block_banner_on;
-            case "com.android.systemui:drawable/stat_sys_tty_mode" -> R.drawable.thunder_ios_stat_sys_tty_mode;
             case "com.android.systemui:drawable/stat_sys_vpn_ic" -> R.drawable.thunder_ios_stat_sys_vpn_ic;
+            case "com.android.systemui:drawable/stat_battery_horizontal_bg" -> R.drawable.thunder_ios_stat_battery_horizontal_bg;
+            case "com.android.systemui:drawable/stat_battery_horizontal_frame" -> R.drawable.thunder_ios_stat_battery_horizontal_frame;
+            case "com.android.systemui:drawable/stat_battery_horizontal_progress_bg" -> R.drawable.thunder_ios_stat_battery_horizontal_progress_bg;
+            case "com.android.systemui:drawable/stat_battery_horizontal_percent_out_bg" -> R.drawable.thunder_ios_stat_battery_horizontal_percent_out_bg;
+            case "com.android.systemui:drawable/stat_battery_horizontal_percent_out_no_padding_bg" -> R.drawable.thunder_ios_stat_battery_horizontal_percent_out_no_padding_bg;
+            case "com.android.systemui:drawable/stat_battery_horizontal_percent_out_no_padding_progress_bg" -> R.drawable.thunder_ios_stat_battery_horizontal_percent_out_no_padding_progress_bg;
+            case "com.android.systemui:drawable/stat_sys_headset_mic" -> R.drawable.thunder_ios_stat_sys_headset_mic;
+            case "com.android.systemui:drawable/stat_battery_pb" -> R.drawable.thunder_ios_stat_battery_pb;
+            case "com.android.systemui:drawable/stat_battery_vertical_bg" -> R.drawable.thunder_ios_stat_battery_vertical_bg;
+            case "com.android.systemui:drawable/stat_battery_vertical_frame" -> R.drawable.thunder_ios_stat_battery_vertical_frame;
+            case "com.android.systemui:drawable/stat_bt_battery_black_0" -> R.drawable.thunder_ios_stat_bt_battery_black_0;
+            case "com.android.systemui:drawable/stat_bt_battery_black_3" -> R.drawable.thunder_ios_stat_bt_battery_black_3;
+            case "com.android.systemui:drawable/stat_bt_battery_black_4" -> R.drawable.thunder_ios_stat_bt_battery_black_4;
+            case "com.android.systemui:drawable/stat_bt_battery_black_5" -> R.drawable.thunder_ios_stat_bt_battery_black_5;
+            case "com.android.systemui:drawable/stat_bt_battery_black_6" -> R.drawable.thunder_ios_stat_bt_battery_black_6;
+            case "com.android.systemui:drawable/stat_bt_battery_black_7" -> R.drawable.thunder_ios_stat_bt_battery_black_7;
+            case "com.android.systemui:drawable/stat_bt_battery_black_8" -> R.drawable.thunder_ios_stat_bt_battery_black_8;
+            case "com.android.systemui:drawable/stat_bt_battery_black_9" -> R.drawable.thunder_ios_stat_bt_battery_black_9;
+            case "com.android.systemui:drawable/stat_bt_battery_low_1" -> R.drawable.thunder_ios_stat_bt_battery_low_1;
+            case "com.android.systemui:drawable/stat_bt_battery_low_2" -> R.drawable.thunder_ios_stat_bt_battery_low_2;
             default -> 0;
+        };
+    }
+    static Float dimension(String name) {
+        return switch(name) {
+            case "com.android.systemui:dimen/battery_progress_corner_radius" -> 2.2f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_progress_start" -> 3f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_progress_end" -> 6.95f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_progress_top" -> 4.45f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_progress_bottom" -> 4.3f;
+            case "com.android.systemui:dimen/battery_percent_in_text_size" -> 10f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_width" -> 29f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_height" -> 17f;
+            case "com.android.systemui:dimen/battery_percent_in_text_margin_top" -> 0.14f;
+            case "com.android.systemui:dimen/battery_percent_in_text_offset_x" -> 1f;
+            case "com.android.systemui:dimen/battery_percent_in_text_offset_y" -> 0.25f;
+            case "com.android.systemui:dimen/status_bar_battery_icon_width_bar" -> 8.3f;
+            case "com.android.systemui:dimen/status_bar_battery_icon_height_bar" -> 12f;
+            case "com.android.systemui:dimen/signal_cluster_battery_padding" -> 1.2f;
+            case "com.android.systemui:dimen/stat_bt_battery_height" -> 16f;
+            case "com.android.systemui:dimen/stat_bt_battery_width" -> 16f;
+            case "com.android.systemui:dimen/stat_bt_battery_inset_left" -> -3f;
+            case "com.android.systemui:dimen/stat_bt_battery_inset_right" -> -1f;
+            case "com.android.systemui:dimen/status_bar_wifi_left_text_margin_end" -> 6f;
+            default -> null;
         };
     }
     private IosStatusResources() { }

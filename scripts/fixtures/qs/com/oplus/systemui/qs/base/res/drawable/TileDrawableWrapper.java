@@ -4,6 +4,7 @@ public class TileDrawableWrapper extends android.graphics.drawable.DrawableWrapp
  public int pathInvalidations;
  public TileDrawableWrapper(android.graphics.drawable.Drawable d){super(d);setBounds(new android.graphics.Rect(0,0,352,352));}
  public Object getPathProvider(){return pathProvider;}
+ public void setDrawable(android.graphics.drawable.Drawable d){super.setDrawable(d);}
  public void invalidatePath(){pathInvalidations++;}
  @Override protected boolean onStateChange(int[] state){return getDrawable()!=null&&getDrawable().setState(state);}
 }

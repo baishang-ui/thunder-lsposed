@@ -1,39 +1,33 @@
-# 状态栏图标：仅替换 drawable 资源
+# 状态栏：直接使用 PUI ColorOS 17 原始资源
 
-模块准备静态 Android XML drawable，SystemUI 继续决定当前资源、电量、信号状态、颜色、布局、动画与绘制。`IosIconDrawable` 仅用于应用和设计预览，不进入 SystemUI 绘制链。
+当前实现只从用户提供的 `PUI Theme For ColorOS 17_v17.0.0.137.zip` 取得图标。第一包 `pui.zip`、描摹轮廓、曲线拟合和项目自行绘制的替代图标均不再参与当前样式。主题包的安装、挂载脚本不执行。
 
-## 实现
+## 资源与尺寸
 
-- `IosStatusResources` 是完整资源名到模块 drawable ID 的静态白名单，目前准备 298 个资源。资源位于 `app/src/main/res/drawable/thunder_ios_*.xml`，通过 `scripts/generate_status_drawables.py` 从现有图形和状态映射生成。
-- 在 `Resources.getDrawableForDensity` 与 `TypedArray.getDrawableForDensity` 返回原生 drawable 后，只替换匹配白名单、包名为 `com.android.systemui` 且具体类型相同的资源。模块通过仅加载资源的包 Context 取得 Android 原生 VectorDrawable / AnimationDrawable / InsetDrawable，不创建自定义 Drawable 包装。
-- Compose 的 `vectorResource` 直接读取 XML，因此另在 `Resources.getXml` 提供编译后的静态矢量 XML，由系统继续解析和绘制。该入口仅处理已核对的 vector，文件内无主题、字体或跨包资源引用；动画列表等含模块资源 ID 的文件不交给宿主 XML 解析器。
-- 系统选择哪个信号强度、主副卡、漫游、无服务、Wi-Fi 异常或网络制式资源，就取得对应静态图形。不读取 SignalDrawable 编码，不读取或复制电池模型，不接管 `onDraw`、`dispatchDraw`、`VectorDrawable.draw`，不修改 binder、状态流或布局。
-- 蓝牙动画列表仍使用原生动画资源，保留系统 500 毫秒帧时序。无法保持原生具体类型的资源继续使用系统实现，例如原生 AnimatedVectorDrawable。
-- 未列入白名单、非 SystemUI 包、没有可用模块资源、资源加载异常等情况保留系统资源。单个资源加载失败后隔离该资源，记录 `status-bar-ios-resource-fallback`，不反复加载。通知中的应用图标不在白名单内；共用同一状态资源的锁屏、下拉界面可能同步改变。
+`app/src/main/assets/icons/pui-reference` 保存 69 个原始资源及来源清单，包括状态图标、Wi-Fi / 蜂窝信号、横向与竖向电池、蓝牙电池及 ADB 状态资源。保留包内的路径、画布、分组变换、不透明度和图标比例，只适配系统 tint、模块引用、原生类型和进度 ID。Wi-Fi 的 inset 留白在需要 VectorDrawable 的入口折入画布，蓝牙 inset 的原始子矢量在需要 VectorDrawable 的入口内联；没有重新绘制路径。
 
-## 电池与系统直接绘制的信号
+生成器提供 301 个限定资源映射，包括原图别名和透明角标资源。包内没有的热点、投屏、旋转锁定等状态保持系统图标。原生蓝牙动画沿用帧时序与包内帧图；不兼容的 animated-vector 保持系统实现。主题包中不属于状态栏的装饰和快捷设置图标不接入此功能。
 
-已核对 C17 的 `StatBatteryMeterView` 使用专门的 BatteryContentDrawable 与原生电量模型。其电池本体、百分比、充电配色与进度继续由系统计算和绘制。反向充电的静态资源可替换。直接创建的 SignalDrawable 也保留系统实现。
+普通图标、Wi-Fi 与蜂窝信号的最终 drawable 固有宽高增加 12%，路径与主副卡的相对位置保持原样；最终画布左右各增加 1dp 透明留白，viewport 按同一物理比例扩展，并整体平移原图，因此相邻图标增加约 2dp 间距，图形不会被拉宽或缩小。C17 的信号 ImageView 使用 wrap_content，普通系统图标使用 CENTER，仅修改 status_bar_* 的尺寸配置无法使它们放大，因此必须同步调整原图的固有宽高。以 14dp 状态图标为例，图形宽高变为 15.68dp，含留白的资源宽度为 17.68dp；堆叠信号的图形为 21.28 × 17.92dp，含留白的宽度为 23.28dp。图标容器和引用尺寸资源的固定尺寸入口仍增加 12%，为原图留出空间；横向电池宽度仍按 112% 为 32.48dp，高度从上一版 19.04dp 调低到 17dp；纵向进度间距、内部文字、纵向文字偏移及圆角恢复 C17 基准比例，避免内容拥挤。横向尺寸与其他图标放大比例保持不变。电池前的原生 separator 额外增加 1dp，配合前一图标右侧 1dp 留白补齐约 2dp 的间距。原包的负数蓝牙电池 inset 保留方向和比例。外部百分比沿用系统字号。
 
-本次不再承诺把动态电池变成预览中的实心百分比电池。应用预览已移除这种电池展示，避免与实际功能不符。仓库中的旧电池 SVG 和设计图仅为图形研究，不能说明设备已替换。
+状态栏通过 `SystemBarUtils.getStatusBarHeight` 和 `getStatusBarHeightForRotation` 在原结果上增加 4dp。C17 的根布局、窗口各旋转参数与 `providedInsets`（statusBars / tappableElement）共同使用这两个结果，因此窗口高度与应用避让区域同步改变。系统先处理挖孔、安全区域和旋转，模块再增加空间。嵌套高度方法只在最外层增加一次，并在失败后清理调用深度。修改仅作用于模块的 SystemUI 进程。
 
-## 生效与重启
+## 角标与系统状态
 
-图标样式在 SystemUI 进程安装 Hook 时从完整配置快照读取一次，此后固定。新配置会保存，但资源缓存、Compose 缓存与已有 drawable 仍使用当前进程的样式。切换到 iOS 风格、切回系统默认，以及影响已加载样式的模块总开关变更，都需要重启系统界面。
+Wi-Fi / 移动信号的角标、代数、双 Wi-Fi 标记、上下行箭头、HD/VoLTE/VoWiFi 与漫游资源设为透明；复合信号直接采用无附加标记的原包信号资源，无服务使用原包灰色零格信号。SOS 未替换，仍由系统提供。
 
-设置页提供持续提示，可在配置同步后使用右上角“重启系统界面”。不会因为选择样式而自动终止系统界面。首次安装、升级或需要卸载旧绘制 Hook 时，仍应正常重启手机。
+C17 的小 5G 是 `OplusStatusBarMobileViewBinder$Os17Binding.bindNetworkTypeText` 绑定的文字。iOS 样式把其显示输入置为 null，让系统自己的分支清空文字和厂商图片；`bindRoamingText` 的显示输入置为 false。状态更新后继续保持隐藏，不修改网络状态模型、信号强度或 StateFlow。
 
-运行报告的 `style` 表示当前进程实际加载的样式；`renderer=resources;signals=system;battery=system` 表示资源方案。选择与实际样式不一致时附带 `restart-required=true`。资源加载命中分别为 `status-bar-ios-resource-drawable` 与 `status-bar-ios-resource-xml`。
+电池保留 `LayerDrawable → ClipDrawable` 与 `android:id/progress`。系统继续处理电量 level、充电、颜色、百分比与 RTL；包内原始图形作为外观。双卡是否堆叠与主副卡排列仍由系统选择。
 
-## 验证边界
+## 加载与重启
 
-```sh
-python3 scripts/check_status_drawables.py
-python3 scripts/check_effects.py --only IosStatusBarCheck IosDrawSafetyCheck IosRenderPathCheck IosCoverageCheck
-python3 scripts/check_effects.py
-./gradlew :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease
-```
+`Resources.getDrawableForDensity`、`TypedArray.getDrawableForDensity` 按完整资源名替换且保持具体 drawable 类型；Compose 通过 `Resources.getXml` 取得无需模块引用的原生矢量。包含引用的图层和动画由模块 Resources 加载。未知资源、类型不符或加载失败回退系统图标，不接管 Canvas 或电池绘制。
 
-资源检查验证白名单与资源文件完整性、XML 无跨包引用、各级信号状态及动画时序。合成 Android / Oplus 检查验证包名与类型保护、资源和 Compose XML 入口、异常回退、关闭与开启均需重启、以及不存在状态栏绘制和状态 Hook。Android 构建验证实际资源能编译和打包。
+样式、尺寸、文字隐藏与高度在 SystemUI 启动时固定。修改样式、切回默认或修改总开关后需重启系统界面。报告包含 `signals=pui-c17;battery=pui-c17;icons=112%;height=+4dp;gap=+2dp;battery-height=17dp;network-text=hidden`；配置与进程不一致时附加 `restart-required=true`。
 
-`docs/status-icons-resource-inventory.json` 记录已采集固件的资源种类及可读取的尺寸；2 个旧映射资源在采集包中没有找到，仍准备兼容资源。部分尺寸依赖固件 dimen，生成文件使用设计默认值。固件并非全部采用相同加载路径，298 个已准备资源不等于 298 个真机命中。不同 DPI、深浅色、双卡和动画的实际显示及长期稳定性仍需 ColorOS 17 真机验证。
+## 验证
+
+运行 `python scripts/check_status_drawables.py --apk app/build/outputs/apk/release/app-release-unsigned.apk`、`python scripts/check_effects.py`，以及 Gradle 的 `:app:testReleaseUnitTest :app:lintRelease :app:assembleRelease`。资源检查确认每个可见图形完全来自原包 XML，覆盖引用、类型、信号各档、透明角标与电池进度；另外核对放大后的固有宽高及打包 APK 中的实际宽高，防止仅修改尺寸配置却未放大图片。电池原始 XML 不再追加放大，避免重复缩放；运行检查覆盖默认样式、密度、小数及负数尺寸、5G 文字绑定、嵌套高度与异常恢复、17dp 电池高度、内部文字及两种 separator 入口。
+
+`status-icons-pui.png` 是实际打包资源的离线预览，不是真机截图。设备上仍需检查窗口 / 应用避让、横竖屏、挖孔、主题、双卡与充电等实际状态。

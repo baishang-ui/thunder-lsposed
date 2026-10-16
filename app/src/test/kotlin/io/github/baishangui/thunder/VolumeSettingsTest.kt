@@ -23,7 +23,7 @@ class VolumeSettingsTest {
     @Test fun legacyIndependentButtonsMigrateToSharedBar() {
         val settings=Settings(volume=VolumeSettings(size=true,width=96,bar=Area(true,150,true,0x40557799,true,18)))
         for(version in listOf(13,14)) {
-            val old=JSONObject(settings.json()).put("version",version).apply { getJSONObject("settings").remove("color_mode") }
+            val old=JSONObject(settings.json()).legacyVersion(version).apply { getJSONObject("settings").remove("color_mode") }
             old.getJSONObject("settings").apply {
                 put("volume_button_size",true);put("volume_button",36)
                 put("volume_buttons_blur",false);put("volume_buttons_radius",40)
@@ -33,13 +33,13 @@ class VolumeSettingsTest {
             val migrated=Settings.parse(old.toString())
             assertEquals(settings,migrated)
             assertFalse(migrated.bundle().keySet().any { it.startsWith("volume_button") })
-            assertEquals(16,JSONObject(migrated.json()).getInt("version"))
+            assertEquals(17,JSONObject(migrated.json()).getInt("version"))
             old.getJSONObject("settings").put("volume_buttons_blur","false")
             assertThrows(IllegalArgumentException::class.java) { Settings.parse(old.toString()) }
         }
     }
     @Test fun legacyDefaultsDoNotTakeOverNativeVolume() {
-        val old=JSONObject(Settings().json()).put("version",12).removeV13Fields()
+        val old=JSONObject(Settings().json()).legacyVersion(12).removeV13Fields()
         val s=Settings.parse(old.toString())
         assertEquals(VolumeSettings(),s.volume)
         val c=HookConfig(Bundle())

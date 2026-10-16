@@ -4,19 +4,27 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.graphics.drawable.Drawable;
+import android.util.TypedValue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Resource substitution only. SystemUI owns every view, state update and draw call. */
+/** Native resource styling, with scoped C17 label and status-window sizing hooks. */
 final class IosStatusBarHook {
     private static final String MODULE = "io.github.baishangui.thunder";
     private static final Set<Integer> failed = ConcurrentHashMap.newKeySet();
     private static volatile Context moduleContext;
     private static boolean enabled;
+    static final float ICON_SCALE = 1.12f;
+    static final float ICON_SIDE_GAP_DP = 1f;
+    static final float BATTERY_HEIGHT_SCALE = 1f;
+    static final float EXTRA_HEIGHT_DP = 4f;
+    private static final ThreadLocal<Integer> heightDepth = ThreadLocal.withInitial(() -> 0);
 
     static void install(ClassLoader loader) {
         // Resource consumers cache drawables and Compose vectors. Freeze the style until restart.
         enabled = IosStatusIcons.active(ShadeHook.snapshot());
+        installLabels(loader);
+        installHeight(loader);
         Api102Runtime.findAndHookMethod(Resources.class, "getDrawableForDensity", int.class, int.class,
             Resources.Theme.class, new HookCallback() {
                 @Override protected void afterHookedMethod(Param p) {
@@ -54,6 +62,131 @@ final class IosStatusBarHook {
         });
     }
 
+    private static void installLabels(ClassLoader loader) {
+        String binding = "com.oplus.systemui.statusbar.pipeline.mobile.ui.view.OplusStatusBarMobileViewBinder$Os17Binding";
+        try {
+            Api102Runtime.findAndHookMethod(binding, loader, "bindNetworkTypeText",
+                "com.android.systemui.statusbar.pipeline.mobile.domain.model.OplusNetworkTypeTextModel", new HookCallback() {
+                    @Override protected void beforeHookedMethod(Param p) {
+                        // Native null branch clears both the text and Tigo image on every update.
+                        if (enabled) p.args[0] = null;
+                    }
+                });
+            Api102Runtime.findAndHookMethod(binding, loader, "bindRoamingText", boolean.class, new HookCallback() {
+                @Override protected void beforeHookedMethod(Param p) {
+                    if (enabled) p.args[0] = false;
+                }
+            });
+        } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-c17-labels", error); }
+    }
+
+    private static void installHeight(ClassLoader loader) {
+        // C17 uses these results for the root layout, all four window rotations,
+        // and providedInsets (statusBars + tappableElement). Keep them consistent.
+        HookCallback height = new HookCallback() {
+            @Override protected void beforeHookedMethod(Param p) {
+                p.setObjectExtra("ios-height-depth", heightDepth.get());
+                heightDepth.set(heightDepth.get() + 1);
+            }
+            @Override protected void afterHookedMethod(Param p) {
+                int depth = (Integer) p.getObjectExtra("ios-height-depth");
+                if (depth == 0) heightDepth.remove(); else heightDepth.set(depth);
+                // Some firmware delegates one height overload to the other.
+                if (!enabled || depth != 0 || p.hasThrowable() || !(p.getResult() instanceof Integer original) || original <= 0) return;
+                Context context = (Context) p.args[0];
+                p.setResult(original + Math.round(EXTRA_HEIGHT_DP * context.getResources().getDisplayMetrics().density));
+            }
+        };
+        for (String method : new String[]{"getStatusBarHeight", "getStatusBarHeightForRotation"}) {
+            try {
+                if (method.equals("getStatusBarHeight"))
+                    Api102Runtime.findAndHookMethod("com.android.internal.policy.SystemBarUtils", loader, method, Context.class, height);
+                else Api102Runtime.findAndHookMethod("com.android.internal.policy.SystemBarUtils", loader, method, Context.class, int.class, height);
+            } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-height-" + method, error); }
+        }
+    }
+
+    static boolean scalesDimension(String name) {
+        return switch (name) {
+            case "com.android.systemui:dimen/status_bar_icon_container_height",
+                 "com.android.systemui:dimen/status_bar_icon_drawing_size",
+                 "com.android.systemui:dimen/status_bar_icon_drawing_size_dark",
+                 "com.android.systemui:dimen/status_bar_icon_size",
+                 "com.android.systemui:dimen/status_bar_icon_size_sp",
+                 "com.android.systemui:dimen/status_bar_mobile_container_height",
+                 "com.android.systemui:dimen/status_bar_mobile_signal_size",
+                 "com.android.systemui:dimen/status_bar_wifi_signal_size" -> true;
+            default -> false;
+        };
+    }
+
+    private static Float dimension(Resources resources, int id) {
+        if (!enabled || id == 0) return null;
+        try {
+            String name = ResourceOverrides.name(resources, id);
+            if (name.equals("com.android.systemui:dimen/signal_cluster_battery_padding_new")) return ICON_SIDE_GAP_DP;
+            Float dp = IosStatusResources.dimension(name);
+            if (dp == null) return null;
+            float scale = switch (name) {
+                case "com.android.systemui:dimen/status_bar_battery_horizontal_height",
+                     "com.android.systemui:dimen/status_bar_battery_horizontal_progress_top",
+                     "com.android.systemui:dimen/status_bar_battery_horizontal_progress_bottom",
+                     "com.android.systemui:dimen/battery_progress_corner_radius",
+                     "com.android.systemui:dimen/battery_percent_in_text_size",
+                     "com.android.systemui:dimen/battery_percent_in_text_margin_top",
+                     "com.android.systemui:dimen/battery_percent_in_text_offset_y" -> BATTERY_HEIGHT_SCALE;
+                default -> ICON_SCALE;
+            };
+            return dp * scale + (name.equals("com.android.systemui:dimen/signal_cluster_battery_padding") ? ICON_SIDE_GAP_DP : 0);
+        }
+        catch (Resources.NotFoundException ignored) { return null; }
+    }
+
+    static boolean dimensionResult(HookCallback.Param p, String getter, Resources resources, int id) {
+        if (p.hasThrowable()) return false;
+        Float dp = dimension(resources, id);
+        float px;
+        if (dp != null) px = dp * resources.getDisplayMetrics().density;
+        else {
+            if (!enabled || id == 0 || !scalesDimension(ResourceOverrides.name(resources, id)) || !(p.getResult() instanceof Number original)) return false;
+            px = original.floatValue() * ICON_SCALE;
+        }
+        // PixelSize rounds a nonzero subpixel dimension up to one pixel, like Resources.
+        if (getter.equals("getDimension")) p.setResult(px);
+        else if (getter.equals("getDimensionPixelOffset")) p.setResult((int) px);
+        else {
+            int rounded = (int) (px + .5f);
+            p.setResult(rounded != 0 ? rounded : px == 0 ? 0 : px > 0 ? 1 : -1);
+        }
+        ShadeHook.resourceHit("status-bar-ios-resource-dimension");
+        return true;
+    }
+
+    static boolean dimensionValue(HookCallback.Param p) {
+        if (p.hasThrowable()) return false;
+        Float dp = dimension((Resources) p.thisObject, (Integer) p.args[0]);
+        TypedValue value = (TypedValue) p.args[1];
+        if (dp == null) {
+            if (!enabled || value.type != TypedValue.TYPE_DIMENSION || !scalesDimension(ResourceOverrides.name((Resources) p.thisObject, (Integer) p.args[0]))) return false;
+            int unit = value.data & 15;
+            float[] radix = {1f, 1f/128f, 1f/32768f, 1f/8388608f};
+            float original = (value.data >> 8) * radix[(value.data >> 4) & 3];
+            value.data = (complexDimension(original * ICON_SCALE) & ~15) | unit;
+            return true;
+        }
+        value.type = TypedValue.TYPE_DIMENSION;
+        value.data = complexDimension(dp);
+        value.string = null;
+        ShadeHook.resourceHit("status-bar-ios-resource-dimension");
+        return true;
+    }
+
+    static int complexDimension(float dp) {
+        // Status dimensions fit within 0..255 units. Android's 8p15 radix preserves
+        // their fractional values without calling hidden TypedValue APIs.
+        return (Math.round(dp * 32768f) << 8) | (2 << 4) | TypedValue.COMPLEX_UNIT_DIP;
+    }
+
     static void prepare(Context context) throws android.content.pm.PackageManager.NameNotFoundException {
         // This context loads resources only; module code is already supplied by libxposed.
         moduleContext = context.createPackageContext(MODULE, 0);
@@ -87,7 +220,7 @@ final class IosStatusBarHook {
     }
 
     static String state() {
-        return (enabled ? "style=ios;renderer=resources;signals=system;battery=system" : "style=system")
+        return (enabled ? "style=ios;renderer=resources;signals=pui-c17;battery=pui-c17;state=system;icons=112%;height=+4dp;gap=+2dp;battery-height=17dp;network-text=hidden" : "style=system")
             + (enabled != IosStatusIcons.active(ShadeHook.snapshot()) ? ";restart-required=true" : "");
     }
     private IosStatusBarHook() { }

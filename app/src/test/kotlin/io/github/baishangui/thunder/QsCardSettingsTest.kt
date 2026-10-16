@@ -45,7 +45,7 @@ class QsCardSettingsTest {
             notificationArea=Area(true,121,true,0x55667788,true,36))
         assertEquals(settings,Settings.from(settings.bundle()))
         assertEquals(settings,Settings.parse(settings.json()))
-        assertEquals(16,JSONObject(settings.json()).getInt("version"))
+        assertEquals(17,JSONObject(settings.json()).getInt("version"))
         val runtime=HookConfig(settings.bundle())
         assertSame(runtime.shade,runtime.qs)
         assertEquals(0x55443322,runtime.shade.color)
@@ -60,7 +60,7 @@ class QsCardSettingsTest {
     @Test fun sharedVersionsSeedBothAreasThenAllowIndependentRestore() {
         val shared = Area(true,73,true,0x4188aacc,true,18)
         for (version in 8..11) {
-            val root = JSONObject(Settings(cardArea=shared).json()).put("version",version).removeV13Fields()
+            val root = JSONObject(Settings(cardArea=shared).json()).legacyVersion(version).removeV13Fields()
             root.getJSONObject("settings").apply {
                 keys().asSequence().toList().filter { it.startsWith("notification_card_") }.forEach { remove(it) }
                 if (version < 11) remove("status_bar_stack_signals")
@@ -82,7 +82,7 @@ class QsCardSettingsTest {
     }
     @Test fun versionFiveKeepsExistingAreasAndDefaultsCardsToSystem() {
         val settings=Settings(panel=Area(true,64,true,0x44332211),banner=Area(tint=true,color=0x33445566))
-        val old=JSONObject(settings.json()).put("version",5).removeV13Fields()
+        val old=JSONObject(settings.json()).legacyVersion(5).removeV13Fields()
         old.removeV7Fields()
         old.getJSONObject("settings").apply { remove("qs_card_tint");remove("qs_card_color") }
         val restored=Settings.parse(old.toString())

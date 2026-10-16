@@ -69,7 +69,7 @@ final class NotificationCardHook {
         }
         Object corners=Reflect.getObjectField(blur,"gradientStrokeCornerParam");
         if(corners!=null)temporary(p,blur,"gradientStrokeCornerParam",Reflect.newInstance(corners.getClass(),
-            qs?QsCornerHook.smoothCornerType(Reflect.callMethod(corners,"getType")):Reflect.callMethod(corners,"getType"),
+            qs?QsCornerHook.smoothCornerType(Reflect.callMethod(corners,"getType"),shape):Reflect.callMethod(corners,"getType"),
             radius,qs?weight:Reflect.callMethod(corners,"getWeight")));
     }
     private static void temporary(HookCallback.Param p,Object target,String field,Object value) {

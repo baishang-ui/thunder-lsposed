@@ -17,25 +17,33 @@ internal enum class SettingsPage(val title: String, val category: String) {
     Volume("音量面板", "音量"),
     CloudCapsule("胶囊状态", "流体云"),
     CloudCard("卡片状态", "流体云"),
+    StatusBar("状态栏修改", "状态栏"),
+    StatusLayout("布局与间距", "状态栏"),
+    StatusClock("时钟修改", "状态栏"),
     StatusIcons("图标显示", "状态栏"),
     StatusStyle("图标样式", "状态栏"),
     GestureBar("手势条", "手势导航"),
     Appearance("界面外观", "设置"),
     Configuration("配置管理", "设置"),
     About("关于 thunder", "设置"),
-    Runtime("运行报告", "主页")
+    Runtime("运行报告", "主页");
+
+    val parent: SettingsPage? get() = when (this) {
+        StatusLayout, StatusClock, StatusIcons, StatusStyle -> StatusBar
+        else -> null
+    }
 }
 
-private fun Area.summary(corner: Boolean = true, relativeCorners: Boolean = false): String = buildList {
+private fun Area.summary(corner: Boolean = true): String = buildList {
     if (blur) add("模糊 $radius px")
     if (tint) add("混色 ${TintColor.percent(color)}%")
-    if (corner && cornerEnabled) add("圆角 ${this@summary.corner}" + if (relativeCorners) " / 64" else " dp")
+    if (corner && cornerEnabled) add("圆角 ${this@summary.corner} dp")
 }.joinToString(" · ").ifEmpty { "跟随系统" }
 
 @Composable internal fun AdjustmentMenu(settings: Settings, open: (SettingsPage) -> Unit) {
     SettingsMenuGroup("控制与通知") {
         SettingsMenuItem("整体背景", settings.panel.summary(corner = false), MiuixIcons.Regular.Background) { open(SettingsPage.Panel) }
-        SettingsMenuItem("控制中心磁贴", settings.cardArea.summary(relativeCorners = true), MiuixIcons.Regular.Layers) { open(SettingsPage.Cards) }
+        SettingsMenuItem("控制中心磁贴", settings.cardArea.summary(), MiuixIcons.Regular.Layers) { open(SettingsPage.Cards) }
         SettingsMenuItem("通知中心通知条", settings.notificationArea.summary(), MiuixIcons.Regular.Messages) { open(SettingsPage.NotificationCards) }
         SettingsMenuItem("通知布局", if (settings.margins) "${settings.margin} dp" else "跟随系统", MiuixIcons.Regular.ListView) { open(SettingsPage.Layout) }
         SettingsMenuItem("通知横幅", settings.banner.summary(), MiuixIcons.Regular.Messages) { open(SettingsPage.Banner) }
@@ -45,8 +53,7 @@ private fun Area.summary(corner: Boolean = true, relativeCorners: Boolean = fals
         SettingsMenuItem("卡片状态", if (settings.cloud) settings.cloudCardArea.summary() else "未启用", MiuixIcons.Regular.Notes) { open(SettingsPage.CloudCard) }
     }
     SettingsMenuGroup("状态栏") {
-        SettingsMenuItem("图标样式", if (settings.statusIconStyle == 1) "iOS 风格" else "系统默认", MiuixIcons.Regular.Theme) { open(SettingsPage.StatusStyle) }
-        SettingsMenuItem("图标显示", if (settings.hiddenStatusIcons == 0) "全部跟随系统" else "已隐藏 ${Integer.bitCount(settings.hiddenStatusIcons)} 项", MiuixIcons.Regular.Hide) { open(SettingsPage.StatusIcons) }
+        SettingsMenuItem("状态栏修改", "左右边距、中间间距、时钟与图标", MiuixIcons.Regular.Theme) { open(SettingsPage.StatusBar) }
     }
     SettingsMenuGroup("更多") {
         SettingsMenuItem("音量面板", if (settings.volume.compact) "紧凑展开" else "系统展开", MiuixIcons.Regular.Layers) { open(SettingsPage.Volume) }
@@ -65,14 +72,26 @@ private fun Area.summary(corner: Boolean = true, relativeCorners: Boolean = fals
 }
 
 @Composable internal fun ColumnScope.AdjustmentDetails(page: SettingsPage, settings: Settings, change: (Settings) -> Unit,
-                                                      testNotification: () -> Unit) {
+                                                      testNotification: () -> Unit, open: (SettingsPage) -> Unit) {
     when (page) {
+        SettingsPage.StatusBar -> {
+            SettingsMenuGroup("布局与时钟") {
+                SettingsMenuItem("布局与间距", if (settings.statusBar.margins) "左 ${settings.statusBar.left} dp · 右 ${settings.statusBar.right} dp" else "左右边距、中间留白与长时钟压缩", MiuixIcons.Regular.ListView) { open(SettingsPage.StatusLayout) }
+                SettingsMenuItem("时钟修改", if (settings.statusBar.clock) "自定义时间、日期与字号" else "跟随系统", MiuixIcons.Regular.Theme) { open(SettingsPage.StatusClock) }
+            }
+            SettingsMenuGroup("状态栏图标") {
+                SettingsMenuItem("图标样式", if (settings.statusIconStyle == 1) "iOS 风格" else "系统默认", MiuixIcons.Regular.Theme) { open(SettingsPage.StatusStyle) }
+                SettingsMenuItem("图标显示", if (settings.hiddenStatusIcons == 0) "全部跟随系统" else "已隐藏 ${Integer.bitCount(settings.hiddenStatusIcons)} 项", MiuixIcons.Regular.Hide) { open(SettingsPage.StatusIcons) }
+            }
+        }
+        SettingsPage.StatusLayout -> StatusBarLayoutControls(settings.statusBar) { change(settings.copy(statusBar = it)) }
+        SettingsPage.StatusClock -> StatusBarClockControls(settings.statusBar) { change(settings.copy(statusBar = it)) }
         SettingsPage.Volume -> VolumeSettingsControls(settings.volume) { change(settings.copy(volume = it)) }
         SettingsPage.Panel -> {
             AreaControls("背景材质", settings.panel, corner = false) { change(settings.copy(panel = it)) }
         }
         SettingsPage.Cards -> {
-            AreaControls("磁贴材质", settings.cardArea, relativeCorners = true) { change(settings.copy(cardArea = it)) }
+            AreaControls("磁贴材质", settings.cardArea, unifiedCorners = true) { change(settings.copy(cardArea = it)) }
         }
         SettingsPage.NotificationCards -> {
             AreaControls("通知条材质", settings.notificationArea) { change(settings.copy(notificationArea = it)) }

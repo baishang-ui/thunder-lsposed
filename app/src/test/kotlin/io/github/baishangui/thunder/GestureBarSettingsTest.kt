@@ -21,7 +21,7 @@ class GestureBarSettingsTest {
     @Test fun versionTwelveKeepsExistingSettingsAndNativeNavigation() {
         val settings = Settings(statusIconStyle = 1,
             notificationArea = Area(tint = true, color = 0x55443322), hideGestureBar = true, removeGestureBarInset = true)
-        val legacy = JSONObject(settings.json()).put("version", 12).removeV13Fields()
+        val legacy = JSONObject(settings.json()).legacyVersion(12).removeV13Fields()
         assertEquals(settings.copy(hideGestureBar = false, removeGestureBarInset = false), Settings.parse(legacy.toString()))
         assertFalse(HookConfig(Bundle()).removeGestureBarInset)
     }

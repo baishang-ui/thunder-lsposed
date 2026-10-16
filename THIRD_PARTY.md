@@ -88,3 +88,16 @@ Static status-resource label outlines are derived from Work Sans Bold by Wei Hua
 licensed under the SIL Open Font License 1.1. The glyph subset is stored in
 `scripts/fixtures/iconstyle/label-glyphs.json`; license and copyright notice are
 bundled as `app/src/main/assets/licenses/status-labels.txt`. No runtime font is added.
+
+
+PUI artwork is copied from the user-supplied
+`PUI Theme For ColorOS 17_v17.0.0.137.zip`: status icons, Wi-Fi/cellular,
+horizontal/vertical battery, Bluetooth battery and ADB status resources.
+The original XML paths, transforms, sizes and opacity are retained. Adaptations
+are limited to native tint masks, reference names, inset type compatibility,
+progress wrappers and aliases. No raster tracing or redrawn fallback is used.
+Source entries and SHA-256 hashes are recorded in
+`app/src/main/assets/icons/pui-reference/manifest.json`. The first `pui.zip`
+is no longer an implementation input. These resources remain attributed to PUI;
+the project's license does not relicense the artwork. Archive installers and
+mount scripts are not run or bundled. Apple research files are historical only.

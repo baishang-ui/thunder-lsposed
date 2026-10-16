@@ -37,7 +37,7 @@ class FunctionalAreasTest {
     }
     @Test fun versionSixImportsSharedCloudValuesIntoBothStates() {
         val old=JSONObject(Settings(cloudCornerEnabled=true,cloudCorner=9,cloudArea=Area(true,120,true,0x55112233)).json())
-            .put("version",6).removeV13Fields().removeV7Fields()
+            .legacyVersion(6).removeV13Fields().removeV7Fields()
         val migrated=Settings.parse(old.toString())
         assertEquals(Area(true,120,true,0x55112233,true,9),migrated.cloudCardArea)
         assertEquals(9,migrated.cloudCorner)
@@ -46,7 +46,7 @@ class FunctionalAreasTest {
     }
     @Test fun v7IndependentMaterialsStayIndependent() {
         val root=JSONObject(Settings(cardArea=Area(tint=true,color=0x4188aacc,cornerEnabled=true,corner=18)).json())
-            .put("version",7).removeV13Fields()
+            .legacyVersion(7).removeV13Fields()
         root.getJSONObject("settings").apply {
             remove("status_bar_icon_style"); remove("status_bar_stack_signals")
             remove("qs_card_blur");remove("qs_card_radius")
@@ -97,4 +97,9 @@ internal fun JSONObject.removeV13Fields(): JSONObject = apply {
         remove("gesture_bar_hidden"); remove("gesture_bar_remove_inset")
         VolumeSettings.keys.forEach { remove(it) }
     }
+}
+
+internal fun JSONObject.legacyVersion(version: Int): JSONObject = apply {
+    put("version", version)
+    if (version < 17) StatusBarSettings.keys.forEach { getJSONObject("settings").remove(it) }
 }

@@ -1,2 +1,2 @@
 package com.oplus.posteffect.params;
-public enum CornerType { ROUND, G2 }
+public enum CornerType { ROUND, G2, FULL }
