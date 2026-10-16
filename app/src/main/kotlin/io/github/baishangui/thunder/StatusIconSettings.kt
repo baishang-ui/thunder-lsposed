@@ -33,7 +33,13 @@ import top.yukonga.miuix.kmp.basic.Text
         UiText("iOS 风格预览", 15)
         StatusStrip(dark = false, stacked = false)
         StatusStrip(dark = true, stacked = true)
-        UiText("图标、Wi-Fi 和电池全部直接使用 PUI ColorOS 17 包内原始资源，Wi-Fi 与移动信号不显示角标、5G 文字和上下行箭头；状态栏加高 4dp，图标放大 12%，图标间距额外增加约 2dp，横向电池尺寸为 29 × 14dp；深色行展示 C17 主卡信号柱与副卡圆点。横向电池使用 PUI 外观，电量、百分比位置、充电状态与双卡排列跟随系统设置。", 12, muted = true)
+        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            listOf(7, 75, 100).forEach { level ->
+                StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.BATTERY, level, 100), LocalGlass.current.ink,
+                    "横向电池，电量百分之$level", cutout = LocalGlass.current.surface)
+            }
+        }
+        UiText("图标、Wi-Fi 和电池全部直接使用 PUI ColorOS 17 包内原始资源，Wi-Fi 与移动信号不显示角标、5G 文字和上下行箭头；状态栏加高 4dp，图标放大 12%，图标间距额外增加约 2dp，横向电池尺寸为 27 × 17dp；深色行展示 C17 主卡信号柱与副卡圆点。横向电池使用 PUI 外观，百分比按电池主体居中，一位、两位和三位数字均自动对齐；电量、充电状态与双卡排列跟随系统设置。", 12, muted = true)
     }
     SettingsGroup {
         UiText("状态图标", 15)
@@ -100,30 +106,41 @@ import top.yukonga.miuix.kmp.basic.Text
         require(id != 0) { "Preview must use an original C17 resource" }
         resources.getDrawable(id, null)!!.mutate()
     }
-    val progress = remember(resources) { resources.getDrawable(R.drawable.thunder_ios_stat_battery_horizontal_progress, null)!!.mutate().apply { level = 7500 } }
+    val progress = remember(resources) { resources.getDrawable(R.drawable.thunder_ios_stat_battery_horizontal_progress, null)!!.mutate() }
+    val textPath = remember { android.graphics.Path() }
+    val textBounds = remember { android.graphics.RectF() }
     val percentPaint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
         typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
         textAlign = android.graphics.Paint.Align.CENTER
     } }
     val width = if (symbol.row() > 0 || symbol.kind() == IosStatusIcons.Kind.CELLULAR) 22f
-        else if (battery) 29f else (drawable.intrinsicWidth / density).coerceIn(16f, 30f) + 3f
+        else if (battery) 27f else (drawable.intrinsicWidth / density).coerceIn(16f, 30f) + 3f
     Canvas(Modifier.size((width * if (battery) 1f else 1.12f).dp, 22.4.dp).semantics { contentDescription = label }) {
         val tint = android.graphics.Color.argb((color.alpha * 255).toInt(), (color.red * 255).toInt(), (color.green * 255).toInt(), (color.blue * 255).toInt())
         val scale = minOf((size.width - 3.dp.toPx()) / drawable.intrinsicWidth.coerceAtLeast(1), size.height / drawable.intrinsicHeight.coerceAtLeast(1))
         val w = if (battery) size.width.toInt() else (drawable.intrinsicWidth * scale).toInt()
-        val h = if (battery) 14.dp.toPx().toInt() else (drawable.intrinsicHeight * scale).toInt()
+        val h = if (battery) 17.dp.toPx().toInt() else (drawable.intrinsicHeight * scale).toInt()
         val y = ((size.height - h) / 2).toInt()
         drawable.setTint(tint)
         drawable.setBounds(0, y, w, y + h)
         drawable.alpha = if (battery) 64 else 255
         drawable.draw(drawContext.canvas.nativeCanvas)
         if (battery) {
+            progress.level = symbol.level().coerceIn(0, 100) * 100
             progress.setTint(tint)
             progress.setBounds(0, y, w, y + h)
             progress.draw(drawContext.canvas.nativeCanvas)
             percentPaint.color = android.graphics.Color.rgb((cutout.red * 255).toInt(), (cutout.green * 255).toInt(), (cutout.blue * 255).toInt())
-            percentPaint.textSize = h * .62f
-            drawContext.canvas.nativeCanvas.drawText("75", w * .47f, y + h / 2f - (percentPaint.ascent() + percentPaint.descent()) / 2f, percentPaint)
+            percentPaint.textSize = 10.dp.toPx()
+            val text = symbol.level().coerceIn(0, 100).toString()
+            percentPaint.textAlign = android.graphics.Paint.Align.LEFT
+            textPath.reset()
+            percentPaint.getTextPath(text, 0, text.length, 0f, 0f, textPath)
+            textPath.computeBounds(textBounds, true)
+            val bias = textBounds.centerX() - percentPaint.measureText(text) / 2f
+            percentPaint.textAlign = android.graphics.Paint.Align.CENTER
+            drawContext.canvas.nativeCanvas.drawText(text, w * IosStatusBarHook.BATTERY_BODY_FRACTION / 2f - bias,
+                y + h / 2f - textBounds.centerY(), percentPaint)
         }
     }
 }

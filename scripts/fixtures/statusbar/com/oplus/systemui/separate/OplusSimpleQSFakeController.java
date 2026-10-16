@@ -5,9 +5,9 @@ import android.widget.TextView;
 /** Relevant native C17 equations, with coordinates exposed for regression tests. */
 public class OplusSimpleQSFakeController {
  public static class Header {public TextView clock;public TextView getClockView(){return clock;}}
- public static class Fake extends android.view.View {public TextView clock;public TextView getMView(){return clock;}}
+ public static class Fake extends android.view.View {public android.view.View clock;public android.view.View getMView(){return clock;}}
  public Header oplusQSSimpleHeader=new Header();public ViewGroup fakeClockViewContainer=new ViewGroup();
- public float statusbarClockPadding=10,clockScaleFactor=3,systemFontScale=1;
+ public float statusbarClockPadding=10,clockScaleFactor=2,systemFontScale=1;
  public boolean isLargeDisplay,isUpdateFakeViewLocation;
  public float fakeToClockTranslationX,fakeToClockTranslationY;
  public float sourceX=80,targetX=30,sourceCenterY=20,targetCenterY=120;
@@ -22,7 +22,7 @@ public class OplusSimpleQSFakeController {
    -(c.targetX+(c.oplusQSSimpleHeader.clock.getLayoutDirection()==1?c.oplusQSSimpleHeader.clock.getWidth():0));
   c.fakeToClockTranslationY=c.targetCenterY-c.sourceCenterY;
  }
- private float scale(float f){float s=1+(clockScaleFactor+systemFontScale-2)*f;return isLargeDisplay?Math.min(3,s):s;}
+ private float scale(float f){float s=1+(clockScaleFactor+systemFontScale-1)*f;return isLargeDisplay?Math.min(3,s):s;}
  public void updateFakeClockScale(float f){fakeClockViewContainer.setScaleX(scale(f));fakeClockViewContainer.setScaleY(scale(f));}
  public void updateQSClockScale(float f){oplusQSSimpleHeader.clock.setScaleX(scale(f));oplusQSSimpleHeader.clock.setScaleY(scale(f));}
  public float notificationTranslationY;

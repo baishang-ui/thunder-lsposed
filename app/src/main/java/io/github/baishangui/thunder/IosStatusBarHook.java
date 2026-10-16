@@ -3,6 +3,7 @@ package io.github.baishangui.thunder;
 import android.content.Context;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
+import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.util.TypedValue;
 import java.util.Set;
@@ -16,8 +17,10 @@ final class IosStatusBarHook {
     private static boolean enabled;
     static final float ICON_SCALE = 1.12f;
     static final float ICON_SIDE_GAP_DP = 1f;
-    static final float BATTERY_WIDTH_SCALE = 1f;
-    static final float BATTERY_HEIGHT_SCALE = 14f / 17f;
+    static final float BATTERY_WIDTH_SCALE = 27f / 29f;
+    static final float BATTERY_HEIGHT_SCALE = 1f;
+    // The original C17 vector body ends at x=1979 in its 2200-wide canvas.
+    static final float BATTERY_BODY_FRACTION = 1979f / 2200f;
     static final float EXTRA_HEIGHT_DP = 4f;
     private static final ThreadLocal<Integer> heightDepth = ThreadLocal.withInitial(() -> 0);
 
@@ -26,6 +29,7 @@ final class IosStatusBarHook {
         enabled = IosStatusIcons.active(ShadeHook.snapshot());
         installLabels(loader);
         installHeight(loader);
+        installBatteryTextLayout(loader);
         Api102Runtime.findAndHookMethod(Resources.class, "getDrawableForDensity", int.class, int.class,
             Resources.Theme.class, new HookCallback() {
                 @Override protected void afterHookedMethod(Param p) {
@@ -61,6 +65,31 @@ final class IosStatusBarHook {
                 } catch (Exception error) { failure(id, error); }
             }
         });
+    }
+
+    private static void installBatteryTextLayout(ClassLoader loader) {
+        String type = "com.oplus.systemui.statusbar.pipeline.battery.ui.drawable.HorizontalBatteryContentDrawable";
+        try {
+            Api102Runtime.findAndHookMethod(type, loader, "getBodyRectForLayout", RectF.class, new HookCallback() {
+                @Override protected void afterHookedMethod(Param p) {
+                    if (!enabled || p.hasThrowable() || !(p.getResult() instanceof RectF body)) return;
+                    RectF content = (RectF) p.args[0];
+                    float cap = (content.right - content.left) * (1f - BATTERY_BODY_FRACTION);
+                    // Keep native glyph measurement and per-level centering; exclude only the cap.
+                    boolean rtl = Boolean.TRUE.equals(Reflect.callMethod(p.thisObject, "isRTLLayout"));
+                    body.left = content.left + (rtl ? cap : 0f);
+                    body.right = content.right - (rtl ? 0f : cap);
+                }
+            });
+            Api102Runtime.findAndHookMethod(type, loader, "getOffsetX", new HookCallback() {
+                @Override protected void afterHookedMethod(Param p) {
+                    if (!enabled || p.hasThrowable()) return;
+                    // Native fallback also centers on the body if a font is too large for it.
+                    RectF content = (RectF) Reflect.getObjectField(p.thisObject, "rect");
+                    p.setResult((content.right - content.left) * (1f - BATTERY_BODY_FRACTION) / 2f);
+                }
+            });
+        } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-battery-text-layout", error); }
     }
 
     private static void installLabels(ClassLoader loader) {
@@ -225,7 +254,7 @@ final class IosStatusBarHook {
     }
 
     static String state() {
-        return (enabled ? "style=ios;renderer=resources;signals=pui-c17;battery=pui-c17;state=system;icons=112%;height=+4dp;gap=+2dp;battery-width=29dp;battery-height=14dp;network-text=hidden" : "style=system")
+        return (enabled ? "style=ios;renderer=resources;signals=pui-c17;battery=pui-c17;state=system;icons=112%;height=+4dp;gap=+2dp;battery-width=27dp;battery-height=17dp;battery-text=body-centered;network-text=hidden" : "style=system")
             + (enabled != IosStatusIcons.active(ShadeHook.snapshot()) ? ";restart-required=true" : "");
     }
     private IosStatusBarHook() { }

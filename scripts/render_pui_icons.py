@@ -39,7 +39,7 @@ def main():
     small = ImageFont.truetype('C:/Windows/Fonts/msyh.ttc', 15)
     title = ImageFont.truetype('C:/Windows/Fonts/msyhbd.ttc', 29)
     draw.text((36, 22), 'PUI ColorOS 17 · 原始资源', fill='#16181c', font=title)
-    draw.text((36, 66), 'C17 原始路径 · 图标 +12% / 间距约 +2dp / 电池 29 × 14dp', fill='#636975', font=small)
+    draw.text((36, 66), 'C17 原始路径 · 图标 +12% / 间距约 +2dp / 电池 27 × 17dp', fill='#636975', font=small)
     icons = [('airplane_mode','飞行模式'), ('alarm','闹钟'), ('data_bluetooth_connected_stop','蓝牙'),
              ('dnd','勿扰'), ('ringer_silent','静音'), ('flavor_one_ringer_vibrate','振动'),
              ('headset','耳机'), ('location','定位'), ('nfc','NFC'), ('vpn_ic','VPN'),
@@ -60,10 +60,16 @@ def main():
         draw.text((x+45, 510), f'主 {level} / 副 {4-level}', anchor='mt', fill='#cbd0d9', font=small)
         wifi = vector(f'stat_signal_wifi_signal_{level}_os17', '#ffffff', 70, 50)
         im.paste(wifi, (x+10, 545), wifi)
-    draw.text((802, 422), '横向电池', fill='white', font=font)
-    battery = vector('stat_battery_horizontal_bg', '#ffffff', 1100, 600).resize((123, 59), Image.Resampling.LANCZOS)
-    im.paste(battery, (800, 474), battery)
-    draw.text((801, 554), 'C17 原图 / 系统电量', fill='#cbd0d9', font=small)
+    draw.text((754, 422), '横向电池 · 数字居中', fill='white', font=font)
+    battery = vector('stat_battery_horizontal_bg', '#ffffff', 1100, 600).resize((81, 51), Image.Resampling.LANCZOS)
+    percent_font = ImageFont.truetype('C:/Windows/Fonts/arialbd.ttf', 30)
+    for index, text in enumerate(['7', '75', '100']):
+        x, y = 752 + index * 100, 479
+        im.paste(battery, (x, y), battery)
+        left, top, right, bottom = draw.textbbox((0, 0), text, font=percent_font)
+        draw.text((x + 81 * (1979 / 2200) / 2 - (left + right) / 2,
+                   y + 51 / 2 - (top + bottom) / 2), text, fill='#17191d', font=percent_font)
+    draw.text((753, 554), '27 × 17dp / 系统电量', fill='#cbd0d9', font=small)
     draw.text((36, 640), '浅色状态与堆叠资源使用同一轮廓，随系统 tint 自动切换。', fill='#454b56', font=font)
     draw.text((36, 683), 'Wi-Fi、电池及状态图标均取自 C17 包；5G 文字、角标和箭头隐藏。', fill='#636975', font=small)
     im.save(ROOT / 'docs/status-icons-pui.png')

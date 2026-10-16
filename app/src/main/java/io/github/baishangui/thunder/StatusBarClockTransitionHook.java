@@ -11,7 +11,7 @@ import java.util.WeakHashMap;
 /** Align the clocks used by C17's notification-center seamless transfer. */
 final class StatusBarClockTransitionHook {
     private static final Map<Object, Boolean> controllers = new WeakHashMap<>();
-    private record Clocks(TextView status, TextView shade, ViewGroup fake) { }
+    private record Clocks(TextView status, TextView shade, ViewGroup fake, View source, float sourceX, float sourceY) { }
 
     static void install(ClassLoader loader) {
         Class<?> type = Reflect.findClass("com.oplus.systemui.separate.OplusSimpleQSFakeController", loader);
@@ -35,8 +35,8 @@ final class StatusBarClockTransitionHook {
                 boolean rtl = clocks.status.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
                 clocks.shade.setPivotX(timeAnchor(clocks.shade, rtl));
                 clocks.shade.setPivotY(clocks.shade.getBaseline());
-                clocks.fake.setPivotX(timeAnchor(clocks.status, rtl));
-                clocks.fake.setPivotY((clocks.fake.getHeight() - clocks.status.getHeight()) / 2f + clocks.status.getBaseline());
+                clocks.fake.setPivotX(clocks.sourceX + timeAnchor(clocks.status, rtl));
+                clocks.fake.setPivotY(clocks.sourceY + clocks.status.getBaseline());
             }
         });
         Api102Runtime.findAndHookMethod(type, "access$updateFakeToStatusBarTranslation", type, new HookCallback() {
@@ -47,7 +47,8 @@ final class StatusBarClockTransitionHook {
                 if (clocks == null) return;
                 boolean rtl = clocks.status.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
                 float padding = number(controller, "statusbarClockPadding");
-                float source = timeAnchor(clocks.status, rtl) - (rtl ? clocks.status.getWidth() - padding : padding);
+                float source = clocks.sourceX + timeAnchor(clocks.status, rtl)
+                    - (rtl ? clocks.source.getWidth() - padding : padding);
                 float target = timeAnchor(clocks.shade, rtl) - (rtl ? clocks.shade.getWidth() : 0f);
                 Reflect.setObjectField(controller, "fakeToClockTranslationX", number(controller, "fakeToClockTranslationX") + source - target);
             }
@@ -58,7 +59,7 @@ final class StatusBarClockTransitionHook {
                     if (p.hasThrowable()) return;
                     Clocks clocks = clocks(p.args[0]);
                     if (clocks == null) return;
-                    float sourceBaseline = clocks.status.getBaseline() - clocks.status.getHeight() / 2f;
+                    float sourceBaseline = clocks.sourceY + clocks.status.getBaseline() - clocks.fake.getHeight() / 2f;
                     float targetBaseline = clocks.shade.getBaseline() - clocks.shade.getHeight() / 2f;
                     float fraction = (Float) p.args[1];
                     View view = fake ? clocks.fake : clocks.shade;
@@ -103,11 +104,32 @@ final class StatusBarClockTransitionHook {
         if (header == null || !(container instanceof ViewGroup fake) || fake.getChildCount() == 0) return null;
         Object real = Reflect.callMethod(fake.getChildAt(0), "getMView");
         Object target = Reflect.callMethod(header, "getClockView");
-        if (!(real instanceof TextView status) || !(target instanceof TextView shade)
-                || !StatusBarClockHook.isStatusClock(status) || status.getLayout() == null || shade.getLayout() == null
+        if (!(real instanceof View source) || !(target instanceof TextView shade)) return null;
+        TextView status = statusClock(source);
+        if (status == null || status.getLayout() == null || shade.getLayout() == null
                 || status.getBaseline() < 0 || shade.getBaseline() < 0 || status.getTextSize() <= 0 || shade.getTextSize() <= 0) return null;
+        float x = 0f, y = 0f;
+        for (View child = status; child != source; child = (View) child.getParent()) {
+            x += child.getLeft() - ((View) child.getParent()).getScrollX();
+            y += child.getTop() - ((View) child.getParent()).getScrollY();
+        }
+        // StatusBarFakeFrame draws the bound root, which can be clock_for_fake,
+        // rather than the StatClock itself. Its child is centered in the fake.
+        View frame = fake.getChildAt(0);
+        x += frame.getLeft();
+        y += frame.getTop();
         controllers.put(controller, Boolean.TRUE);
-        return new Clocks(status, shade, fake);
+        ShadeHook.resourceHit(source == status ? "status-bar-clock-transition" : "status-bar-clock-transition-container");
+        return new Clocks(status, shade, fake, source, x, y);
+    }
+
+    private static TextView statusClock(View view) {
+        if (view instanceof TextView text && StatusBarClockHook.isStatusClock(text)) return text;
+        if (view instanceof ViewGroup group) for (int i = 0; i < group.getChildCount(); i++) {
+            TextView clock = statusClock(group.getChildAt(i));
+            if (clock != null) return clock;
+        }
+        return null;
     }
 
     // Anchor HH:mm itself: dates/weekdays can precede it, seconds/AM-PM can

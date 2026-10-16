@@ -53,8 +53,13 @@ public final class StatusBarClockTransitionCheck {
         s.setText("2026/10/16 Fri 9:07:05 PM");s.setTextSize(0,20);s.setTextScaleX(.5f);s.actualWidth=220;s.actualHeight=32;s.baseline=23;
         var q=new TextView();q.setText("9:07");q.setTextSize(0,14);q.actualWidth=80;q.actualHeight=22;q.baseline=15;
         var c=new OplusSimpleQSFakeController();c.oplusQSSimpleHeader.clock=q;
-        var fake=new OplusSimpleQSFakeController.Fake();fake.clock=s;c.fakeClockViewContainer.addView(fake);c.fakeClockViewContainer.actualWidth=s.actualWidth;c.fakeClockViewContainer.actualHeight=40;
+        var fake=new OplusSimpleQSFakeController.Fake();fake.clock=s;fake.top=4;c.fakeClockViewContainer.addView(fake);c.fakeClockViewContainer.actualWidth=s.actualWidth;c.fakeClockViewContainer.actualHeight=40;
         float source=2+"2026/10/16 Fri ".length()*20*.6f*.5f;
+        transfer(c,s,q,source,2);
+        // C17 binds clock_for_fake (a FrameLayout), not its StatClock child.
+        var wrapper=new android.view.ViewGroup();root.addView(wrapper);wrapper.addView(s);
+        wrapper.actualWidth=s.actualWidth;wrapper.actualHeight=s.actualHeight;
+        fake.clock=wrapper;
         transfer(c,s,q,source,2);
         // Repeat native recomputation to ensure offsets never accumulate.
         float dx=c.fakeToClockTranslationX,dy=c.fakeToClockTranslationY;geometry(c);
@@ -62,6 +67,15 @@ public final class StatusBarClockTransitionCheck {
         s.layoutDirection=q.layoutDirection=1;
         c.isLargeDisplay=true;c.clockScaleFactor=5;
         transfer(c,s,q,source+4*20*.6f*.5f,2+4*14*.6f);
+        s.left=6;s.top=3;wrapper.actualHeight=38;c.fakeClockViewContainer.actualHeight=46;
+        geometry(c);frame(c,.4f);
+        float wrappedX=source+4*20*.6f*.5f+6,wrappedBaseline=4+3+s.getBaseline();
+        check(near(c.fakeClockViewContainer.getPivotX(),wrappedX)
+            && near(c.fakeClockViewContainer.getPivotY(),wrappedBaseline),"nested clock offsets reach the fake drawing coordinates");
+        check(near(c.sourceX+wrappedX+c.fakeClockViewContainer.getTranslationX(),
+            c.targetX+2+4*14*.6f+q.getTranslationX()),"wrapped RTL time stays aligned horizontally");
+        check(near(c.sourceCenterY+wrappedBaseline-23+c.fakeClockViewContainer.getTranslationY(),
+            c.targetCenterY+q.getBaseline()-q.getHeight()/2f+q.getTranslationY()),"wrapper height and child top preserve baseline alignment");
         s.setText("٢٠٢٦/١٠/١٦ الجمعة ٩:٠٧:٠٥ م");
         check(near(StatusBarClockTransitionHook.timeAnchor(s,false),2+s.getText().toString().indexOf('٩')*20*.6f*.5f),"localized digits locate time after a date prefix");
         c.isUpdateFakeViewLocation=false;StatusBarClockTransitionHook.invalidate();
