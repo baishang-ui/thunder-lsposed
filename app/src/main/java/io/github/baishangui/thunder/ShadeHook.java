@@ -27,6 +27,9 @@ public final class ShadeHook {
     private static volatile Object qsManager;
     private static volatile Context context;
     private static Handler worker, main;
+    private static final Runnable reportTask = ShadeHook::report;
+    private static boolean reportScheduled, reportUnavailable;
+    private static long reportGeneration, reportRetryDelay = 2500;
     private static LiveSettings liveSettings;
     private static volatile boolean qsVisible;
     private static final Map<Object, Boolean> proxies = Collections.synchronizedMap(new WeakHashMap<>());
@@ -426,7 +429,7 @@ public final class ShadeHook {
                     refreshProxies();
                     StatusBarIconHook.refresh();
                     GestureBarHook.refresh();
-                    worker.post(ShadeHook::report);
+                    requestReport();
                 });
             }, error -> failed("remote-settings", error));
             liveSettings.start();
@@ -444,7 +447,7 @@ public final class ShadeHook {
                     // API 102 config is already loaded. Provider is only a fallback
                     // and a diagnostic return channel; never block SystemUI startup.
                     if(config.revision<0) worker.post(() -> readSettings(0));
-                    else worker.post(ShadeHook::report);
+                    else requestReport();
                 }
             }));
         install("resource-overrides", ResourceOverrides::install);
@@ -457,7 +460,7 @@ public final class ShadeHook {
         install("cloud-package-entry", () -> CloudHook.install(loader));
     }
     static void hookRegistered(String key) {
-        if (hooks.add(key) && worker != null) worker.postDelayed(ShadeHook::report, 500);
+        if (hooks.add(key)) requestReport();
     }
     static HookConfig snapshot() { return config; }
     static void trackVolume(Object proxy,String role) {
@@ -572,7 +575,7 @@ public final class ShadeHook {
     }
     static void observed(String key,String value) {
         String previous=effective.put(key,value);hit(key);
-        if(!value.equals(previous)) worker.postDelayed(ShadeHook::report,500);
+        if(!value.equals(previous)) requestReport();
     }
     private static void copyFlags(Object from, Object to) {
         Reflect.callMethod(to, "setAlphaWithBlurAmount", Reflect.callMethod(from, "getAlphaWithBlurAmount"));
@@ -583,7 +586,7 @@ public final class ShadeHook {
             Bundle data = context.getContentResolver().call(URI, "settings", null, null);
             if (data == null) throw new IllegalStateException("No settings response");
             config = new HookConfig(data); settingsSource="provider fallback";
-            main.post(() -> { refreshProxies(); StatusBarIconHook.refresh(); GestureBarHook.refresh(); }); report();
+            main.post(() -> { refreshProxies(); StatusBarIconHook.refresh(); GestureBarHook.refresh(); }); requestReport();
         } catch (Throwable error) {
             if (attempt < 4) worker.postDelayed(() -> readSettings(attempt+1), 2500);
             else failed("settings-read", error);
@@ -609,18 +612,27 @@ public final class ShadeHook {
         catch (Throwable error) { failed(key, error); }
     }
     private static void hit(String key) {
-        if (hits.add(key)) worker.postDelayed(ShadeHook::report, 500);
+        if (hits.add(key)) requestReport();
     }
     public static void frameworkFailure(String key, Throwable error) { failed("api102-"+key, error); }
     private static void failed(String key, Throwable error) {
         if (failures.add(key)) {
             failureDetails.put(key,String.valueOf(error));
             Api102Runtime.log("Thunder: "+key+": "+error);
-            if (worker != null) worker.postDelayed(ShadeHook::report, 500);
+            requestReport();
         }
     }
+    private static synchronized void requestReport() {
+        if (worker == null || context == null) return;
+        reportGeneration++;
+        // Keep the first deadline, including a retry deadline during an outage.
+        if (reportScheduled) return;
+        reportScheduled = true;
+        worker.postDelayed(reportTask, 500);
+    }
     private static void report() {
-        if (context == null) return;
+        long generation;
+        synchronized (ShadeHook.class) { generation = reportGeneration; }
         try {
             Bundle data = new Bundle();
             data.putString("process", reportProcess);
@@ -630,7 +642,26 @@ public final class ShadeHook {
             data.putString("effective","framework="+Api102Runtime.framework()+"; source="+settingsSource+"; enabled="+config.enabled+"; "+effective);
             data.putLong("revision", config.revision); data.putInt("pid", Process.myPid());
             data.putInt("hook_version", BuildConfig.VERSION_CODE);
-            context.getContentResolver().call(URI, "report", null, data);
-        } catch (Throwable error) { Api102Runtime.log("Thunder: status unavailable: "+error); }
+            Bundle ack = context.getContentResolver().call(URI, "report", null, data);
+            if (ack == null) throw new IllegalStateException("No runtime report acknowledgement");
+            synchronized (ShadeHook.class) {
+                reportUnavailable = false;
+                reportRetryDelay = 2500;
+                // State may change on the main thread while Binder IPC is in flight.
+                if (generation != reportGeneration) worker.postDelayed(reportTask, 500);
+                else reportScheduled = false;
+            }
+        } catch (Throwable error) {
+            synchronized (ShadeHook.class) {
+                if (!reportUnavailable) {
+                    Api102Runtime.log("Thunder: status unavailable (retrying): " + error);
+                    reportUnavailable = true;
+                }
+                // Read a fresh snapshot on each retry. Keep trying quietly across
+                // boot/unlock and module startup, without requiring another hook hit.
+                worker.postDelayed(reportTask, reportRetryDelay);
+                reportRetryDelay = Math.min(60000, reportRetryDelay * 2);
+            }
+        }
     }
 }

@@ -8,6 +8,6 @@
   <activity android:name=".MainActivity" android:exported="true" android:configChanges="uiMode" >
    <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
   </activity>
-  <provider android:name=".SettingsProvider" android:authorities="${applicationId}.settings" android:exported="true" android:directBootAware="true" />
+  <provider android:name=".SettingsProvider" android:authorities="${applicationId}.settings" android:exported="true" android:directBootAware="true" android:grantUriPermissions="true" />
  </application>
 </manifest>

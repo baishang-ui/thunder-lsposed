@@ -1,6 +1,7 @@
 package io.github.baishangui.thunder;
 
 import android.content.Context;
+import android.animation.ValueAnimator;
 import android.graphics.Canvas;
 import android.graphics.Outline;
 import android.graphics.Path;
@@ -12,6 +13,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+import android.view.animation.PathInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.content.res.ColorStateList;
@@ -417,8 +419,14 @@ final class VolumeHook {
         boolean outsideGesture;
         int rowWidth;
         float rowOffset;
-        FrameLayout shortcuts;
-        ImageView soundButton,zenButton;
+        FrameLayout shortcuts,soundSegments,zenControl;
+        final ImageView[] soundButtons=new ImageView[3];
+        ImageView zenOff,zenOn;
+        View soundSelection,zenSelection;
+        ValueAnimator shortcutMotion;
+        final float[] soundWeights=new float[3];
+        float selectionX,selectionAlpha,zenWeight;
+        int shortcutStep;
         int shownRinger=-1,shownZen=-1,lastZen=1;
         boolean hasVibrator,alertSlider;
         Compact(Object d,View r,View list,View item,View bar) {
@@ -449,7 +457,7 @@ final class VolumeHook {
             if(n==0)n=((Number)Reflect.callMethod(adapter,"getItemCount")).intValue();
             n=Math.max(1,n);if(arrangedCount==n)return;arrangedCount=n;count=n;
             int margin=dp(r,8),usableWidth=Math.max(1,usable.width()-2*margin);
-            int columns=Math.max(2,count);
+            int columns=Math.max(4,count);
             int panelTop=anchorTrackY-inset;
             int available=Math.max(1,usable.bottom-margin-panelTop);
             int desiredWidth=Math.min(Math.round(startBarWidth),Math.max(1,available-3*inset-1));
@@ -477,18 +485,31 @@ final class VolumeHook {
             View r=root.get();Object d=dialog.get();if(!(r instanceof ViewGroup parent)||d==null)return;
             if(shortcuts==null) {
                 shortcuts=new FrameLayout(r.getContext());
-                soundButton=new ImageView(r.getContext());zenButton=new ImageView(r.getContext());
-                shortcuts.addView(soundButton);shortcuts.addView(zenButton);
+                soundSegments=new FrameLayout(r.getContext());zenControl=new FrameLayout(r.getContext());
+                soundSelection=new View(r.getContext());zenSelection=new View(r.getContext());
+                soundSegments.addView(soundSelection);zenControl.addView(zenSelection);
+                for(int i=0;i<soundButtons.length;i++) {
+                    final int mode=2-i;
+                    soundButtons[i]=new ImageView(r.getContext());
+                    soundButtons[i].setOnClickListener(v->shortcut(mode));
+                    soundSegments.addView(soundButtons[i]);
+                }
+                zenOff=new ImageView(r.getContext());zenOn=new ImageView(r.getContext());
+                zenControl.addView(zenOff);zenControl.addView(zenOn);
+                shortcuts.addView(soundSegments);shortcuts.addView(zenControl);
                 Object owner=Reflect.getObjectField(d,"volumeInteractor"),controller=Reflect.getObjectField(owner,"mController");
                 hasVibrator=(Boolean)Reflect.callMethod(controller,"hasVibrator");
                 try {
                     Class<?> feature=Reflect.findClass("com.oplusos.systemui.common.feature.FeatureOption",d.getClass().getClassLoader());
                     alertSlider=(Boolean)feature.getDeclaredMethod("isOplusAlertSlider").invoke(null);
                 } catch(ReflectiveOperationException error) {throw new IllegalStateException(error);}
-                soundButton.setOnClickListener(v->shortcut(false));zenButton.setOnClickListener(v->shortcut(true));
+                zenControl.setOnClickListener(v->shortcut(-1));
                 parent.addView(shortcuts);
             }
+            cancelShortcutMotion();
             int side=barWidth(),innerWidth=bounds.width()-2*inset;
+            // Four equal icon slots fill the row, even when native app-volume adds more columns.
+            shortcutStep=(innerWidth-side)/3;
             Object lp=Reflect.newInstance(recycler.get().getLayoutParams().getClass(),innerWidth,side);
             Reflect.setIntField(lp,"leftToLeft",0);Reflect.setIntField(lp,"topToTop",0);
             int[] origin=location(r);
@@ -501,36 +522,57 @@ final class VolumeHook {
             boolean dark=(r.getResources().getConfiguration().uiMode&Configuration.UI_MODE_NIGHT_MASK)==Configuration.UI_MODE_NIGHT_YES;
             int foreground=dark?0xffffffff:0xff000000;
             if(config.volumeBar.tint)foreground=AdaptiveTextColor.foreground(AdaptiveTextColor.composite(config.volumeBar.color,dark?0xff202124:0xfffafafa));
-            int start=(innerWidth-(2*side+inset))/2,index=0;
-            for(ImageView button:new ImageView[]{soundButton,zenButton}) {
+            soundSegments.setLayoutParams(new FrameLayout.LayoutParams(2*shortcutStep+side,side));
+            FrameLayout.LayoutParams zenLp=new FrameLayout.LayoutParams(side,side);
+            zenLp.leftMargin=innerWidth-side;zenControl.setLayoutParams(zenLp);
+            float corner=Math.min(side/2f,config.volumeBar.cornerEnabled?dp(r,config.volumeBar.corner):startBarRadius);
+            for(View selection:new View[]{soundSelection,zenSelection}) {
+                selection.setLayoutParams(new FrameLayout.LayoutParams(side,side));
+                GradientDrawable fill=new GradientDrawable();fill.setColor((foreground&0xffffff)|0x26000000);fill.setCornerRadius(corner);
+                selection.setBackground(fill);
+            }
+            for(View group:new View[]{soundSegments,zenControl}) {
+                Drawable material=(Drawable)Reflect.callMethod(manager,"getVolumeSideAccessoryBackground",r.getContext(),r,group,
+                        Reflect.callMethod(d,"getMIsDefaultVolumeTheme"));
+                group.setBackground(group==zenControl?new RippleDrawable(ColorStateList.valueOf((foreground&0xffffff)|0x24000000),material,null):material);
+            }
+            for(int i=0;i<5;i++) {
+                ImageView button=i<3?soundButtons[i]:i==3?zenOff:zenOn;
                 FrameLayout.LayoutParams child=new FrameLayout.LayoutParams(side,side);
-                child.leftMargin=start+index++*(side+inset);button.setLayoutParams(child);
+                child.leftMargin=i<3?i*shortcutStep:0;button.setLayoutParams(child);
                 int padding=Math.max(0,(side-Math.min(side,dp(r,24)))/2);
                 button.setPadding(padding,padding,padding,padding);button.setScaleType(ImageView.ScaleType.FIT_CENTER);
                 button.setImageTintList(ColorStateList.valueOf(foreground));
-                Drawable material=(Drawable)Reflect.callMethod(manager,"getVolumeSideAccessoryBackground",r.getContext(),r,button,
-                        Reflect.callMethod(d,"getMIsDefaultVolumeTheme"));
-                button.setBackground(new RippleDrawable(ColorStateList.valueOf((foreground&0xffffff)|0x24000000),material,null));
-                button.setFocusable(true);
+                if(i<3) {
+                    GradientDrawable mask=new GradientDrawable();mask.setColor(0xffffffff);mask.setCornerRadius(corner);
+                    button.setBackground(new RippleDrawable(ColorStateList.valueOf((foreground&0xffffff)|0x24000000),null,mask));
+                    button.setFocusable(true);
+                } else button.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             }
+            zenControl.setFocusable(true);
+            icon(soundButtons[0],"status_bar_qs_mute_inactive");
+            icon(soundButtons[1],"status_bar_qs_vibrate_on");
+            icon(soundButtons[2],"status_bar_qs_mute_active");
+            icon(zenOff,"status_bar_qs_dnd_inactive");icon(zenOn,"status_bar_qs_dnd_active");
             shownRinger=shownZen=-1;lastProgress=-1;updateShortcutState();
             shortcuts.setAlpha(0f);
         }
-        void shortcut(boolean zen) {
+        // -1 is DND; 2/1/0 directly select ringing/vibration/silent. Native state is authoritative.
+        void shortcut(int mode) {
             Object d=dialog.get();if(d==null||progress()<.95f)return;
             try {
                 Object owner=Reflect.getObjectField(d,"volumeInteractor"),state=Reflect.getObjectField(owner,"mState");
                 if(state==null)return;
                 Object controller=Reflect.getObjectField(owner,"mController");
-                if(zen) {
+                if(mode==-1) {
                     int current=Reflect.getIntField(state,"zenMode");
                     if(current!=0)lastZen=current;
                     Reflect.callMethod(controller,"setZenMode",current==0?lastZen:0);
                 } else {
-                    if(alertSlider||Reflect.getBooleanField(state,"disallowRinger"))return;
+                    if(alertSlider||Reflect.getBooleanField(state,"disallowRinger")||(mode==1&&!hasVibrator))return;
                     int current=Reflect.getIntField(state,"ringerModeInternal");
-                    int next=current==2?(hasVibrator?1:0):current==1?0:2;
-                    Reflect.callMethod(controller,"setRingerMode",next,false);
+                    if(current==mode) {Reflect.callMethod(owner,"rescheduleTimeoutH");return;}
+                    Reflect.callMethod(controller,"setRingerMode",mode,false);
                 }
                 Reflect.callMethod(owner,"rescheduleTimeoutH");
                 updateShortcutState();
@@ -540,22 +582,58 @@ final class VolumeHook {
             if(shortcuts==null)return;Object d=dialog.get();if(d==null)return;
             Object state=Reflect.getObjectField(Reflect.getObjectField(d,"volumeInteractor"),"mState");
             boolean ready=state!=null&&progress()>=.95f;
-            soundButton.setEnabled(ready&&!alertSlider&&state!=null&&!Reflect.getBooleanField(state,"disallowRinger"));
-            zenButton.setEnabled(ready);
-            soundButton.setAlpha(soundButton.isEnabled()?1f:.38f);
-            zenButton.setAlpha(zenButton.isEnabled()?1f:.38f);
+            boolean soundReady=ready&&!alertSlider&&!Reflect.getBooleanField(state,"disallowRinger");
+            for(int i=0;i<3;i++)soundButtons[i].setEnabled(soundReady&&(i!=1||hasVibrator));
+            soundSegments.setAlpha(soundReady?1f:.38f);zenControl.setEnabled(ready);zenControl.setAlpha(ready?1f:.38f);
+            renderShortcutPose();
             if(state==null)return;
             int ringer=Reflect.getIntField(state,"ringerModeInternal"),zen=Reflect.getIntField(state,"zenMode");
             if(zen!=0)lastZen=zen;
-            if(ringer!=shownRinger) {
-                shownRinger=ringer;
-                icon(soundButton,ringer==2?"ic_volume_ringer":ringer==1?"ic_volume_ringer_vibrate":"ic_volume_ringer_mute");
-                soundButton.setContentDescription(alertSlider?"声音模式由实体拨杆控制":ringer==2?"当前响铃，点击切换"+(hasVibrator?"振动":"静音"):ringer==1?"当前振动，点击切换静音":"当前静音，点击切换响铃");
+            if(ringer==shownRinger&&zen==shownZen)return;
+            boolean animate=ready&&shownRinger!=-1&&shownZen!=-1;
+            shownRinger=ringer;shownZen=zen;
+            String[] labels={"响铃","振动","静音"};
+            for(int i=0;i<3;i++) {
+                boolean selected=ringer==2-i;soundButtons[i].setSelected(selected);
+                soundButtons[i].setContentDescription(labels[i]+(selected?"，已选中":"，点击切换")+
+                        (alertSlider?"，由实体拨杆控制":i==1&&!hasVibrator?"，设备不支持振动":""));
             }
-            if(zen!=shownZen) {
-                shownZen=zen;icon(zenButton,zen==0?"qs_dnd_icon_off":"qs_dnd_icon_on");
-                zenButton.setSelected(zen!=0);zenButton.setContentDescription(zen==0?"开启免打扰":"关闭免打扰");
+            zenControl.setSelected(zen!=0);zenControl.setContentDescription(zen==0?"开启免打扰":"关闭免打扰");
+            animateShortcutPose(animate);
+        }
+        void cancelShortcutMotion() {
+            if(shortcutMotion==null)return;
+            shortcutMotion.removeAllUpdateListeners();shortcutMotion.cancel();shortcutMotion=null;
+        }
+        void animateShortcutPose(boolean animate) {
+            cancelShortcutMotion();
+            float[] from=soundWeights.clone();float fromX=selectionX,fromAlpha=selectionAlpha,fromZen=zenWeight;
+            boolean valid=shownRinger>=0&&shownRinger<=2;
+            float toX=valid?(2-shownRinger)*shortcutStep:fromX,toAlpha=valid?1f:0f,toZen=shownZen==0?0f:1f;
+            if(!animate) {
+                selectionX=toX;selectionAlpha=toAlpha;zenWeight=toZen;
+                for(int i=0;i<3;i++)soundWeights[i]=shownRinger==2-i?1f:0f;
+                renderShortcutPose();return;
             }
+            shortcutMotion=ValueAnimator.ofFloat(0f,1f);shortcutMotion.setDuration(200);
+            shortcutMotion.setInterpolator(new PathInterpolator(.2f,0f,0f,1f));
+            shortcutMotion.addUpdateListener(animation->{
+                float t=(Float)animation.getAnimatedValue();
+                selectionX=fromX+(toX-fromX)*t;selectionAlpha=fromAlpha+(toAlpha-fromAlpha)*t;zenWeight=fromZen+(toZen-fromZen)*t;
+                for(int i=0;i<3;i++)soundWeights[i]=from[i]+((shownRinger==2-i?1f:0f)-from[i])*t;
+                renderShortcutPose();
+            });
+            shortcutMotion.start();
+        }
+        void renderShortcutPose() {
+            soundSelection.setTranslationX(selectionX);soundSelection.setAlpha(selectionAlpha);
+            for(int i=0;i<3;i++) {
+                soundButtons[i].setAlpha((.6f+.4f*soundWeights[i])*(i==1&&!hasVibrator?.38f:1f));
+                float scale=.92f+.08f*soundWeights[i];soundButtons[i].setScaleX(scale);soundButtons[i].setScaleY(scale);
+            }
+            zenSelection.setAlpha(zenWeight);zenOff.setAlpha(1f-zenWeight);zenOn.setAlpha(zenWeight);
+            float offScale=1f-.08f*zenWeight,onScale=.92f+.08f*zenWeight;
+            zenOff.setScaleX(offScale);zenOff.setScaleY(offScale);zenOn.setScaleX(onScale);zenOn.setScaleY(onScale);
         }
         void icon(ImageView button,String name) {
             View r=root.get();if(r==null)return;
@@ -628,8 +706,9 @@ final class VolumeHook {
         void restore() {
             View r=root.get(),list=recycler.get();
             if(shortcuts!=null) {
-                soundButton.setOnClickListener(null);zenButton.setOnClickListener(null);
-                soundButton.setBackground(null);zenButton.setBackground(null);
+                cancelShortcutMotion();
+                for(ImageView button:soundButtons) {button.setOnClickListener(null);button.setBackground(null);}
+                zenControl.setOnClickListener(null);zenControl.setBackground(null);soundSegments.setBackground(null);
                 if(shortcuts.getParent() instanceof ViewGroup parent)parent.removeView(shortcuts);
             }
             if(observer!=null&&observer.isAlive())observer.removeOnPreDrawListener(frame);

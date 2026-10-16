@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import io.github.baishangui.thunder.LocalLiquidAppearance
 import androidx.compose.runtime.Composable
@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -45,6 +46,7 @@ fun LiquidButton(
     tint: Color = Color.Unspecified,
     surfaceColor: Color = Color.Unspecified,
     contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp),
+    shape: Shape = Capsule(),
     content: @Composable RowScope.() -> Unit
 ) {
     val appearance = LocalLiquidAppearance.current
@@ -60,7 +62,7 @@ fun LiquidButton(
         modifier
             .drawBackdrop(
                 backdrop = backdrop,
-                shape = { Capsule() },
+                shape = { shape },
                 effects = {
                     vibrancy()
                     blur((2f.dp.toPx() * appearance.blur))
@@ -104,8 +106,8 @@ fun LiquidButton(
                     }
                 }
             )
-            // Keep the press overlay inside the same capsule as the glass surface.
-            .clip(Capsule())
+            // Keep the press overlay inside the same shape as the glass surface.
+            .clip(shape)
             .clickable(
                 enabled = isInteractive,
                 interactionSource = null,
@@ -122,7 +124,7 @@ fun LiquidButton(
                     Modifier
                 }
             )
-            .height(48f.dp)
+            .heightIn(min = 48f.dp)
             .padding(contentPadding),
         horizontalArrangement = Arrangement.spacedBy(8f.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,

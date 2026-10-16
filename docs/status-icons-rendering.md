@@ -21,7 +21,7 @@
 
 图标样式在 SystemUI 进程安装 Hook 时从完整配置快照读取一次，此后固定。新配置会保存，但资源缓存、Compose 缓存与已有 drawable 仍使用当前进程的样式。切换到 iOS 风格、切回系统默认，以及影响已加载样式的模块总开关变更，都需要重启系统界面。
 
-设置页提供持续提示，可在配置同步后使用右上角“重启作用域”。不会因为选择样式而自动终止系统界面。首次安装、升级或需要卸载旧绘制 Hook 时，仍应正常重启手机。
+设置页提供持续提示，可在配置同步后使用右上角“重启系统界面”。不会因为选择样式而自动终止系统界面。首次安装、升级或需要卸载旧绘制 Hook 时，仍应正常重启手机。
 
 运行报告的 `style` 表示当前进程实际加载的样式；`renderer=resources;signals=system;battery=system` 表示资源方案。选择与实际样式不一致时附带 `restart-required=true`。资源加载命中分别为 `status-bar-ios-resource-drawable` 与 `status-bar-ios-resource-xml`。
 

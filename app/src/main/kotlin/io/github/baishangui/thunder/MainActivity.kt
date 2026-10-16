@@ -25,6 +25,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
@@ -76,7 +79,6 @@ class MainActivity : ComponentActivity() {
             var page by rememberSaveable { mutableIntStateOf(0) }
             var detail by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
             var restartFeedback by rememberSaveable { mutableStateOf(false) }
-            var restartRequested by rememberSaveable { mutableStateOf(false) }
             var reset by rememberSaveable { mutableStateOf(false) }
             var imported by rememberSaveable(stateSaver=Settings.saver) { mutableStateOf(Settings()) }
             var importConfirm by rememberSaveable { mutableStateOf(false) }
@@ -91,7 +93,10 @@ class MainActivity : ComponentActivity() {
             }
             val scope=rememberCoroutineScope()
             val dark=when(draft.theme) { 1->false; 2->true; else->isSystemInDarkTheme() }
-            val headerHeight = with(LocalDensity.current) { (50.sp.toDp() + 24.dp).coerceAtLeast(88.dp) }
+            val titleLineHeight = with(LocalDensity.current) { (22 * 1.45f).sp.toDp() }
+            val captionLineHeight = with(LocalDensity.current) { (11 * 1.45f).sp.toDp() }
+            val headerHeight = (titleLineHeight + captionLineHeight * 2 + 24.dp).coerceAtLeast(88.dp)
+            val navigationHeight = floatingNavHeight()
             val wallpaper=rememberLayerBackdrop(); val content=rememberLayerBackdrop()
             val overlaySource=rememberCombinedBackdrop(wallpaper,content)
             val themeController = rememberAppTheme(draft, dark)
@@ -159,7 +164,8 @@ class MainActivity : ComponentActivity() {
                                 val detailScroll = rememberScrollState()
                                 Column(Modifier.widthIn(max=640.dp).fillMaxSize()
                                     .verticalScroll(if (destination.detail != null) detailScroll else when(destination.page) { 0->scroll0;1->scroll1;else->scroll2 })
-                                    .statusBarsPadding().padding(start=16.dp,end=16.dp,top=headerHeight,bottom=if (destination.detail == null) 112.dp else 28.dp).navigationBarsPadding(),
+                                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                                    .statusBarsPadding().padding(start=16.dp,end=16.dp,top=headerHeight,bottom=if (destination.detail == null) navigationHeight + 48.dp else 28.dp).navigationBarsPadding(),
                                     verticalArrangement=Arrangement.spacedBy(16.dp)) {
                                     val currentDetail = destination.detail
                                     if (currentDetail != null) {
@@ -240,6 +246,7 @@ class MainActivity : ComponentActivity() {
                     }
                     ProgressiveHeader(overlaySource,Modifier.fillMaxWidth().height(headerHeight + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()).align(Alignment.TopCenter))
                     Row(Modifier.align(Alignment.TopCenter).widthIn(max=640.dp).fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
                         .statusBarsPadding().height(headerHeight).padding(horizontal=16.dp,vertical=10.dp),
                         verticalAlignment=Alignment.CenterVertically) {
                         // Reserve the navigation slot so showing Back never shifts the title.
@@ -248,23 +255,29 @@ class MainActivity : ComponentActivity() {
                                 LiquidAction("返回",Modifier.size(48.dp),icon=MiuixIcons.Regular.Back) { navigateBack() }
                             }
                         }
-                        Crossfade(MenuDestination(page, detail), Modifier.weight(1f).padding(horizontal=14.dp),
+                        Crossfade(MenuDestination(page, detail), Modifier.weight(1f).fillMaxHeight().padding(horizontal=14.dp),
                             animationSpec = tween(220), label = "Menu title") { destination ->
-                            Column {
+                            // Both fading destinations occupy the same bounds, independent of text width.
+                            Box(Modifier.fillMaxSize()) {
                                 UiText(destination.detail?.title ?: listOf("thunder","调节","设置")[destination.page],22,bold=true,
+                                    modifier = Modifier.align(Alignment.CenterStart).fillMaxWidth()
+                                        .height(titleLineHeight).wrapContentHeight(Alignment.CenterVertically),
                                     maxLines=1,overflow=TextOverflow.Ellipsis)
                                 val caption = when {
                                     writeResult.error != null -> "保存失败，请重试修改"
                                     dirty -> "正在保存…"
                                     else -> destination.detail?.category
                                 }
-                                // Keep one line even without a caption; save-state changes must not reflow the title.
+                                // Place the caption below the button/title centerline without moving the title.
                                 UiText(caption.orEmpty(), 11, muted = true,
+                                    modifier = Modifier.align(Alignment.CenterStart).fillMaxWidth()
+                                        .offset(y = (titleLineHeight + captionLineHeight) / 2)
+                                        .height(captionLineHeight).wrapContentHeight(Alignment.CenterVertically),
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
-                        LiquidAction("重启作用域",Modifier.size(48.dp),enabled=!busy,selected=restartState.running,icon=MiuixIcons.Regular.Refresh) {
-                            restartRequested=restartState.running
+                        LiquidAction("重启系统界面",Modifier.size(48.dp),enabled=!busy,selected=restartState.running,icon=MiuixIcons.Regular.Refresh) {
+                            if (!restartState.running) ScopeRestart.restart(this@MainActivity,draft)
                             restartFeedback=true
                         }
                     }
@@ -272,57 +285,51 @@ class MainActivity : ComponentActivity() {
                         enter = fadeIn(tween(220)) + slideInVertically(tween(280)) { it / 2 },
                         exit = fadeOut(tween(180)) + slideOutVertically(tween(280)) { it / 2 }) {
                         CompositionLocalProvider(LocalGlass provides style.copy(source=overlaySource)) {
-                            FloatingNav(page,{ if (detail == null) page=it },Modifier.navigationBarsPadding().padding(horizontal=28.dp,vertical=14.dp))
+                            FloatingNav(page,{ if (detail == null) page=it },Modifier
+                                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                                .navigationBarsPadding().padding(horizontal=28.dp,vertical=14.dp))
                         }
                     }
                     AnimatedVisibility(visible = message.isNotEmpty(), modifier = Modifier.align(Alignment.BottomCenter)
-                        .navigationBarsPadding().padding(horizontal = 16.dp, vertical = if (detail == null) 100.dp else 16.dp)) {
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                        .navigationBarsPadding().padding(horizontal = 16.dp, vertical = if (detail == null) navigationHeight + 36.dp else 16.dp)
+                        .semantics { liveRegion = LiveRegionMode.Polite }) {
                         SettingsGroup(Modifier.widthIn(max = 600.dp)) {
                             UiText(message, 13, modifier = Modifier.fillMaxWidth())
                         }
                     }
                     if(restartFeedback) SettingsDialog(
-                        if(!restartRequested) "重启作用域" else if(restartState.running) "正在重启作用域" else "重启结果",
-                        {restartFeedback=false}
+                        if(restartState.running) "正在重启系统界面" else "重启结果",
+                        {restartFeedback=false},
+                        footer = {
+                            LiquidAction(if(restartState.running) "收起" else "完成",Modifier.fillMaxWidth(),selected=true) { restartFeedback=false }
+                        }
                     ) {
-                        if(!restartRequested) {
-                            UiText("重启系统界面及插件进程",16,bold=true)
-                            UiText("范围：系统界面、系统界面插件。保存配置并等待进程稳定后，结束旧进程并重新启动。需要 Root 授权，状态栏、通知栏和流体云会短暂中断。",14,muted=true)
-                            UiText("普通参数修改会自动应用；状态栏图标样式需重启系统界面后生效。",12,muted=true)
-                            Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                                LiquidAction("取消",Modifier.weight(1f)) { restartFeedback=false }
-                                LiquidAction("重启",Modifier.weight(1f),enabled=!restartState.running && rootState != RootAccessState.Checking,selected=true) {
-                                    restartRequested=true
-                                    ScopeRestart.restart(this@MainActivity,draft)
-                                }
-                            }
-                        } else {
-                            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)) {
-                                if(restartState.running) InfiniteProgressIndicator(Modifier.size(24.dp))
-                                UiText(restartState.message,14,modifier=Modifier.weight(1f))
-                            }
-                            if(restartState.running) UiText("收起后继续处理，可从右上角查看进度。",12,muted=true)
-                            LiquidAction(if(restartState.running) "后台继续" else "完成",Modifier.fillMaxWidth(),selected=true) { restartFeedback=false }
+                        Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)) {
+                            if(restartState.running) InfiniteProgressIndicator(Modifier.size(24.dp))
+                            UiText(restartState.message,14,modifier=Modifier.weight(1f))
                         }
                     }
-                    if(reset) SettingsDialog("恢复默认设置",{reset=false}) {
-                        UiText("将界面外观和效果参数恢复为默认值，并自动保存。",14,muted=true)
+                    if(reset) SettingsDialog("恢复默认设置",{reset=false}, footer = {
                         Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                             LiquidAction("取消",Modifier.weight(1f)) { reset=false }
                             LiquidAction("恢复",Modifier.weight(1f),selected=true) { draft=Settings();reset=false }
                         }
+                    }) {
+                        UiText("将界面外观和效果参数恢复为默认值，并自动保存。",14,muted=true)
                     }
-                    if(importConfirm) SettingsDialog("导入此配置？",{importConfirm=false}) {
+                    if(importConfirm) SettingsDialog("导入此配置？",{importConfirm=false}, footer = {
+                        Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                            LiquidAction("取消",Modifier.weight(1f)) { importConfirm=false }
+                            LiquidAction("导入",Modifier.weight(1f),selected=true) { draft=imported;importConfirm=false;message="已导入，正在自动保存" }
+                        }
+                    }) {
                         UiText("导入后会替换当前配置并自动保存。",14,muted=true)
                         Summary("下拉模糊",if(imported.panel.blur) "${imported.panel.radius} px" else "系统默认")
                         Summary("压暗 / 混色",if(imported.panel.tint) "${alphaPercent(imported.panel.color)}%" else "系统默认")
                         Summary("横幅背景混色",if(imported.banner.tint) "${alphaPercent(imported.banner.color)}%" else "系统默认")
                         Summary("磁贴背景混色",if(imported.cardArea.tint) "${alphaPercent(imported.cardArea.color)}%" else "系统默认")
                         Summary("通知条背景混色",if(imported.notificationArea.tint) "${alphaPercent(imported.notificationArea.color)}%" else "系统默认")
-                        Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                            LiquidAction("取消",Modifier.weight(1f)) { importConfirm=false }
-                            LiquidAction("导入",Modifier.weight(1f),selected=true) { draft=imported;importConfirm=false;message="已导入，正在自动保存" }
-                        }
                     }
                 }
             }
@@ -353,18 +360,23 @@ class MainActivity : ComponentActivity() {
 private fun alphaPercent(c: Int)=TintColor.percent(c)
 @Composable private fun ModuleStatusRow(title: String, status: String, hint: String, ready: Boolean, checking: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            if (checking) InfiniteProgressIndicator(Modifier.size(12.dp))
-            else Box(Modifier.size(8.dp).background(if (ready) Color(0xff5b9e76) else Color(0xffb78a53), RoundedCornerShape(8.dp)))
-            UiText(title, 15, bold = true, modifier = Modifier.weight(1f))
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                if (checking) InfiniteProgressIndicator(Modifier.size(12.dp))
+                else Box(Modifier.size(8.dp).background(if (ready) Color(0xff5b9e76) else Color(0xffb78a53), RoundedCornerShape(8.dp)))
+                UiText(title, 15, bold = true)
+            }
             UiText(status, 13, muted = !ready)
         }
         if (hint.isNotEmpty()) UiText(hint, 12, muted = true)
     }
 }
 @Composable private fun Summary(title: String,value: String) {
-    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
-        UiText(title,13,muted=true,modifier=Modifier.weight(1f).padding(end=12.dp));UiText(value,13,bold=true)
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        UiText(title,13,muted=true,modifier=Modifier.padding(end=12.dp))
+        UiText(value,13,bold=true)
     }
 }
 @Composable private fun Wallpaper(modifier: Modifier,s: GlassStyle) {

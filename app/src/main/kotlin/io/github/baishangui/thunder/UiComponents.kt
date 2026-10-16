@@ -25,6 +25,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,6 +39,8 @@ import com.kyant.backdrop.effects.effect
 import com.kyant.backdrop.catalog.components.*
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.TabRowWithContour
+import top.yukonga.miuix.kmp.basic.TabRowDefaults
+import top.yukonga.miuix.kmp.basic.RadioButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.HsvHueSlider
@@ -73,16 +77,18 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
 
 @Composable internal fun UiText(text: String, size: Int = 15, muted: Boolean = false,
     bold: Boolean = false, modifier: Modifier = Modifier, color: Color? = null,
-    maxLines: Int = Int.MAX_VALUE, overflow: TextOverflow = TextOverflow.Clip) {
+    maxLines: Int = Int.MAX_VALUE, overflow: TextOverflow = TextOverflow.Clip,
+    textAlign: TextAlign? = null) {
     val s = LocalGlass.current
     Text(text, modifier = modifier, color = color ?: if (muted) s.muted else s.ink,
         fontSize = size.sp, lineHeight = (size * 1.45f).sp, maxLines = maxLines, overflow = overflow,
-        fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal)
+        fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal, textAlign = textAlign)
 }
 
 @Composable internal fun SettingsGroup(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Card(modifier.fillMaxWidth(), cornerRadius = LocalGlass.current.settings.roundness.dp, insideMargin = PaddingValues(0.dp)) {
-        Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+    Card(modifier.fillMaxWidth(), cornerRadius = LocalGlass.current.settings.roundness.dp,
+        insideMargin = PaddingValues(horizontal = 18.dp, vertical = 16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
     }
 }
 
@@ -103,8 +109,10 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
             modifier = (if (icon != null) Modifier.size(48.dp) else Modifier.heightIn(min = 48.dp))
                 .then(if (!enabled) Modifier.clearAndSetSemantics { disabled() } else Modifier),
             isInteractive = enabled, tint = if (selected) s.accent else Color.Unspecified,
-            surfaceColor = if (selected) Color.Unspecified else s.surface.copy(alpha = .18f),
-            contentPadding = PaddingValues(horizontal = if (icon != null) 8.dp else 16.dp)) {
+            surfaceColor = if (selected) s.accent else s.surface.copy(alpha = .18f),
+            shape = if (icon != null) miuixCapsuleShape() else miuixShape(24.dp),
+            contentPadding = if (icon != null) PaddingValues(8.dp)
+                else PaddingValues(horizontal = 24.dp, vertical = 12.dp)) {
             if (icon != null) Icon(icon, contentDescription = null,
                 modifier = Modifier.size(22.dp), tint = contentColor)
             else UiText(text, 14, bold = true, color = contentColor)
@@ -114,7 +122,7 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
 
 @Composable internal fun SettingsMenuGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        UiText(title, 13, muted = true, modifier = Modifier.padding(start = 8.dp))
+        UiText(title, 13, muted = true, modifier = Modifier.padding(start = 8.dp).semantics { heading() })
         Card(Modifier.fillMaxWidth(), cornerRadius = LocalGlass.current.settings.roundness.dp, insideMargin = PaddingValues(0.dp)) {
             Column(content = content)
         }
@@ -152,9 +160,13 @@ internal class ControlHistory {
 }
 internal val LocalControlHistory = staticCompositionLocalOf { ControlHistory() }
 internal val LocalControlScope = staticCompositionLocalOf { "" }
-@Composable private fun UndoAction(restore: (() -> Unit)?) {
-    if (restore != null) UiText("回退", 12, color = LocalGlass.current.accent,
-        modifier = Modifier.heightIn(min = 48.dp).clip(miuixCapsuleShape()).clickable(onClickLabel = "回退此项修改", onClick = restore).wrapContentHeight().padding(horizontal = 8.dp))
+@Composable private fun UndoFooter(title: String, restore: (() -> Unit)?) {
+    if (restore != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        UiText("回退", 12, color = LocalGlass.current.accent,
+            modifier = Modifier.heightIn(min = 48.dp).clip(miuixCapsuleShape())
+                .clickable(role = Role.Button, onClickLabel = "回退${title}的修改", onClick = restore)
+                .wrapContentHeight().padding(horizontal = 12.dp, vertical = 8.dp))
+    }
 }
 @Composable internal fun LiquidColorSetting(title: String, color: Int, opaque: Boolean = false, change: (Int) -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
@@ -162,16 +174,23 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
     val key = LocalControlScope.current + ":color:" + title
     SideEffect { history.register(key, color) }
     val original = history.original(key, color)
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Row(Modifier.weight(1f).heightIn(min = 52.dp).clip(miuixShape(12.dp)).clickable(onClickLabel = "选择$title") { open = true },
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(32.dp).background(LocalGlass.current.colors.secondaryContainer, CircleShape)
-                .background(Color(color), CircleShape).border(1.dp, LocalGlass.current.colors.outline.copy(alpha = .3f), CircleShape))
-            UiText(title, modifier = Modifier.weight(1f))
+    Column(Modifier.fillMaxWidth()) {
+        BasicComponent(
+            modifier = Modifier.clip(miuixShape(12.dp)).semantics { role = Role.Button },
+            insideMargin = PaddingValues(8.dp),
+            onClick = { open = true },
+            startAction = {
+                Box(Modifier.size(32.dp).background(LocalGlass.current.colors.secondaryContainer, CircleShape)
+                    .background(Color(color), CircleShape).border(1.dp, LocalGlass.current.colors.outline.copy(alpha = .3f), CircleShape))
+            },
+            endActions = {
+                Icon(MiuixIcons.Regular.ChevronForward, null, Modifier.size(16.dp), tint = LocalGlass.current.muted)
+            }
+        ) {
+            UiText(title)
             UiText(if (opaque) "#%06X".format(color and 0xffffff) else hex(color), 12, muted = true)
-            Icon(MiuixIcons.Regular.ChevronForward, null, Modifier.size(16.dp), tint = LocalGlass.current.muted)
         }
-        UndoAction(original?.let { { change(it) } })
+        UndoFooter(title, original?.let { { change(it) } })
     }
     if (open) CompositionLocalProvider(LocalControlScope provides "$key:dialog") {
         ColorDialog(color, opaque, { open = false }) {
@@ -188,23 +207,26 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
     SideEffect { history.register(key, checked) }
     val original = history.original(key, checked)
     val latestChange = rememberUpdatedState<(Boolean) -> Unit> { history.record(key, checked, it); change(it) }
-    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f).heightIn(min = 48.dp)
-            .clip(miuixShape(12.dp))
-            .clickable(onClickLabel = title) { latestChange.value(!latestChecked.value) }
-            .wrapContentHeight().padding(end = 12.dp)) {
+    Column(Modifier.fillMaxWidth()) {
+        BasicComponent(
+            modifier = Modifier.clip(miuixShape(12.dp)).semantics(mergeDescendants = true) {
+                role = Role.Switch
+                toggleableState = if (checked) androidx.compose.ui.state.ToggleableState.On else androidx.compose.ui.state.ToggleableState.Off
+            },
+            insideMargin = PaddingValues(8.dp),
+            onClick = { latestChange.value(!latestChecked.value) },
+            endActions = {
+                Box(Modifier.size(68.dp, 48.dp), contentAlignment = Alignment.Center) {
+                    // The complete preference is the accessible switch; this retains the glass drag interaction.
+                    LiquidToggle(selected = { latestChecked.value }, onSelect = { latestChange.value(it) },
+                        backdrop = s.source, modifier = Modifier.clearAndSetSemantics {})
+                }
+            }
+        ) {
             UiText(title, bold = true)
             if (subtitle.isNotEmpty()) UiText(subtitle, 12, muted = true, modifier = Modifier.padding(top = 4.dp))
         }
-        UndoAction(original?.let { { change(it) } })
-        Box(Modifier.size(68.dp, 48.dp), contentAlignment = Alignment.Center) {
-            LiquidToggle(selected = { latestChecked.value }, onSelect = { latestChange.value(it) },
-                backdrop = s.source, modifier = Modifier.semantics(mergeDescendants = true) {
-                    contentDescription = title; toggleableState = if (checked) androidx.compose.ui.state.ToggleableState.On else androidx.compose.ui.state.ToggleableState.Off
-                    role = Role.Switch
-                    onClick { latestChange.value(!latestChecked.value); true }
-                })
-        }
+        UndoFooter(title, original?.let { { change(it) } })
     }
 }
 
@@ -220,9 +242,9 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
         history.record(id, value, next); if (next != value) change(next)
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 32.dp), verticalAlignment = Alignment.CenterVertically) {
-            UiText(title, 14, modifier = Modifier.weight(1f))
-            UndoAction(original?.let { { change(it) } })
+        FlowRow(Modifier.fillMaxWidth().heightIn(min = 32.dp),
+            horizontalArrangement = Arrangement.SpaceBetween, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            UiText(title, 14)
             UiText("${dragging.roundToInt()}$unit", 14, bold = true)
         }
         key(range) {
@@ -231,10 +253,12 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
                 valueRange = range.first.toFloat()..range.last.toFloat(), visibilityThreshold = .01f,
                 backdrop = s.source, modifier = Modifier.height(48.dp).semantics(mergeDescendants = true) {
                     contentDescription = title
+                    stateDescription = "${dragging.roundToInt()}$unit"
                     progressBarRangeInfo = ProgressBarRangeInfo(dragging, range.first.toFloat()..range.last.toFloat(), range.last-range.first-1)
                     setProgress { dragging = it.coerceIn(range.first.toFloat(),range.last.toFloat()); latestCommit.value(dragging.roundToInt()); true }
                 }.focusable())
         }
+        UndoFooter(title, original?.let { { change(it) } })
     }
 }
 
@@ -243,11 +267,50 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
     val id = LocalControlScope.current + ":choice:" + labels.joinToString()
     SideEffect { if(undoable) history.register(id, selected) }
     val original = if(undoable) history.original(id, selected) else null
-    Column {
-        TabRowWithContour(tabs = labels, selectedTabIndex = selected, onTabSelected = { if(undoable) history.record(id, selected, it); select(it) },
-            minWidth = 72.dp, maxWidth = 180.dp)
-        UndoAction(original?.let { { select(it) } })
+    val textMeasurer = rememberTextMeasurer()
+    val style = MiuixTheme.textStyles.main.copy(
+        fontSize = MiuixTheme.textStyles.body2.fontSize, fontWeight = FontWeight.Bold)
+    val labelSizes = labels.map { textMeasurer.measure(it, style, maxLines = 1).size }
+    val density = LocalDensity.current
+    val minWidth = with(density) { labelSizes.maxOf { it.width }.toDp() } + 24.dp
+    val height = maxOf(TabRowDefaults.TabRowWithContourHeight,
+        with(density) { labelSizes.maxOf { it.height }.toDp() } + 26.dp)
+    val selectChoice: (Int) -> Unit = {
+        if (undoable) history.record(id, selected, it)
+        select(it)
     }
+    Column(Modifier.fillMaxWidth()) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            // Prefer complete options to a clipped horizontal strip on narrow screens or with large text.
+            val requiredWidth = minWidth * labels.size + 5.dp * (labels.size - 1) + 10.dp
+            if (requiredWidth <= maxWidth) {
+                TabRowWithContour(tabs = labels, selectedTabIndex = selected, onTabSelected = selectChoice,
+                    minWidth = minWidth, maxWidth = maxOf(minWidth, 180.dp), height = height)
+            } else {
+                Column(Modifier.fillMaxWidth().semantics { selectableGroup() }) {
+                    labels.forEachIndexed { index, label ->
+                        BasicComponent(
+                            modifier = Modifier.clip(miuixShape(12.dp)).semantics(mergeDescendants = true) {
+                                role = Role.RadioButton
+                                this.selected = selected == index
+                            },
+                            insideMargin = PaddingValues(8.dp),
+                            onClick = { selectChoice(index) },
+                            endActions = {
+                                RadioButton(selected = selected == index, onClick = null,
+                                    modifier = Modifier.clearAndSetSemantics {})
+                            }
+                        ) { UiText(label) }
+                    }
+                }
+            }
+        }
+        UndoFooter(labels.joinToString(" / "), original?.let { { select(it) } })
+    }
+}
+
+@Composable internal fun floatingNavHeight() = with(LocalDensity.current) {
+    maxOf(64.dp, 22.dp + 2.dp + (12 * 1.45f).sp.toDp() + 16.dp)
 }
 
 @Composable internal fun FloatingNav(page: Int, change: (Int) -> Unit, modifier: Modifier = Modifier) {
@@ -255,7 +318,8 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
     val latestPage = rememberUpdatedState(page)
     val latestChange = rememberUpdatedState(change)
     LiquidBottomTabs(selectedTabIndex = { latestPage.value }, onTabSelected = { latestChange.value(it) },
-        backdrop = s.source, tabsCount = 3, modifier = modifier.widthIn(max = 380.dp).fillMaxWidth()) {
+        backdrop = s.source, tabsCount = 3, height = floatingNavHeight(),
+        modifier = modifier.widthIn(max = 380.dp).fillMaxWidth().semantics { selectableGroup() }) {
         val icons = listOf(MiuixIcons.Regular.GridView, MiuixIcons.Regular.Tune, MiuixIcons.Regular.Settings)
         listOf("主页", "调节", "设置").forEachIndexed { i, name ->
             LiquidBottomTab(onClick = { latestChange.value(i) }, modifier = Modifier.semantics { selected = page == i }) {
@@ -327,23 +391,26 @@ internal fun hex(color: Int) = "#%08X".format(color)
             HsvAlphaSlider(selection.hue, selection.saturation, selection.brightness, selection.alpha,
                 { update(selection.copy(alpha = it)) })
         }
+        val inputError = if (opaque) "请输入 6 位 RGB 或 FF 开头的 8 位 ARGB" else "请输入 6 位 RGB 或 8 位 ARGB"
         TextField(value = input, onValueChange = { text ->
             input = text
             val parsed = parsePickerColor(text, opaque)
             invalid = parsed == null
             if (parsed != null) selection = PickerColor.from(parsed, selection)
-        }, modifier = Modifier.fillMaxWidth(), label = if (opaque) "HEX · RRGGBB" else "HEX · AARRGGBB / RRGGBB",
+        }, modifier = Modifier.fillMaxWidth().semantics { if (invalid) error(inputError) },
+            label = if (opaque) "HEX · RRGGBB" else "HEX · AARRGGBB / RRGGBB",
             singleLine = true,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters,
                 keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { keyboard?.hide() }))
-        if (invalid) UiText(if (opaque) "请输入 6 位 RGB 或 FF 开头的 8 位 ARGB" else "请输入 6 位 RGB 或 8 位 ARGB", 12, color = MiuixTheme.colorScheme.error)
+        if (invalid) UiText(inputError, 12, color = MiuixTheme.colorScheme.error)
     }
 }
 
 @Composable private fun ColorChannel(title: String, value: String, progress: Float, change: (Float) -> Unit, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
             UiText(title, 13)
             UiText(value, 12, muted = true)
         }

@@ -18,16 +18,22 @@ Copyright Kyant (Kyant0), Apache License 2.0. License text is distributed under
 
 Local adaptations: replace hardcoded theme/accent with `LocalLiquidAppearance`,
 scale blur/lens dimensions using the app's UI preferences, and wrap the components
-with accessible labels/value actions and current callback state. Layout and the
-original press/optical implementations are retained. The slider keeps a continuous
+with accessible labels/value actions and current callback state. The original
+press/optical algorithms are retained; app-specific layout adaptations are listed
+below. The slider keeps a continuous
 floating-point drag accumulator, reads current callbacks and geometry, and adds a
 finished callback so the app commits a drag once instead of recomposing the whole
 screen for every pointer event.
 
 The button accepts configurable content padding for header icons inside 48 dp
-touch targets; text buttons retain the original padding. Button press content is
-explicitly clipped to its capsule shape, and disabled buttons have no click or
-press handlers.
+touch targets. Text buttons use horizontal and vertical content padding, a 48 dp
+minimum height and a configurable shape with a 24 dp corner radius so wrapped or
+enlarged text can increase the height without entering capsule corners. Button
+press content is clipped to the same shape as its backdrop; disabled buttons have
+no click or press handlers. Selected buttons draw an opaque accent surface so the
+theme's contrasting foreground matches the displayed background. Bottom tabs
+accept a configurable height shared by the visible bar, sampled tab layer and
+moving highlight, with a font-aware height supplied by the app.
 
 Other UI components (theme, text, cards, menu rows, choice tabs, dialog, color picker, and
 text input) use `top.yukonga.miuix.kmp:miuix-ui:0.9.0`.

@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
@@ -15,6 +16,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import top.yukonga.miuix.kmp.basic.Text
 
 @Composable internal fun StatusIconStyleSettings(settings: Settings, change: (Settings) -> Unit) {
@@ -23,7 +25,7 @@ import top.yukonga.miuix.kmp.basic.Text
         ChoiceTabs(listOf("系统默认", "iOS 风格"), settings.statusIconStyle) {
             change(settings.copy(statusIconStyle = it))
         }
-        UiText("修改图标样式后需重启系统界面，包括切回系统默认。配置同步后，点击右上角“重启作用域”应用。", 13, muted = true)
+        UiText("修改图标样式后需重启系统界面，包括切回系统默认。配置同步后，点击右上角“重启系统界面”应用。", 13, muted = true)
     }
     if (!settings.enabled) UiText("启用模块后应用图标样式", 13, muted = true)
     SettingsGroup {
@@ -50,16 +52,22 @@ import top.yukonga.miuix.kmp.basic.Text
             IosStatusIcons.Kind.RECORDING to "录制", IosStatusIcons.Kind.STEALTH to "隐私保护",
             IosStatusIcons.Kind.REVERSE_CHARGE to "反向充电", IosStatusIcons.Kind.TTY to "文字电话", IosStatusIcons.Kind.NO_SERVICE to "无服务"
         )
-        symbols.chunked(4).forEach { row ->
-            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-                row.forEach { (kind, label) ->
-                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        StatusGlyph(IosStatusIcons.Symbol(kind), LocalGlass.current.ink, label)
-                        UiText(label, 11, muted = true)
+        val minCellWidth = with(LocalDensity.current) { 44.sp.toDp() } + 16.dp
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val columns = (maxWidth / minCellWidth).toInt().coerceIn(1, 4)
+            Column {
+                symbols.chunked(columns).forEach { row ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+                        row.forEach { (kind, label) ->
+                            Column(Modifier.weight(1f).padding(horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                StatusGlyph(IosStatusIcons.Symbol(kind), LocalGlass.current.ink, label)
+                                UiText(label, 11, muted = true, textAlign = TextAlign.Center)
+                            }
+                        }
+                        repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
-                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
@@ -67,10 +75,10 @@ import top.yukonga.miuix.kmp.basic.Text
 
 @Composable private fun StatusStrip(dark: Boolean, stacked: Boolean) {
     val ink = if (dark) Color.White else Color(0xff17191d)
-    Row(Modifier.fillMaxWidth().background(if (dark) Color(0xff17191d) else Color(0xfff1f3f7), RoundedCornerShape(20.dp))
-        .padding(horizontal = 20.dp, vertical = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+    FlowRow(Modifier.fillMaxWidth().background(if (dark) Color(0xff17191d) else Color(0xfff1f3f7), RoundedCornerShape(20.dp))
+        .padding(20.dp), horizontalArrangement = Arrangement.SpaceBetween,
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("9:41", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = ink)
-        Spacer(Modifier.weight(1f))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (stacked) {
                 Box(Modifier.size(IosIconDrawable.cellWidth(IosStatusIcons.Symbol(IosStatusIcons.Kind.CELLULAR, 3, 4, 1)).dp, IosIconDrawable.cellHeight().dp)) {

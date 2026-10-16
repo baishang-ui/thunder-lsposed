@@ -3,6 +3,7 @@ package io.github.baishangui.thunder;
 import android.content.ContentProvider;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.Uri;
@@ -16,7 +17,22 @@ public final class SettingsProvider extends ContentProvider {
     public static SharedPreferences preferences(Context context) {
         return context.createDeviceProtectedStorageContext().getSharedPreferences("settings", Context.MODE_PRIVATE);
     }
-    @Override public boolean onCreate() { return true; }
+    @Override public boolean onCreate() {
+        // <queries> only makes the scope packages visible to us. A URI grant also
+        // makes this provider visible to those callers, whose manifests we do not own.
+        // Providers initialize before Application.onCreate, including when the
+        // framework starts the module's service provider before the UI is opened.
+        for (String target : new String[]{"com.android.systemui", "com.oplus.systemui.plugins"}) {
+            try {
+                getContext().grantUriPermission(target, Uri.parse("content://" + AUTHORITY),
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } catch (IllegalArgumentException | SecurityException error) {
+                // One absent/disabled package must not stop the other scope or this provider.
+                android.util.Log.w("Thunder", "Cannot grant settings provider access to " + target, error);
+            }
+        }
+        return true;
+    }
     @Override public Bundle call(String method, String arg, Bundle extras) {
         Context context = getContext();
         int uid = Binder.getCallingUid();

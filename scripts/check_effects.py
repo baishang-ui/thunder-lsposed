@@ -21,6 +21,8 @@ required = {'com.android.systemui', 'com.oplus.systemui.plugins'}
 manifest = ET.parse(ROOT / 'app/src/main/AndroidManifest.xml').getroot()
 visible = {p.attrib['{http://schemas.android.com/apk/res/android}name'] for p in manifest.findall('./queries/package')}
 assert required <= visible, 'SettingsProvider must be able to resolve both target package UIDs'
+provider = manifest.find('./application/provider')
+assert provider.attrib.get('{http://schemas.android.com/apk/res/android}grantUriPermissions') == 'true', 'SettingsProvider must allow explicit URI grants to the scope packages'
 scope = set((ROOT / 'app/src/main/resources/META-INF/xposed/scope.list').read_text().splitlines())
 assert scope == required, 'Only SystemUI and its plugin belong in the module scope'
 sources = json.loads((ROOT / 'scripts/fixtures/effect-runtime.json').read_text())
@@ -37,7 +39,7 @@ with tempfile.TemporaryDirectory(prefix='thunder-effects-') as folder:
         path = src / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(data)
-    for fixture in ['statusbar', 'cloud', 'qs', 'text', 'iconstyle', 'gesture', 'volume']:
+    for fixture in ['statusbar', 'cloud', 'qs', 'text', 'iconstyle', 'gesture', 'volume', 'report']:
         for path in (ROOT / 'scripts/fixtures' / fixture).rglob('*.java'):
             target = src / path.relative_to(ROOT / 'scripts/fixtures' / fixture)
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -49,7 +51,7 @@ with tempfile.TemporaryDirectory(prefix='thunder-effects-') as folder:
     resource_names = list(dict.fromkeys(re.findall(r'R\.drawable\.(\w+)', (ROOT / 'app/src/main/java/io/github/baishangui/thunder/IosStatusResources.java').read_text())))
     (src / 'io/github/baishangui/thunder/R.java').write_text('package io.github.baishangui.thunder; final class R { static class drawable {' + ''.join(f'static final int {name}={index};' for index, name in enumerate(resource_names, 1000)) + '} }')
     subprocess.run([javac, '-d', str(classes), *map(str, src.rglob('*.java'))], check=True)
-    checks = ['VolumePanelCheck', 'GestureBarCheck', 'CardBlendCheck', 'HookCheck', 'ProviderCheck', 'CloudCheck', 'CloudLayerCheck', 'StatusBarIconCheck', 'IosStatusBarCheck', 'IosDrawSafetyCheck', 'IosRenderPathCheck', 'IosCoverageCheck', 'QsTintCheck', 'QsStateCheck', 'QsGeometryCheck', 'NotificationStyleCheck', 'NotificationExpansionCheck', 'AdaptiveTextCheck']
+    checks = ['RuntimeReportCheck', 'ProviderVisibilityCheck', 'VolumePanelCheck', 'GestureBarCheck', 'CardBlendCheck', 'HookCheck', 'ProviderCheck', 'CloudCheck', 'CloudLayerCheck', 'StatusBarIconCheck', 'IosStatusBarCheck', 'IosDrawSafetyCheck', 'IosRenderPathCheck', 'IosCoverageCheck', 'QsTintCheck', 'QsStateCheck', 'QsGeometryCheck', 'NotificationStyleCheck', 'NotificationExpansionCheck', 'AdaptiveTextCheck']
     if args.only:
         unknown = set(args.only) - set(checks)
         if unknown: raise SystemExit('Unknown checks: ' + ', '.join(sorted(unknown)))

@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 from zipfile import ZipFile
 from loguru import logger
 from androguard.core.dex import DEX
+from androguard.core.axml import ARSCParser, AXMLPrinter
 
 parser = ArgumentParser(description=__doc__)
 parser.add_argument('apk', help='Captured ColorOS 17 SystemUI.apk')
@@ -29,8 +30,11 @@ required = {
 required['Lcom/android/systemui/volume/VolumeDialogControllerImpl;']=({'setRingerMode','setZenMode','hasVibrator'},set())
 required['Lcom/android/systemui/plugins/VolumeDialogController$State;']=(set(),{'ringerModeInternal','zenMode','disallowRinger'})
 required['Lcom/oplusos/systemui/common/feature/FeatureOption;']=({'isOplusAlertSlider'},set())
+required['Lcom/oplus/systemui/qs/tiles/OplusDndTile;']=({'handleUpdateState'},set())
+required['Lcom/oplus/systemui/qs/tiles/ThreeStageRingerModeTile;']=({'handleUpdateState'},set())
 classes = {}
 with ZipFile(args.apk) as apk:
+    resources = ARSCParser(apk.read('resources.arsc'))
     for entry in apk.namelist():
         if entry.endswith('.dex'):
             dex = DEX(apk.read(entry))
@@ -53,3 +57,22 @@ for method in ('animateAddImpl','animateMoveImpl'):
     for call in ('getEndX(', 'getTranslationY(', 'resolveExpandItemDurationMs('):
         assert call in instructions, f'Native animation chain changed: {method} -> {call}'
 print(f'Validated {count} native volume method/field targets and vendor expansion animation calls.')
+# Resolve names from this APK, then prove those exact IDs are used by the current vendor
+# tiles. A generic AOSP drawable existing in the same APK does not establish icon identity.
+native_icons = {
+    'OplusDndTile': ('status_bar_qs_dnd_active', 'status_bar_qs_dnd_inactive'),
+    'ThreeStageRingerModeTile': ('status_bar_qs_mute_active', 'status_bar_qs_vibrate_on', 'status_bar_qs_mute_inactive'),
+}
+with ZipFile(args.apk) as apk:
+    for tile, names in native_icons.items():
+        body = next(m for m in classes[f'Lcom/oplus/systemui/qs/tiles/{tile};'].get_methods() if m.get_name() == 'handleUpdateState')
+        literals = {v for i in body.get_instructions() for v in i.get_literals()}
+        for name in names:
+            rid = resources.get_res_id_by_key('com.android.systemui', 'drawable', name)
+            assert rid and rid in literals, f'{tile} no longer uses drawable/{name}'
+            paths = [value for _, value in resources.get_resolved_res_configs(rid)]
+            assert paths, f'No drawable configuration for {name}'
+            for path in paths:
+                assert path in apk.namelist(), f'Missing native icon asset {path}'
+                assert AXMLPrinter(apk.read(path)).get_xml_obj().tag == 'vector', f'Native icon format changed: {name}'
+            print(f'Validated {tile} -> drawable/{name} ({rid:#x}).')
