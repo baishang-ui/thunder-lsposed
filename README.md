@@ -82,6 +82,7 @@
 
 ```sh
 ./gradlew :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease
+python3 scripts/check_liquid_button.py
 python3 scripts/check_systemui_restart.py
 python3 scripts/check_live_settings.py
 python3 scripts/check_effects.py

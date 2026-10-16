@@ -29,7 +29,11 @@ The button accepts configurable content padding for header icons inside 48 dp
 touch targets. Text buttons use horizontal and vertical content padding, a 48 dp
 minimum height and a configurable shape with a 24 dp corner radius so wrapped or
 enlarged text can increase the height without entering capsule corners. Button
-press content is clipped to the same shape as its backdrop; disabled buttons have
+shapes are restricted to Kyant's `RoundedRectangularShape`: icons use `Capsule`
+and text buttons use `RoundedRectangle`. Miuix's cached smooth shapes are not
+accepted by Backdrop 1.0.6's lens effect and cause an exception on first draw.
+The compiled button signature is checked by `scripts/check_liquid_button.py`.
+Button press content is clipped to the same shape as its backdrop; disabled buttons have
 no click or press handlers. Selected buttons draw an opaque accent surface so the
 theme's contrasting foreground matches the displayed background. Bottom tabs
 accept a configurable height shared by the visible bar, sampled tab layer and

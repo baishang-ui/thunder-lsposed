@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -31,6 +30,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.Capsule
+import com.kyant.shapes.RoundedRectangularShape
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -46,7 +46,8 @@ fun LiquidButton(
     tint: Color = Color.Unspecified,
     surfaceColor: Color = Color.Unspecified,
     contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp),
-    shape: Shape = Capsule(),
+    // Backdrop 1.0.6 lens() cannot render arbitrary Shape implementations.
+    shape: RoundedRectangularShape = Capsule(),
     content: @Composable RowScope.() -> Unit
 ) {
     val appearance = LocalLiquidAppearance.current

@@ -4,6 +4,7 @@ import android.app.WallpaperColors;
 import android.app.WallpaperManager;
 import android.content.Context;
 import android.content.res.Configuration;
+import android.content.res.Resources;
 import android.graphics.Canvas;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
@@ -16,6 +17,7 @@ import android.view.ViewParent;
 import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -25,6 +27,25 @@ final class AdaptiveTextHook {
     private static final Map<TextView, AdaptiveTextColor.Transition> texts =
         Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<TextView, Boolean> knownTexts = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Resources, Map<Integer, String>> resourceNames = new WeakHashMap<>();
+    private static final int NOTIFICATION = 1, TILE = 2, PANEL = 4, EXCLUDED = 8;
+    // Class identity is stable; parent chains, drawable state and material colors are not.
+    private static final ClassValue<Integer> viewTypes = new ClassValue<>() {
+        @Override protected Integer computeValue(Class<?> type) {
+            int flags = 0;
+            String name = type.getName();
+            if (name.contains(".keyguard.") || name.contains(".bouncer.") || name.contains(".seedling."))
+                flags |= EXCLUDED;
+            for (Class<?> current = type; current != null; current = current.getSuperclass()) {
+                name = current.getName();
+                if (ROW.equals(name)) flags |= NOTIFICATION;
+                if ("com.android.systemui.plugins.qs.QSTileView".equals(name)) flags |= TILE;
+                if ("com.android.systemui.shade.NotificationPanelView".equals(name)
+                        || "com.android.systemui.qs.QSContainerImpl".equals(name)) flags |= PANEL;
+            }
+            return flags;
+        }
+    };
     private static volatile Integer wallpaper;
     private static boolean wallpaperStarted;
 
@@ -92,7 +113,7 @@ final class AdaptiveTextHook {
         HookConfig.Area material = null;
         boolean panel = false;
         for (View view = text; view != null; view = parent(view)) {
-            if (isType(view, ROW)) {
+            if ((viewTypes.get(view.getClass()) & NOTIFICATION) != 0) {
                 Object nativeBackground = Reflect.getObjectField(view, "mBackgroundNormal");
                 if (!(nativeBackground instanceof View)) return null;
                 material = NotificationCardHook.area((View) nativeBackground);
@@ -102,7 +123,7 @@ final class AdaptiveTextHook {
             Drawable drawable = view.getBackground();
             int card = QsCardHook.textSurface(drawable);
             // Some C17 tile views draw bgDrawable themselves instead of using View.background.
-            if (isType(view, "com.android.systemui.plugins.qs.QSTileView")) {
+            if ((viewTypes.get(view.getClass()) & TILE) != 0) {
                 try { card = QsCardHook.textSurface((Drawable) Reflect.getObjectField(view, "bgDrawable")); }
                 catch (RuntimeException ignored) { return null; }
                 if (card == 0) return null;
@@ -148,33 +169,37 @@ final class AdaptiveTextHook {
     private static boolean candidate(TextView text) {
         for (View view = text; view != null; view = parent(view)) {
             if (excluded(view)) return false;
-            if (isType(view, ROW) || isPanel(view)
-                    || isType(view, "com.android.systemui.plugins.qs.QSTileView")
+            if ((viewTypes.get(view.getClass()) & NOTIFICATION) != 0 || isPanel(view)
+                    || (viewTypes.get(view.getClass()) & TILE) != 0
                     || QsCardHook.textSurface(view.getBackground()) != 0) return true;
         }
         return false;
     }
 
-    private static boolean isType(View view, String name) {
-        for (Class<?> type = view.getClass(); type != null; type = type.getSuperclass())
-            if (name.equals(type.getName())) return true;
-        return false;
-    }
-
     private static boolean isPanel(View view) {
-        return isType(view, "com.android.systemui.shade.NotificationPanelView")
-            || isType(view, "com.android.systemui.qs.QSContainerImpl")
-            || "notification_panel".equals(idName(view)) || "qs_frame".equals(idName(view));
+        if ((viewTypes.get(view.getClass()) & PANEL) != 0) return true;
+        String name = idName(view);
+        return "notification_panel".equals(name) || "qs_frame".equals(name);
     }
 
     private static boolean excluded(View view) {
-        String name = view.getClass().getName();
-        return name.contains(".keyguard.") || name.contains(".bouncer.") || name.contains(".seedling.");
+        return (viewTypes.get(view.getClass()) & EXCLUDED) != 0;
     }
 
     private static String idName(View view) {
-        try { return view.getId() == View.NO_ID ? "" : view.getResources().getResourceEntryName(view.getId()); }
-        catch (android.content.res.Resources.NotFoundException ignored) { return ""; }
+        int id = view.getId();
+        if (id == View.NO_ID || id == 0) return "";
+        Resources resources = view.getResources();
+        synchronized (resourceNames) {
+            Map<Integer, String> names = resourceNames.computeIfAbsent(resources, key -> new HashMap<>());
+            String name = names.get(id);
+            if (name != null) return name;
+            try {
+                name = resources.getResourceEntryName(id);
+                names.put(id, name);
+                return name;
+            } catch (Resources.NotFoundException ignored) { return ""; }
+        }
     }
 
     static void refresh() {

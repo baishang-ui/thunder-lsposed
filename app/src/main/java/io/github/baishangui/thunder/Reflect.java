@@ -9,19 +9,32 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** Ordinary Java reflection only. API 102 forbids calls into the legacy Xposed API. */
 final class Reflect {
-    private record Key(Class<?> type, String name, java.util.List<Class<?>> args) { }
-    private static final Map<Key,Method> methods = new ConcurrentHashMap<>();
-    private static final Map<Key,Field> fields = new ConcurrentHashMap<>();
+    private record Key(String name, java.util.List<Class<?>> args) { }
+    private static final Object[] NO_ARGS = new Object[0];
+    private static final class Members {
+        final Map<String,Field> fields = new ConcurrentHashMap<>();
+        final Map<String,Method> noArgMethods = new ConcurrentHashMap<>();
+        final Map<Key,Method> methods = new ConcurrentHashMap<>();
+    }
+    // Separate class ownership from the lookup key. Hot field/getter calls need no
+    // temporary keys, lists or argument-type arrays, and plugin loaders can unload.
+    private static final ClassValue<Members> members = new ClassValue<>() {
+        @Override protected Members computeValue(Class<?> type) { return new Members(); }
+    };
     static Class<?> findClass(String name, ClassLoader loader) {
         try { return Class.forName(name, false, loader); }
         catch (ClassNotFoundException e) { throw new IllegalStateException(name,e); }
     }
     private static Field field(Object object,String name) {
-        return fields.computeIfAbsent(new Key(object.getClass(),name,java.util.List.of()),k->{
-            for (Class<?> c=k.type(); c!=null; c=c.getSuperclass()) try {
+        Class<?> type=object.getClass();
+        Map<String,Field> fields=members.get(type).fields;
+        Field cached=fields.get(name);
+        if(cached!=null)return cached;
+        return fields.computeIfAbsent(name,k->{
+            for (Class<?> c=type; c!=null; c=c.getSuperclass()) try {
                 Field f=c.getDeclaredField(name); f.setAccessible(true); return f;
             } catch (NoSuchFieldException ignored) { }
-            throw new IllegalStateException("Missing field: "+k.type().getName()+"."+name);
+            throw new IllegalStateException("Missing field: "+type.getName()+"."+name);
         });
     }
     static Object getObjectField(Object object,String name) {
@@ -45,20 +58,34 @@ final class Reflect {
         for(int i=0;i<types.length;i++) if(args[i]==null?types[i].isPrimitive():!boxed(types[i]).isInstance(args[i]))return false;
         return true;
     }
+    private static Method resolveMethod(Class<?> type,String name,Object[] args) {
+        for(Class<?> c=type;c!=null;c=c.getSuperclass()) {
+            Method found=null;
+            for(Method candidate:c.getDeclaredMethods()) if(candidate.getName().equals(name)&&accepts(candidate.getParameterTypes(),args)) {
+                if(found!=null)throw new IllegalStateException("Ambiguous method: "+c.getName()+"."+name);
+                found=candidate;
+            }
+            if(found!=null){found.setAccessible(true);return found;}
+        }
+        throw new IllegalStateException("Missing method: "+type.getName()+"."+name);
+    }
+    static Object callMethod(Object object,String name) {
+        Class<?> type=object.getClass();
+        Map<String,Method> methods=members.get(type).noArgMethods;
+        Method method=methods.get(name);
+        if(method==null)method=methods.computeIfAbsent(name,k->resolveMethod(type,name,NO_ARGS));
+        return invoke(method,object,NO_ARGS);
+    }
     static Object callMethod(Object object,String name,Object... args) {
+        if(args.length==0)return callMethod(object,name);
         Class<?>[] types=new Class<?>[args.length];
         for(int i=0;i<args.length;i++)types[i]=args[i]==null?Void.class:args[i].getClass();
-        Method m=methods.computeIfAbsent(new Key(object.getClass(),name,java.util.List.of(types)),k->{
-            for(Class<?> c=k.type();c!=null;c=c.getSuperclass()) {
-                Method found=null;
-                for(Method candidate:c.getDeclaredMethods()) if(candidate.getName().equals(name)&&accepts(candidate.getParameterTypes(),args)) {
-                    if(found!=null)throw new IllegalStateException("Ambiguous method: "+c.getName()+"."+name);
-                    found=candidate;
-                }
-                if(found!=null){found.setAccessible(true);return found;}
-            }
-            throw new IllegalStateException("Missing method: "+k.type().getName()+"."+name);
-        });
+        Class<?> type=object.getClass();
+        Method m=members.get(type).methods.computeIfAbsent(new Key(name,java.util.List.of(types)),
+            k->resolveMethod(type,name,args));
+        return invoke(m,object,args);
+    }
+    private static Object invoke(Method m,Object object,Object[] args) {
         try { return m.invoke(object,args); }
         catch(ReflectiveOperationException e){throw new IllegalStateException(m.toString(),e);}
     }

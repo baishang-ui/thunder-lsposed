@@ -37,6 +37,8 @@ import com.kyant.backdrop.drawPlainBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.effect
 import com.kyant.backdrop.catalog.components.*
+import com.kyant.shapes.Capsule
+import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.TabRowDefaults
@@ -110,7 +112,7 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
                 .then(if (!enabled) Modifier.clearAndSetSemantics { disabled() } else Modifier),
             isInteractive = enabled, tint = if (selected) s.accent else Color.Unspecified,
             surfaceColor = if (selected) s.accent else s.surface.copy(alpha = .18f),
-            shape = if (icon != null) miuixCapsuleShape() else miuixShape(24.dp),
+            shape = if (icon != null) Capsule() else RoundedRectangle(24.dp),
             contentPadding = if (icon != null) PaddingValues(8.dp)
                 else PaddingValues(horizontal = 24.dp, vertical = 12.dp)) {
             if (icon != null) Icon(icon, contentDescription = null,

@@ -57,6 +57,21 @@ Miuix 的 Card 是内容容器，会按照卡片形状裁切子内容；默认 `
 
 ## 验证边界
 
+### 启动闪退修复
+
+玻璃控件限于 `LiquidButton`、`LiquidToggle`、`LiquidSlider`、`LiquidBottomTabs`，
+其他 UI 控件继续使用 Miuix。此前给 `LiquidButton` 传入了 `miuixCapsuleShape()` /
+`miuixShape(24.dp)`，它们返回的缓存形状只实现 Compose `Shape`；
+Backdrop 1.0.6 的 `lens()` 只支持 `RoundedRectangularShape` 或 `CornerBasedShape`，
+首页首次绘制按钮就会抛出 `UnsupportedOperationException`。
+
+按钮改用 Kyant `Capsule` / `RoundedRectangle(24.dp)`，取样背景和按压裁剪继续共用
+同一形状，保留透镜与平滑圆角。`LiquidButton` 参数限制为 `RoundedRectangularShape`，
+不兼容的形状会在编译时被拒绝。`scripts/check_liquid_button.py` 检查编译后的参数约束，
+已确认修复前失败，修复后通过；该检查也已加入构建工作流。
+
+### 原审查记录
+
 编译、Release 单元测试、Lint 与 APK 构建用于检查 API、现有逻辑回归和静态问题。
 本轮执行 `:app:testReleaseUnitTest :app:lintRelease :app:assembleRelease` 成功：
 65 项单元测试通过，0 失败、0 跳过；Lint 为 0 错误、28 项警告，未宣称警告清零。

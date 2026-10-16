@@ -13,6 +13,7 @@ import xml.etree.ElementTree as ET
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--only', nargs='+', help='Run only the named Java check classes')
+parser.add_argument('--benchmark', action='store_true', help='Measure warmed hook hot paths on the host JVM (not device FPS)')
 parser.add_argument('--entries', action='store_true', help='Also check module package lifecycle routing with --only')
 args = parser.parse_args()
 
@@ -39,7 +40,7 @@ with tempfile.TemporaryDirectory(prefix='thunder-effects-') as folder:
         path = src / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(data)
-    for fixture in ['statusbar', 'cloud', 'qs', 'text', 'iconstyle', 'gesture', 'volume', 'report']:
+    for fixture in ['statusbar', 'cloud', 'qs', 'text', 'iconstyle', 'gesture', 'volume', 'report', 'performance']:
         for path in (ROOT / 'scripts/fixtures' / fixture).rglob('*.java'):
             target = src / path.relative_to(ROOT / 'scripts/fixtures' / fixture)
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -51,12 +52,15 @@ with tempfile.TemporaryDirectory(prefix='thunder-effects-') as folder:
     resource_names = list(dict.fromkeys(re.findall(r'R\.drawable\.(\w+)', (ROOT / 'app/src/main/java/io/github/baishangui/thunder/IosStatusResources.java').read_text())))
     (src / 'io/github/baishangui/thunder/R.java').write_text('package io.github.baishangui.thunder; final class R { static class drawable {' + ''.join(f'static final int {name}={index};' for index, name in enumerate(resource_names, 1000)) + '} }')
     subprocess.run([javac, '-d', str(classes), *map(str, src.rglob('*.java'))], check=True)
-    checks = ['RuntimeReportCheck', 'ProviderVisibilityCheck', 'VolumePanelCheck', 'GestureBarCheck', 'CardBlendCheck', 'HookCheck', 'ProviderCheck', 'CloudCheck', 'CloudLayerCheck', 'StatusBarIconCheck', 'IosStatusBarCheck', 'IosDrawSafetyCheck', 'IosRenderPathCheck', 'IosCoverageCheck', 'QsTintCheck', 'QsStateCheck', 'QsGeometryCheck', 'NotificationStyleCheck', 'NotificationExpansionCheck', 'AdaptiveTextCheck']
+    checks = ['ReflectCheck', 'AdaptiveTextPerformanceCheck', 'RuntimeReportCheck', 'ProviderVisibilityCheck', 'VolumePanelCheck', 'GestureBarCheck', 'CardBlendCheck', 'HookCheck', 'ProviderCheck', 'CloudCheck', 'CloudLayerCheck', 'StatusBarIconCheck', 'IosStatusBarCheck', 'IosDrawSafetyCheck', 'IosRenderPathCheck', 'IosCoverageCheck', 'QsTintCheck', 'QsStateCheck', 'QsGeometryCheck', 'NotificationStyleCheck', 'NotificationExpansionCheck', 'AdaptiveTextCheck']
     if args.only:
         unknown = set(args.only) - set(checks)
         if unknown: raise SystemExit('Unknown checks: ' + ', '.join(sorted(unknown)))
     for main in (args.only or checks):
         subprocess.run([java, '-cp', str(classes), 'io.github.baishangui.thunder.' + main], check=True)
+
+    if args.benchmark:
+        subprocess.run([java, '-cp', str(classes), 'io.github.baishangui.thunder.HookPerformanceCheck'], check=True)
 
     for scene in ([] if args.only and not args.entries else ['host', 'plugin', 'secondary', 'other', 'system', 'launcher']):
         subprocess.run([java, '-cp', str(classes), 'io.github.baishangui.thunder.EntryCheck', scene], check=True)

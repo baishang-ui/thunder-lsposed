@@ -97,6 +97,8 @@ jobs:
           -x :app:lintVitalRelease
           -x :app:lintVitalReportRelease
           -x :app:lintVitalAnalyzeRelease
+      - name: Check glass button lens compatibility
+        run: python3 scripts/check_liquid_button.py
       - name: Validate release version
         if: github.ref_type == 'tag'
         env:
