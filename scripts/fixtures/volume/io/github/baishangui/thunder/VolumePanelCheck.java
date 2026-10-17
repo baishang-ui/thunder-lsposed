@@ -53,6 +53,9 @@ public final class VolumePanelCheck {
         d.mDialogView.observer.dispatchOnPreDraw();d.mDialogView.getBackground().draw(new Canvas());
         CloudCheck.after(ANIM+"#getEndX",new VolumeItemAnimator(d.volumeListAdapter),999f,h);
         before(BAR+"#onMeasure",row.slider,0,0);
+        int barDraws=row.slider.invalidations;
+        d.mDialogView.observer.dispatchOnPreDraw();
+        if(count>4)check(row.slider.invalidations>barDraws,"screen-fitted tracks still redraw interpolated geometry when native row motion changes");
         check(d.mVolumeRecyclerview.layout.height==mainHeight+33,"measured main height "+mainHeight+" is inherited without a fixed expanded length");
         check(original.getBounds().top==311-22&&original.getBounds().height()==mainHeight+row.slider.layout.width+66,"panel remains anchored at the same visible Y and wraps track plus shortcuts for height "+mainHeight);
         check(original.getBounds().width()<=1036&&row.slider.layout.width<=(count>4?208:209),"only the real usable screen width limits the track group");
@@ -91,6 +94,21 @@ public final class VolumePanelCheck {
                 BlurMixConfig.BlurMixSingleWithShader mix=(BlurMixConfig.BlurMixSingleWithShader)blur.platformMixConfig;
                 check(blur.cornerRadius==expected&&blur.blurRadius==123&&mix.backgroundShaderParam.topLayerColor==0x4188aacc,"unlaid shortcut submits shared corner, blur and exact ARGB for "+corner);
                 QsTintCheck.after(QsTintCheck.B+"ViewBlurProxy#applyConfigToPlatformBlur",submission);
+                Object nativeMix=blur.platformMixConfig;int nativeBlurRadius=blur.blurRadius;float nativeCorner=blur.cornerRadius;
+                String hot=BASE+"utils.material.VolumeBlurManager#applyPlatformBlurMixAfterConfigWrite";
+                HookCallback.Param update=before(hot,null,auto.proxy,false);
+                BlurMixConfig.BlurMixSingleWithShader hotMix=(BlurMixConfig.BlurMixSingleWithShader)blur.platformMixConfig;
+                check(hotMix.backgroundShaderParam.topLayerColor==0x4188aacc&&blur.blurRadius==123&&blur.cornerRadius==expected,
+                        "native cached shader update receives the shared ARGB, blur and corner without a proxy submission");
+                update.failure=new IllegalStateException("hot shader failure");QsTintCheck.after(hot,update);
+                check(blur.platformMixConfig==nativeMix&&blur.blurRadius==nativeBlurRadius&&blur.cornerRadius==nativeCorner,
+                        "hot shader overrides restore the native configuration even after failure");
+                String light=BASE+"utils.material.VolumeBlurManager#hotUpdateStaticPlatformLightAndStroke";
+                HookCallback.Param geometry=before(light,null,null,blur);
+                check(blur.cornerRadius==expected&&blur.leftTopCornerRadius==expected&&blur.rightBottomCornerRadius==expected,
+                        "direct cached light/stroke update reads the same shared corner including zero");
+                QsTintCheck.after(light,geometry);
+                check(blur.cornerRadius==nativeCorner&&blur.platformMixConfig==nativeMix,"cached light/stroke update restores its native config");
                 int applied=auto.proxy.applied;
                 group.actualWidth=group.layout.width;group.actualHeight=group.layout.height;
                 for(View.OnLayoutChangeListener listener:group.layoutListeners)listener.onLayoutChange(group,0,0,group.actualWidth,group.actualHeight,0,0,0,0);
@@ -101,6 +119,16 @@ public final class VolumePanelCheck {
                 GradientDrawable fill=(GradientDrawable)Reflect.getObjectField(background,"fill");
                 check(fill.getColor().getDefaultColor()==0x4188aacc&&fill.getCornerRadius()==expected,"actual flat shortcut background paints the exact shared ARGB and corner "+corner);
             }
+        }
+        VolumePlatformBlurHostHelper helper=new VolumePlatformBlurHostHelper(d);
+        for(float phase:new float[]{0f,.3f,1f,.6f,0f}) {
+            CloudCheck.after(HELPER+"#applyBarPanelBottomProgress",helper,null,phase);
+            for(int i=0;i<2;i++)check(com.oplus.systemui.volume.utils.material.VolumeBlurManager.phases.get(quick.getChildAt(i))==phase,
+                    "shortcut native material follows expand/reverse phase "+phase);
+            int writes=com.oplus.systemui.volume.utils.material.VolumeBlurManager.phaseWrites;
+            CloudCheck.after(HELPER+"#applyBarPanelBottomProgress",helper,null,phase);
+            d.mDialogView.observer.dispatchOnPreDraw();
+            check(com.oplus.systemui.volume.utils.material.VolumeBlurManager.phaseWrites==writes,"unchanged native phase and pre-draw do not resubmit shortcut material");
         }
         CloudCheck.after(VIEW+"#resetSliderState",d,null);
         for(int i=0;i<2;i++) {
@@ -229,6 +257,7 @@ public final class VolumePanelCheck {
         Api102Runtime.callbacks.get(factory).after(flatMaterial);
         Drawable flatBar=(Drawable)flatMaterial.getResult();
         int lastWidth=0;float nativeWidth=row.slider.mCurBackgroundWidth;int halfWidth=0;
+        View untouched=new View();((ViewGroup)h.itemView).addView(untouched);
         for(float fraction:new float[]{0,.25f,.5f,.75f,1}) {
             h.itemView.screenX=Math.round(900+(activeEndX-900)*fraction);h.itemView.screenY=Math.round(300+(activeEndY-300)*fraction);
             d.mDialogView.observer.dispatchOnPreDraw();bounded.draw(new Canvas());Rect frame=original.getBounds();
@@ -236,6 +265,7 @@ public final class VolumePanelCheck {
             if(fraction==0)check(frame.width()<panel.width()/2,"panel starts as a narrow surface beside the original volume bar");
             if(fraction==.5f)halfWidth=frame.width();lastWidth=frame.width();
             HookCallback.Param widthDraw=before(BAR+"#draw",row.slider,new Canvas());
+            if(fraction==0)check(widthDraw.getObjectExtra("volume.widthPose")==null,"identical start/end geometry skips temporary pose allocation and field writes");
             float expected=nativeWidth*(209+(row.slider.mBackgroundWidth-209)*fraction)/row.slider.mBackgroundWidth;
             check(Math.abs(row.slider.mCurBackgroundWidth-expected)<.6f,"bar width at "+fraction+" follows native motion without scaling its icons or labels");
             flatBar.draw(new Canvas());
@@ -246,6 +276,7 @@ public final class VolumePanelCheck {
             check(row.slider.mCurBackgroundWidth==nativeWidth,"native press pose restores after the width draw, including errors");
         }
         check(lastWidth==panel.width(),"native motion reaches the final compact width exactly");
+        check(untouched.invalidations==0,"expansion does not recursively invalidate unrelated row children");
         h.itemView.screenX=Math.round(900+(activeEndX-900)*.5f);h.itemView.screenY=Math.round(300+(activeEndY-300)*.5f);
         d.mDialogView.observer.dispatchOnPreDraw();bounded.draw(new Canvas());
         check(original.getBounds().width()==halfWidth,"interrupted collapse returns through the same intermediate width without restarting");

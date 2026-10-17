@@ -1,6 +1,10 @@
 package com.oplus.systemui.volume.utils.material;
 public class VolumeBlurManager {
  public static final VolumeBlurManager INSTANCE=new VolumeBlurManager();public int shortcutMaterials,accessoryMaterials;public boolean shortcutBlur;
+ public static final java.util.Map<android.view.View,Float> phases=new java.util.WeakHashMap<>();public static int phaseWrites;
+ public static void applyVolumeBarPanelBottomAmount(android.view.View host,float progress,boolean force){phases.put(host,progress);phaseWrites++;}
+ public static void applyPlatformBlurMixAfterConfigWrite(com.oplusos.systemui.common.blurability.ViewBlurProxy proxy,boolean force){}
+ public static void hotUpdateStaticPlatformLightAndStroke(Object drawable,com.oplusos.systemui.common.blurability.BlurConfig config){}
  public android.graphics.drawable.Drawable getVolumeBarBackground(android.content.Context c,android.view.View v,android.view.View host,float r,boolean b){return shortcutBackground(host);}
  public android.graphics.drawable.Drawable getVolumeSettingsButtonBackground(android.content.Context c,android.view.View v,android.view.View root,boolean b){return null;}
  public android.graphics.drawable.Drawable getVolumeSideAccessoryBackground(android.content.Context c,android.view.View v,android.view.View host,boolean b){

@@ -29,7 +29,7 @@ class SettingsTest {
     }
     @Test fun wrongVersionOrForeignFormatFails() {
         val root=JSONObject(Settings().json())
-        root.put("version",19)
+        root.put("version",20)
         assertThrows(IllegalArgumentException::class.java) { Settings.parse(root.toString()) }
         root.legacyVersion(3).removeV13Fields().put("format","other")
         assertThrows(IllegalArgumentException::class.java) { Settings.parse(root.toString()) }

@@ -17,6 +17,8 @@ internal enum class SettingsPage(val title: String, val category: String) {
     Volume("音量面板", "音量"),
     CloudCapsule("胶囊状态", "流体云"),
     CloudCard("卡片状态", "流体云"),
+    CloudLock("锁屏样式", "流体云"),
+    CloudAppColor("应用取色遮罩", "流体云"),
     StatusBar("状态栏修改", "状态栏"),
     StatusLayout("布局与间距", "状态栏"),
     StatusClock("时钟修改", "状态栏"),
@@ -51,6 +53,8 @@ private fun Area.summary(corner: Boolean = true): String = buildList {
     SettingsMenuGroup("流体云") {
         SettingsMenuItem("胶囊状态", if (settings.cloud) settings.cloudArea.summary() else "未启用", MiuixIcons.Regular.CloudFill) { open(SettingsPage.CloudCapsule) }
         SettingsMenuItem("卡片状态", if (settings.cloud) settings.cloudCardArea.summary() else "未启用", MiuixIcons.Regular.Notes) { open(SettingsPage.CloudCard) }
+        SettingsMenuItem("锁屏样式", if (settings.cloud) listOf("跟随系统", "PUI 材质", "自定义")[settings.cloudLock.style] else "未启用", MiuixIcons.Regular.Theme) { open(SettingsPage.CloudLock) }
+        SettingsMenuItem("应用取色遮罩", if (!settings.cloud) "未启用" else if (!settings.cloudLock.appColor) "已关闭" else if (settings.cloudLock.strengthEnabled) "强度 ${settings.cloudLock.strength}%" else "系统强度", MiuixIcons.Regular.Layers) { open(SettingsPage.CloudAppColor) }
     }
     SettingsMenuGroup("状态栏") {
         SettingsMenuItem("状态栏修改", "左右边距、中间间距、时钟与图标", MiuixIcons.Regular.Theme) { open(SettingsPage.StatusBar) }
@@ -105,11 +109,11 @@ private fun Area.summary(corner: Boolean = true): String = buildList {
             LiquidAction("测试通知横幅", Modifier.fillMaxWidth(), onClick = testNotification)
             UiText("返回桌面后发送测试通知，15 秒后自动移除。", 12, muted = true)
         }
-        SettingsPage.CloudCapsule, SettingsPage.CloudCard -> {
-            // Both forms share the same master switch; their material values remain independent.
+        SettingsPage.CloudCapsule, SettingsPage.CloudCard, SettingsPage.CloudLock, SettingsPage.CloudAppColor -> {
+            // All cloud pages share the master switch and retain independent parameters.
             CompositionLocalProvider(LocalControlScope provides "cloud-master") {
                 SettingsGroup {
-                    LiquidSwitchRow("流体云外观", "胶囊与卡片共用开关", settings.cloud) { change(settings.copy(cloud = it)) }
+                    LiquidSwitchRow("流体云外观", "胶囊、卡片、锁屏样式与取色遮罩共用开关", settings.cloud) { change(settings.copy(cloud = it)) }
                 }
             }
             if (settings.cloud) {
@@ -121,7 +125,11 @@ private fun Area.summary(corner: Boolean = true): String = buildList {
                     AreaControls("胶囊材质", settings.cloudArea.copy(cornerEnabled = settings.cloudCornerEnabled, corner = settings.cloudCorner), cornerRange = 0..48) {
                         change(settings.copy(cloudArea = it.copy(cornerEnabled = false, corner = 28), cloudCornerEnabled = it.cornerEnabled, cloudCorner = it.corner))
                     }
-                } else AreaControls("展开卡片材质", settings.cloudCardArea) { change(settings.copy(cloudCardArea = it)) }
+                } else when (page) {
+                    SettingsPage.CloudLock -> CloudLockControls(settings.cloudLock) { change(settings.copy(cloudLock = it)) }
+                    SettingsPage.CloudAppColor -> CloudAppColorControls(settings.cloudLock) { change(settings.copy(cloudLock = it)) }
+                    else -> AreaControls("展开卡片材质", settings.cloudCardArea) { change(settings.copy(cloudCardArea = it)) }
+                }
             }
         }
         SettingsPage.GestureBar -> {

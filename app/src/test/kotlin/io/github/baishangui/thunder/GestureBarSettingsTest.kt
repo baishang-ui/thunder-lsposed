@@ -24,7 +24,7 @@ class GestureBarSettingsTest {
         val settings = Settings(gestureBar = GestureBarSettings(enabled = true,
             area = Area(true, 72, true, 0x66554433)))
         for (source in 0..2) {
-            val old = JSONObject(settings.json())
+            val old = JSONObject(settings.json()).legacyVersion(18)
             old.getJSONObject("settings").put("gesture_material", source)
             assertEquals(settings, Settings.parse(old.toString()))
         }

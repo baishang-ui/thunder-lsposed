@@ -61,6 +61,7 @@ public final class ShadeHook {
         install("notification-backgrounds", () -> NotificationCardHook.install(loader));
         install("adaptive-panel-text", AdaptiveTextHook::install);
         install("cloud-plugin-loader", () -> CloudHook.watch(loader));
+        install("cloud-lock-screen", () -> CloudLockHook.install(loader));
         install("qs", () -> Api102Runtime.hookAllConstructors(Reflect.findClass(
             "com.oplus.systemui.separate.OplusSeparateQSManager", loader), new HookCallback() {
                 @Override protected void afterHookedMethod(HookCallback.Param p) { qsManager = p.thisObject; }
@@ -170,18 +171,19 @@ public final class ShadeHook {
                 @Override protected void afterHookedMethod(HookCallback.Param p) {
                     if (p.hasThrowable() || p.getResult() == null) return;
                     String type = ((Enum<?>) p.args[1]).name();
-                    if (!"FULLSCREENBANNER".equals(type)&&!"NOTIFICATION".equals(type)&&!"CUSTOM".equals(type)) return;
+                    if (!"FULLSCREENBANNER".equals(type)&&!"NOTIFICATION".equals(type)&&!"CUSTOM".equals(type)&&!"CAPSULE".equals(type)) return;
                     try {
                         Object proxy = p.getResult();
                         Object blur = Reflect.callMethod(proxy, "getBlurConfig");
+                        CloudLockHook.track((View)p.args[0],proxy,type,p.thisObject);
                         NotificationCardHook.trackBlur((View)p.args[0],blur);
-                        String role="FULLSCREENBANNER".equals(type)?"banner":"notification-card";
+                        String role="CAPSULE".equals(type)?"cloud-lock":"FULLSCREENBANNER".equals(type)?"banner":"notification-card";
                         Object base=Reflect.getAdditionalInstanceField(blur,"thunder.base-role");
                         // A repeated request while heads-up is active must not revert it to list styling.
                         if(!role.equals(base)||Reflect.getAdditionalInstanceField(blur,ROLE)==null) {
                             Reflect.setAdditionalInstanceField(blur,"thunder.base-role",role);
                             Reflect.setAdditionalInstanceField(blur,ROLE,role);
-                            NotificationCardHook.track((View)p.args[0],role);
+                            if(!"CAPSULE".equals(type))NotificationCardHook.track((View)p.args[0],role);
                             proxies.put(proxy,true);
                             Reflect.callMethod(proxy,"applyBlurConfig");
                         }
@@ -322,7 +324,7 @@ public final class ShadeHook {
                 try {
                     HookConfig.Area area=area(p.thisObject);
                     Object role=Reflect.getAdditionalInstanceField(p.thisObject,ROLE);
-                    if(area!=null && area.tint && QsCardHook.useCustomTint(p.thisObject) && ("panel".equals(role)||"qs-card".equals(role)||"notification-card".equals(role)||"banner".equals(role)||String.valueOf(role).startsWith("volume-"))) {
+                    if(area!=null && area.tint && QsCardHook.useCustomTint(p.thisObject) && ("panel".equals(role)||"qs-card".equals(role)||"notification-card".equals(role)||"banner".equals(role)||"cloud-lock".equals(role)||String.valueOf(role).startsWith("volume-"))) {
                         // The chosen native mix is the dim layer; avoid an independent opaque mask on top.
                         Object backend=Reflect.getAdditionalInstanceField(p.thisObject,"thunder-backend");
                         boolean mask="BlurTypeStatic".equals(backend);
@@ -344,7 +346,8 @@ public final class ShadeHook {
                             String.valueOf(Reflect.getAdditionalInstanceField(p.thisObject,ROLE)).startsWith("volume-")) {
                         replacement=backgroundMix(p.getResult(),area);
                     } else if("qs-card".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE))||
-                            "notification-card".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE))) {
+                            "notification-card".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE))||
+                            "cloud-lock".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE))) {
                         replacement=backgroundMix(p.getResult(),area);
                     } else replacement=panelMix(p.getResult(),area);
                     p.setResult(replacement); hit("color");
@@ -395,6 +398,8 @@ public final class ShadeHook {
     private static HookConfig.Area area(Object blur) {
         HookConfig snapshot = config;
         if (!snapshot.enabled) return null;
+        HookConfig.Area cloudLock=CloudLockHook.area(blur,snapshot);
+        if(cloudLock!=null)return cloudLock;
         Object role = Reflect.getAdditionalInstanceField(blur, ROLE);
         if ("volume-bar".equals(role)) return snapshot.volumeBar;
         if ("volume-buttons".equals(role)) return snapshot.volumeBar;
@@ -542,7 +547,12 @@ public final class ShadeHook {
         original=nativeMix(original);
         if(original==null)return null;
         boolean multi=multiShaderConfigClass!=null&&multiShaderConfigClass.isInstance(original);
-        if(!multi&&!shaderConfigClass.isInstance(original))return original;
+        // CUSTOM cards can use compositor-only Single/Multi configurations. They
+        // still need the selected material; leaving these unchanged silently
+        // discards the lock-screen tint on those firmware paths.
+        boolean plain=motionConfigClass!=null&&motionConfigClass.isInstance(original)
+            || original.getClass().getName().equals(BLUR+"BlurMixConfig$BlurMixMulti");
+        if(!multi&&!shaderConfigClass.isInstance(original)&&!plain)return original;
         Object ref=Reflect.getAdditionalInstanceField(original,"thunder-background-mix");
         Object cached=ref instanceof WeakReference ? ((WeakReference<?>)ref).get() : null;
         if(cached!=null&&Reflect.getAdditionalInstanceField(original,"thunder-background-area")==area) {
@@ -609,6 +619,8 @@ public final class ShadeHook {
         NotificationCardHook.refresh();
         AdaptiveTextHook.refresh();
         CloudHook.refresh();
+        CloudLockHook.refresh();
+        CloudSdkHook.refresh();
         VolumeHook.refresh();
     }
     private interface Install { void run() throws Throwable; }

@@ -101,6 +101,7 @@ internal fun JSONObject.removeV13Fields(): JSONObject = apply {
 
 internal fun JSONObject.legacyVersion(version: Int): JSONObject = apply {
     put("version", version)
+    if (version < 19) CloudLockSettings.keys.forEach { getJSONObject("settings").remove(it) }
     if (version < 17) StatusBarSettings.keys.forEach { getJSONObject("settings").remove(it) }
     if (version < 18) GestureBarSettings.keys.forEach { getJSONObject("settings").remove(it) }
 }

@@ -25,7 +25,7 @@ class RetiredSettingsTest {
     }
     @Test fun currentExportsRejectRetiredAndUnknownFields() {
         val current = JSONObject(Settings().json())
-        assertEquals(18, current.getInt("version"))
+        assertEquals(19, current.getInt("version"))
         current.getJSONObject("settings").put("status_bar_follow_app", true)
         assertThrows(IllegalArgumentException::class.java) { Settings.parse(current.toString()) }
     }

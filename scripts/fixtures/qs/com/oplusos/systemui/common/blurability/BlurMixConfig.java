@@ -7,6 +7,10 @@ public class BlurMixConfig {
  public boolean getAlphaWithBlurAmount(){return alphaWithBlurAmount;}
  public void setAlphaWithBlurAmount(boolean value){alphaWithBlurAmount=value;}
  public static class BlurMixSingle extends BlurMixConfig {public final MixColor mixColor;public BlurMixSingle(MixColor m){mixColor=m;}public MixColor getMixColor(){return mixColor;}}
+ public static class BlurMixMulti extends BlurMixConfig {
+  public final MixColor foregroundMixColor,backgroundMixColor;
+  public BlurMixMulti(MixColor foreground,MixColor background){foregroundMixColor=foreground;backgroundMixColor=background;}
+ }
  public static class BlurMixSingleWithShader extends BlurMixConfig {
   public MixColorWithShader getBackgroundShaderParam(){return backgroundShaderParam;}public final MixColorWithShader backgroundShaderParam;
   public BlurMixSingleWithShader(MixColorWithShader value){backgroundShaderParam=value;}

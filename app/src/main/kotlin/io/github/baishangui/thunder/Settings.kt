@@ -28,12 +28,14 @@ internal data class Settings(
     // 0: custom colors, 1: system wallpaper Monet, 2: seed-color Monet.
     val colorMode: Int = 0,
     val statusBar: StatusBarSettings = StatusBarSettings(),
-    val gestureBar: GestureBarSettings = GestureBarSettings()
+    val gestureBar: GestureBarSettings = GestureBarSettings(),
+    val cloudLock: CloudLockSettings = CloudLockSettings()
 ) {
     fun bundle() = Bundle().apply {
         volume.write(this)
         statusBar.write(this)
         gestureBar.write(this)
+        cloudLock.write(this)
         putBoolean("enabled", enabled); putInt("theme", theme)
         putInt("color_mode", colorMode)
         putInt("status_bar_hidden_icons", hiddenStatusIcons)
@@ -58,7 +60,7 @@ internal data class Settings(
     fun json(): String {
         val data = JSONObject()
         bundle().let { b -> b.keySet().sorted().forEach { k -> @Suppress("DEPRECATION") data.put(k, b.get(k)) } }
-        return JSONObject().put("format", "thunder.settings").put("version", 18).put("settings", data).toString(2)
+        return JSONObject().put("format", "thunder.settings").put("version", 19).put("settings", data).toString(2)
     }
     companion object {
         fun from(b: Bundle): Settings {
@@ -91,13 +93,14 @@ internal data class Settings(
                 removeGestureBarInset = b.getBoolean("gesture_bar_remove_inset", false),
                 colorMode = b.getInt("color_mode", 0).coerceIn(0, 2),
                 statusBar = StatusBarSettings.from(b),
-                gestureBar = GestureBarSettings.from(b))
+                gestureBar = GestureBarSettings.from(b),
+                cloudLock = CloudLockSettings.from(b))
         }
         fun parse(text: String): Settings {
             require(text.toByteArray(Charsets.UTF_8).size <= 65536) { "配置不能超过 64 KB" }
             val root = JSONObject(text)
             val version = root.opt("version")
-            require(root.opt("format") == "thunder.settings" && version in setOf(3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18)) { "不是受支持的 thunder 配置" }
+            require(root.opt("format") == "thunder.settings" && version in setOf(3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19)) { "不是受支持的 thunder 配置" }
             val data = root.getJSONObject("settings")
             // Early v18 exports offered a material source; handlestyles now use their own material.
             if (version == 18 && data.has("gesture_material")) {
@@ -125,9 +128,10 @@ internal data class Settings(
             }
             val defaults = Settings().bundle().apply {
                 // Older exports retain their manually selected UI colors.
-                if (version !in setOf(16,17,18)) remove("color_mode")
-                if (version !in setOf(17,18)) StatusBarSettings.keys.forEach { remove(it) }
-                if (version != 18) GestureBarSettings.keys.forEach { remove(it) }
+                if (version !in setOf(16,17,18,19)) remove("color_mode")
+                if (version !in setOf(17,18,19)) StatusBarSettings.keys.forEach { remove(it) }
+                if (version !in setOf(18,19)) GestureBarSettings.keys.forEach { remove(it) }
+                if (version != 19) CloudLockSettings.keys.forEach { remove(it) }
                 // v7 and v12 serialize rows separately; v8–v11 seed them from the shared material.
                 if(version in setOf(8,9,10,11)) {
                     keySet().filter { it.startsWith("notification_card_") }.forEach { remove(it) }
@@ -148,7 +152,7 @@ internal data class Settings(
                 listOf("notification_card","cloud_card").flatMap { k ->
                     listOf("blur","radius","tint","color","corner_enabled","corner").map { "${k}_$it" }
                 }
-            val expected = defaults.keySet() - (if (version !in setOf(13,14,15,16,17,18)) VolumeSettings.keys else emptySet()) - (if (version !in setOf(13,14,15,16,17,18)) setOf("gesture_bar_hidden", "gesture_bar_remove_inset") else emptySet()) - (if (version !in setOf(11,12,13,14,15,16,17,18)) setOf("status_bar_stack_signals") else emptySet()) - (if (version !in setOf(9,10,11,12,13,14,15,16,17,18)) setOf("status_bar_icon_style") else emptySet()) - (if (version in setOf(3,4,5,6)) v7 else emptySet()) - (if (version == 3) added else emptySet()) -
+            val expected = defaults.keySet() - (if (version !in setOf(13,14,15,16,17,18,19)) VolumeSettings.keys else emptySet()) - (if (version !in setOf(13,14,15,16,17,18,19)) setOf("gesture_bar_hidden", "gesture_bar_remove_inset") else emptySet()) - (if (version !in setOf(11,12,13,14,15,16,17,18,19)) setOf("status_bar_stack_signals") else emptySet()) - (if (version !in setOf(9,10,11,12,13,14,15,16,17,18,19)) setOf("status_bar_icon_style") else emptySet()) - (if (version in setOf(3,4,5,6)) v7 else emptySet()) - (if (version == 3) added else emptySet()) -
                 (if (version == 3 || version == 4) setOf("status_bar_hidden_icons") else emptySet()) -
                 (if (version in setOf(3,4,5)) setOf("qs_card_tint","qs_card_color") else emptySet())
             require(data.keys().asSequence().toSet() == expected) { "配置字段不完整或包含未知字段" }
@@ -165,7 +169,7 @@ internal data class Settings(
                 "status_bar_icon_style" to 0..1, "status_bar_hidden_icons" to 0..StatusBarIcons.ALL,
                 "qs_card_radius" to 0..200,"qs_card_corner" to 0..64,"banner_corner" to 0..64,"notification_card_corner" to 0..64,
                 "cloud_card_corner" to 0..64,"notification_card_radius" to 0..200,"cloud_card_radius" to 0..200)
-            (ranges + VolumeSettings.ranges + StatusBarSettings.ranges + GestureBarSettings.ranges).forEach { (k, range) -> require(!b.containsKey(k) || b.getInt(k) in range) { "$k 超出允许范围" } }
+            (ranges + VolumeSettings.ranges + StatusBarSettings.ranges + GestureBarSettings.ranges + CloudLockSettings.ranges).forEach { (k, range) -> require(!b.containsKey(k) || b.getInt(k) in range) { "$k 超出允许范围" } }
             require((b.getInt("accent") ushr 24) == 255 && (b.getInt("backdrop_color") ushr 24) == 255) { "界面配色必须为不透明颜色" }
             return from(b)
         }

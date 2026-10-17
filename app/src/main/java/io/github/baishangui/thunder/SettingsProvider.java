@@ -101,6 +101,14 @@ public final class SettingsProvider extends ContentProvider {
             result.putInt("cloud_radius",prefs.getInt("cloud_radius",100));
             result.putBoolean("cloud_tint",prefs.getBoolean("cloud_tint",false));
             result.putInt("cloud_color",prefs.getInt("cloud_color",0x20282828));
+            result.putInt("cloud_lock_style",Math.max(0,Math.min(2,prefs.getInt("cloud_lock_style",0))));
+            result.putBoolean("cloud_lock_blur",prefs.getBoolean("cloud_lock_blur",false));
+            result.putInt("cloud_lock_radius",Math.max(0,Math.min(200,prefs.getInt("cloud_lock_radius",100))));
+            result.putBoolean("cloud_lock_tint",prefs.getBoolean("cloud_lock_tint",false));
+            result.putInt("cloud_lock_color",prefs.getInt("cloud_lock_color",0x3cd8d8d8));
+            result.putBoolean("cloud_app_color",prefs.getBoolean("cloud_app_color",true));
+            result.putBoolean("cloud_app_color_strength_enabled",prefs.getBoolean("cloud_app_color_strength_enabled",false));
+            result.putInt("cloud_app_color_strength",Math.max(0,Math.min(200,prefs.getInt("cloud_app_color_strength",100))));
             for(String key:new String[]{"qs_card","banner","notification_card","cloud_card","volume_bar","volume_panel"}) {
                 if ("notification_card".equals(key) && !prefs.contains("notification_card_radius")) continue;
                 result.putBoolean(key+"_corner_enabled",prefs.getBoolean(key+"_corner_enabled",

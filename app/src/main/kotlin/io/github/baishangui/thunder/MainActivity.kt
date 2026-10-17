@@ -9,13 +9,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowCompat
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -28,11 +26,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -43,6 +38,11 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.ui.layout.onSizeChanged
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
@@ -93,9 +93,8 @@ class MainActivity : ComponentActivity() {
             }
             val scope=rememberCoroutineScope()
             val dark=when(draft.theme) { 1->false; 2->true; else->isSystemInDarkTheme() }
-            val titleLineHeight = with(LocalDensity.current) { (22 * 1.45f).sp.toDp() }
-            val captionLineHeight = with(LocalDensity.current) { (11 * 1.45f).sp.toDp() }
-            val headerHeight = (titleLineHeight + captionLineHeight * 2 + 24.dp).coerceAtLeast(88.dp)
+            val density = LocalDensity.current
+            var headerHeight by remember { mutableStateOf(88.dp) }
             val navigationHeight = floatingNavHeight()
             val wallpaper=rememberLayerBackdrop(); val content=rememberLayerBackdrop()
             val overlaySource=rememberCombinedBackdrop(wallpaper,content)
@@ -169,6 +168,7 @@ class MainActivity : ComponentActivity() {
                                     verticalArrangement=Arrangement.spacedBy(16.dp)) {
                                     val currentDetail = destination.detail
                                     if (currentDetail != null) {
+                                        SettingsPreview(currentDetail, draft)
                                         when (currentDetail) {
                                             SettingsPage.Appearance -> AppearanceSettings(draft) { draft = it }
                                             SettingsPage.Configuration -> {
@@ -244,41 +244,36 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    ProgressiveHeader(overlaySource,Modifier.fillMaxWidth().height(headerHeight + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()).align(Alignment.TopCenter))
-                    Row(Modifier.align(Alignment.TopCenter).widthIn(max=640.dp).fillMaxWidth()
-                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                        .statusBarsPadding().height(headerHeight).padding(horizontal=16.dp,vertical=10.dp),
-                        verticalAlignment=Alignment.CenterVertically) {
-                        // Reserve the navigation slot so showing Back never shifts the title.
-                        Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                            if (detail != null || page != 0) {
-                                LiquidAction("返回",Modifier.size(48.dp),icon=MiuixIcons.Regular.Back) { navigateBack() }
-                            }
-                        }
-                        Crossfade(MenuDestination(page, detail), Modifier.weight(1f).fillMaxHeight().padding(horizontal=14.dp),
-                            animationSpec = tween(220), label = "Menu title") { destination ->
-                            // Both fading destinations occupy the same bounds, independent of text width.
-                            Box(Modifier.fillMaxSize()) {
-                                UiText(destination.detail?.title ?: listOf("thunder","调节","设置")[destination.page],22,bold=true,
-                                    modifier = Modifier.align(Alignment.CenterStart).fillMaxWidth()
-                                        .height(titleLineHeight).wrapContentHeight(Alignment.CenterVertically),
-                                    maxLines=1,overflow=TextOverflow.Ellipsis)
-                                val caption = when {
+                    Surface(Modifier.align(Alignment.TopCenter).fillMaxWidth(), color = style.background) {
+                        Box(Modifier.statusBarsPadding()
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
+                            contentAlignment = Alignment.TopCenter) {
+                            SmallTopAppBar(
+                                title = detail?.title ?: listOf("thunder", "调节", "设置")[page],
+                                subtitle = when {
                                     writeResult.error != null -> "保存失败，请重试修改"
                                     dirty -> "正在保存…"
-                                    else -> destination.detail?.category
+                                    else -> detail?.category.orEmpty()
+                                },
+                                modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth()
+                                    .onSizeChanged { headerHeight = with(density) { it.height.toDp() } },
+                                color = style.background,
+                                defaultWindowInsetsPadding = false,
+                                navigationIcon = {
+                                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                                        if (detail != null || page != 0) {
+                                            LiquidAction("返回", Modifier.size(48.dp), icon = MiuixIcons.Regular.Back) { navigateBack() }
+                                        }
+                                    }
+                                },
+                                actions = {
+                                    LiquidAction("重启系统界面", Modifier.size(48.dp), enabled = !busy,
+                                        selected = restartState.running, icon = MiuixIcons.Regular.Refresh) {
+                                        if (!restartState.running) ScopeRestart.restart(this@MainActivity, draft)
+                                        restartFeedback = true
+                                    }
                                 }
-                                // Place the caption below the button/title centerline without moving the title.
-                                UiText(caption.orEmpty(), 11, muted = true,
-                                    modifier = Modifier.align(Alignment.CenterStart).fillMaxWidth()
-                                        .offset(y = (titleLineHeight + captionLineHeight) / 2)
-                                        .height(captionLineHeight).wrapContentHeight(Alignment.CenterVertically),
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                        LiquidAction("重启系统界面",Modifier.size(48.dp),enabled=!busy,selected=restartState.running,icon=MiuixIcons.Regular.Refresh) {
-                            if (!restartState.running) ScopeRestart.restart(this@MainActivity,draft)
-                            restartFeedback=true
+                            )
                         }
                     }
                     AnimatedVisibility(visible = detail == null, modifier = Modifier.align(Alignment.BottomCenter),
@@ -359,18 +354,18 @@ class MainActivity : ComponentActivity() {
 
 private fun alphaPercent(c: Int)=TintColor.percent(c)
 @Composable private fun ModuleStatusRow(title: String, status: String, hint: String, ready: Boolean, checking: Boolean = false) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-            verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                if (checking) InfiniteProgressIndicator(Modifier.size(12.dp))
-                else Box(Modifier.size(8.dp).background(if (ready) Color(0xff5b9e76) else Color(0xffb78a53), RoundedCornerShape(8.dp)))
-                UiText(title, 15, bold = true)
-            }
-            UiText(status, 13, muted = !ready)
-        }
-        if (hint.isNotEmpty()) UiText(hint, 12, muted = true)
-    }
+    BasicComponent(
+        title = title,
+        summary = hint.takeIf { it.isNotEmpty() },
+        insideMargin = PaddingValues(vertical = 8.dp),
+        startAction = {
+            if (checking) InfiniteProgressIndicator(Modifier.padding(end = 12.dp).size(20.dp))
+            else Icon(MiuixIcons.Regular.Info, contentDescription = null,
+                modifier = Modifier.padding(end = 12.dp).size(20.dp),
+                tint = if (ready) LocalGlass.current.accent else LocalGlass.current.muted)
+        },
+        endActions = { UiText(status, 13, muted = !ready) }
+    )
 }
 @Composable private fun Summary(title: String,value: String) {
     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
@@ -380,7 +375,7 @@ private fun alphaPercent(c: Int)=TintColor.percent(c)
     }
 }
 @Composable private fun Wallpaper(modifier: Modifier,s: GlassStyle) {
-    Box(modifier.background(s.background))
+    Surface(modifier, color = s.background) {}
 }
 
 @Composable internal fun AreaControls(title: String,area: Area,blur: Boolean=true,corner: Boolean=true,

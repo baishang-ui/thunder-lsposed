@@ -26,7 +26,7 @@ class StatusBarSettingsTest {
         val migrated = Settings.parse(old.toString())
         assertEquals(existing, migrated)
         assertEquals(StatusBarSettings(), migrated.statusBar)
-        assertEquals(18, JSONObject(migrated.json()).getInt("version"))
+        assertEquals(19, JSONObject(migrated.json()).getInt("version"))
         assertEquals(Settings(), Settings.from(Bundle()))
     }
     @Test fun invalidLayoutAndClockValuesAreRejected() {

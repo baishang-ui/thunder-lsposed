@@ -13,6 +13,9 @@ final class HookConfig {
     final boolean cloudHeightEnabled, cloudCornerEnabled;
     final int cloudHeight, cloudCorner;
     final boolean margins, cloud;
+    final int cloudLockStyle, cloudAppColorStrength;
+    final boolean cloudAppColor, cloudAppColorStrengthEnabled;
+    final Area cloudLockArea, cloudLockCustomArea;
     final int margin;
     final int hiddenStatusIcons, statusIconStyle;
     final boolean statusBarStackSignals;
@@ -70,6 +73,13 @@ final class HookConfig {
         margins = data != null && data.getBoolean("notification_margins", false);
         margin = Math.max(0, Math.min(64, data == null ? 30 : data.getInt("notification_margin", 30)));
         cloud = data != null && data.getBoolean("cloud_enabled", true);
+        cloudLockStyle = bounded(data,"cloud_lock_style",0,0,2);
+        cloudLockCustomArea = new Area(data,"cloud_lock");
+        // PUI C17 SystemUI overlay: transparent top #000c0c0c, grey bottom #3cd8d8d8.
+        cloudLockArea = cloudLockStyle == 1 ? new Area(false,100,true,0x3cd8d8d8,false,28) : cloudLockCustomArea;
+        cloudAppColor = data == null || data.getBoolean("cloud_app_color",true);
+        cloudAppColorStrengthEnabled = data != null && data.getBoolean("cloud_app_color_strength_enabled",false);
+        cloudAppColorStrength = bounded(data,"cloud_app_color_strength",100,0,200);
         cloudArea = new Area(data,"cloud");
         cloudCardArea = new Area(data,data!=null && data.containsKey("cloud_card_color")?"cloud_card":"cloud");
         cloudHeightEnabled = data != null && data.getBoolean("cloud_height_enabled",false);
@@ -80,6 +90,10 @@ final class HookConfig {
     static final class Area {
         final boolean blur, tint, cornerEnabled, sharedMaterial;
         final int radius, color, corner;
+        Area(boolean blur,int radius,boolean tint,int color,boolean cornerEnabled,int corner) {
+            this.blur=blur;this.radius=radius;this.tint=tint;this.color=color;
+            this.cornerEnabled=cornerEnabled;this.corner=corner;sharedMaterial=false;
+        }
         /** Progress shares geometry while retaining its native contrast and blur material. */
         Area(Area geometry) {
             blur=false;tint=false;sharedMaterial=true;
@@ -92,7 +106,7 @@ final class HookConfig {
             blur = data != null && data.getBoolean(key+"_blur", false);
             tint = data != null && data.getBoolean(key+"_tint", false);
             radius = clamp(data == null ? 100 : data.getInt(key+"_radius", 100));
-            int defaultColor=key.equals("gesture")?0x66ffffff:key.startsWith("cloud")?0x20282828:(key.equals("notification_card")||key.equals("qs_card"))?0x33ffffff:0x33000000;
+            int defaultColor=key.equals("gesture")?0x66ffffff:key.equals("cloud_lock")?0x3cd8d8d8:key.startsWith("cloud")?0x20282828:(key.equals("notification_card")||key.equals("qs_card"))?0x33ffffff:0x33000000;
             color = data == null ? defaultColor : data.getInt(key+"_color", defaultColor);
         }
     }

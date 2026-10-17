@@ -36,6 +36,8 @@ final class NotificationCardHook {
     }
     static HookConfig.Area area(View view) {
         HookConfig c=ShadeHook.snapshot();if(!c.enabled)return null;
+        HookConfig.Area cloudLock=CloudLockHook.areaForView(view,c);
+        if(cloudLock!=null)return cloudLock;
         return "banner".equals(Reflect.getAdditionalInstanceField(view,"thunder.role"))?c.banner:c.notificationCard;
     }
     static void overrideCorners(HookCallback.Param p,Object blur,HookConfig.Area area) {

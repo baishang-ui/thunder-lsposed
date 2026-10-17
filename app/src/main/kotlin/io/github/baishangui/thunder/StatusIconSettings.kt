@@ -1,9 +1,13 @@
 package io.github.baishangui.thunder
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.core.graphics.drawable.toBitmap
+import androidx.compose.ui.text.font.FontWeight
+import top.yukonga.miuix.kmp.basic.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -11,14 +15,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import top.yukonga.miuix.kmp.basic.Text
 
 @Composable internal fun StatusIconStyleSettings(settings: Settings, change: (Settings) -> Unit) {
     SettingsGroup {
@@ -30,9 +31,7 @@ import top.yukonga.miuix.kmp.basic.Text
     }
     if (!settings.enabled) UiText("启用模块后应用图标样式", 13, muted = true)
     SettingsGroup {
-        UiText("iOS 风格预览", 15)
-        StatusStrip(dark = false, stacked = false)
-        StatusStrip(dark = true, stacked = true)
+        UiText("PUI 图标资源示例", 15)
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             listOf(7, 75, 100).forEach { level ->
                 StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.BATTERY, level, 100), LocalGlass.current.ink,
@@ -75,72 +74,48 @@ import top.yukonga.miuix.kmp.basic.Text
     }
 }
 
-@Composable private fun StatusStrip(dark: Boolean, stacked: Boolean) {
-    val ink = if (dark) Color.White else Color(0xff17191d)
-    FlowRow(Modifier.fillMaxWidth().background(if (dark) Color(0xff17191d) else Color(0xfff1f3f7), RoundedCornerShape(20.dp))
-        .padding(20.dp), horizontalArrangement = Arrangement.SpaceBetween,
-        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("9:41", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = ink)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            if (stacked) {
-                Box(Modifier.size(24.64.dp, 22.4.dp)) {
-                    StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.CELLULAR, 3, 4, 1), ink, "SIM 1 信号，三格")
-                    StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.CELLULAR, 2, 4, 2), ink, "SIM 2 信号，两格")
-                }
-            } else {
-                StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.CELLULAR, 3, 4), ink, "SIM 1 信号，三格")
-                StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.CELLULAR, 2, 4), ink, "SIM 2 信号，两格")
-            }
-            StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.WIFI, 4, 4), ink, "Wi-Fi 信号，满格")
-            StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.BATTERY, 75, 100), ink, "横向电池，电量百分之七十五", cutout = if (dark) Color(0xff17191d) else Color(0xfff1f3f7))
-        }
-    }
-}
-
-@Composable private fun StatusGlyph(symbol: IosStatusIcons.Symbol, color: Color, label: String, cutout: Color = Color.White) {
+@Composable internal fun StatusGlyph(symbol: IosStatusIcons.Symbol, color: Color, label: String, cutout: Color = Color.White) {
     val resources = LocalResources.current
     val density = LocalDensity.current.density
     val battery = symbol.kind() == IosStatusIcons.Kind.BATTERY
-    val drawable = remember(symbol, resources) {
-        val id = IosStatusResources.replacement("com.android.systemui:drawable/" + previewResource(symbol))
-        require(id != 0) { "Preview must use an original C17 resource" }
-        resources.getDrawable(id, null)!!.mutate()
+    val name = previewResource(symbol)
+    val id = IosStatusResources.replacement("com.android.systemui:drawable/$name")
+    // PUI intentionally leaves some icons (including rotation lock and hotspot) native.
+    val native = if (id == 0) rememberNativePreviewResources() else null
+    val drawable = remember(name, id, resources, native) {
+        if (id == 0) native?.drawable(listOf(name))
+        else runCatching { resources.getDrawable(id, null).mutate() }.getOrNull()
     }
-    val progress = remember(resources) { resources.getDrawable(R.drawable.thunder_ios_stat_battery_horizontal_progress, null)!!.mutate() }
-    val textPath = remember { android.graphics.Path() }
-    val textBounds = remember { android.graphics.RectF() }
-    val percentPaint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
-        textAlign = android.graphics.Paint.Align.CENTER
-    } }
+    if (drawable == null) {
+        Spacer(Modifier.size(22.dp).semantics { contentDescription = label })
+        return
+    }
     val width = if (symbol.row() > 0 || symbol.kind() == IosStatusIcons.Kind.CELLULAR) 22f
         else if (battery) 28f else (drawable.intrinsicWidth / density).coerceIn(16f, 30f) + 3f
-    Canvas(Modifier.size((width * if (battery) 1f else 1.12f).dp, 22.4.dp).semantics { contentDescription = label }) {
-        val tint = android.graphics.Color.argb((color.alpha * 255).toInt(), (color.red * 255).toInt(), (color.green * 255).toInt(), (color.blue * 255).toInt())
-        val scale = minOf((size.width - 3.dp.toPx()) / drawable.intrinsicWidth.coerceAtLeast(1), size.height / drawable.intrinsicHeight.coerceAtLeast(1))
-        val w = if (battery) size.width.toInt() else (drawable.intrinsicWidth * scale).toInt()
-        val h = if (battery) 17.dp.toPx().toInt() else (drawable.intrinsicHeight * scale).toInt()
-        val y = ((size.height - h) / 2).toInt()
-        drawable.setTint(tint)
-        drawable.setBounds(0, y, w, y + h)
-        drawable.alpha = if (battery) 64 else 255
-        drawable.draw(drawContext.canvas.nativeCanvas)
+    val asset = remember(drawable) {
+        drawable.toBitmap(width = drawable.intrinsicWidth.coerceAtLeast(1),
+            height = drawable.intrinsicHeight.coerceAtLeast(1)).asImageBitmap()
+    }
+    Box(Modifier.size((width * if (battery) 1f else 1.12f).dp, 22.4.dp)
+        .semantics { contentDescription = label }, contentAlignment = Alignment.CenterStart) {
+        Image(asset, contentDescription = null, contentScale = ContentScale.Fit,
+            colorFilter = ColorFilter.tint(color), alpha = if (battery) .25f else 1f,
+            modifier = if (battery) Modifier.size(width.dp, 17.dp) else Modifier.fillMaxSize().padding(end = 3.dp))
         if (battery) {
-            progress.level = symbol.level().coerceIn(0, 100) * 100
-            progress.setTint(tint)
-            progress.setBounds(0, y, w, y + h)
-            progress.draw(drawContext.canvas.nativeCanvas)
-            percentPaint.color = android.graphics.Color.rgb((cutout.red * 255).toInt(), (cutout.green * 255).toInt(), (cutout.blue * 255).toInt())
-            percentPaint.textSize = 10.dp.toPx()
-            val text = symbol.level().coerceIn(0, 100).toString()
-            percentPaint.textAlign = android.graphics.Paint.Align.LEFT
-            textPath.reset()
-            percentPaint.getTextPath(text, 0, text.length, 0f, 0f, textPath)
-            textPath.computeBounds(textBounds, true)
-            val bias = textBounds.centerX() - percentPaint.measureText(text) / 2f
-            percentPaint.textAlign = android.graphics.Paint.Align.CENTER
-            drawContext.canvas.nativeCanvas.drawText(text, w * IosStatusBarHook.BATTERY_BODY_FRACTION / 2f - bias,
-                y + h / 2f - textBounds.centerY(), percentPaint)
+            val level = symbol.level().coerceIn(0, 100)
+            val progress = remember(resources, level) {
+                resources.getDrawable(R.drawable.thunder_ios_stat_battery_horizontal_progress, null)!!.mutate().apply {
+                    this.level = level * 100
+                }.toBitmap(width = with(androidx.compose.ui.unit.Density(density)) { width.dp.roundToPx() }.coerceAtLeast(1),
+                    height = with(androidx.compose.ui.unit.Density(density)) { 17.dp.roundToPx() }.coerceAtLeast(1)).asImageBitmap()
+            }
+            Image(progress, contentDescription = null, colorFilter = ColorFilter.tint(color),
+                modifier = Modifier.size(width.dp, 17.dp))
+            Box(Modifier.width((width * IosStatusBarHook.BATTERY_BODY_FRACTION).dp).height(17.dp),
+                contentAlignment = Alignment.Center) {
+                Text(level.toString(), color = cutout, fontSize = with(LocalDensity.current) { 10.dp.toSp() },
+                    fontWeight = FontWeight.Bold, maxLines = 1)
+            }
         }
     }
 }

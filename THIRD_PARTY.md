@@ -47,11 +47,17 @@ vectors have been removed.
 Copyright compose-miuix-ui contributors, Apache License 2.0; license under
 `app/src/main/assets/licenses/miuix.txt`.
 
-The progressive header follows Kyant0's [progressive blur tutorial](https://kyant.gitbook.io/backdrop/tutorials/progressive-blur):
-Backdrop `blur` plus the `effect` API applies an alpha-mask shader to the blurred
-backdrop and tint. The mask uses an equivalent ascending smoothstep expression;
-intensity and tint follow the app theme. It does not use the previous custom
-variable-radius convolution shader.
+The application header uses Miuix `SmallTopAppBar` and `Surface`, with the
+existing Liquid buttons in its navigation/action slots. Its measured height is
+used for page spacing, including font scaling. The previous application-owned
+progressive-blur shader has been removed.
+
+Preview selection uses Miuix `TabRowWithContour` / `RadioButton`, preview cards
+use Miuix `Card` / `Surface`, and enlarged previews use Miuix `WindowDialog`.
+Read-only progress illustrations use Miuix `LinearProgressIndicator`; the close
+and music glyphs use Miuix Icons. Installed SystemUI/PUI assets remain preview
+content; they do not implement application interaction controls. Material samples
+use Miuix `Surface` with Kyant Backdrop's blur API, without a custom glass shader.
 
 Hook framework: libxposed [API](https://github.com/libxposed/api) and
 [Service](https://github.com/libxposed/service) **102.0.0**, Copyright libxposed

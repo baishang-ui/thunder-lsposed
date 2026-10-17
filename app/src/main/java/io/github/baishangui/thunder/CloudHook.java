@@ -22,6 +22,7 @@ final class CloudHook {
     static boolean readingNativeCorners(){return geometryRead.get();}
     private static final Map<View,SharedBackground> shared=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View,CapsuleState> capsules=Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Drawable,java.lang.ref.WeakReference<View>> gradients=Collections.synchronizedMap(new WeakHashMap<>());
     private static final class SharedBackground {
         final Object factory;
         final java.lang.ref.WeakReference<Object> manager;
@@ -68,6 +69,7 @@ final class CloudHook {
         // Do not mark an unrelated/host loader as installed after failed resolution.
         Reflect.findClass(BASE+"capsule.ui.view.CapsuleContainer",loader);
         installed.put(loader,true);
+        CloudSdkHook.watch(loader);
         bind(loader,"corner-config",() -> {
             final java.lang.reflect.Field companionField;
             try {companionField=Reflect.findClass(BASE+"plugin.ContextHandler",loader).getField("Companion");}
@@ -115,7 +117,7 @@ final class CloudHook {
                     View view=(View)p.args[0];Object manager=p.args[1];
                     shared.put(view,new SharedBackground(p.thisObject,manager));
                     HookConfig c=ShadeHook.snapshot();if(!c.enabled||!c.cloud)return;
-                    applyCard(view,manager,c.cloudCardArea);
+                    applyCard(view,manager,cardArea(view,c));
                     ShadeHook.resourceHit("cloud-shared-background");
                 }
             }));
@@ -159,7 +161,7 @@ final class CloudHook {
                     HookConfig c=ShadeHook.snapshot();if(!c.enabled||!c.cloud)return;
                     View view=(View)p.thisObject;
                     Object manager=Reflect.getObjectField(view,"c");
-                    applyCard(view,manager,c.cloudCardArea);
+                    applyCard(view,manager,cardArea(view,c));
                     ShadeHook.observed("cloud-card","corner="+(c.cloudCardArea.cornerEnabled?c.cloudCardArea.corner:"system")+"dp radius="+(c.cloudCardArea.blur?c.cloudCardArea.radius:"system")+" ARGB="+(c.cloudCardArea.tint?Integer.toHexString(c.cloudCardArea.color):"system"));
                 }
             };
@@ -171,20 +173,25 @@ final class CloudHook {
         bind(loader,"card-gradient",() -> Api102Runtime.findAndHookMethod(BASE+"util.d",loader,"draw",android.graphics.Canvas.class,new HookCallback() {
             @Override protected void beforeHookedMethod(Param p) {
                 HookConfig c=ShadeHook.snapshot();
-                if(c.enabled&&c.cloud&&c.cloudCardArea.tint)p.setResult(null);
+                java.lang.ref.WeakReference<View> ref=gradients.get(p.thisObject);
+                View owner=ref==null?null:ref.get();
+                HookConfig.Area area=owner==null?c.cloudCardArea:cardArea(owner,c);
+                if(c.enabled&&c.cloud&&area.tint)p.setResult(null);
             }
         }));
         bind(loader,"card-alpha",() -> Api102Runtime.findAndHookMethod(BASE+"card.ui.view.CardBackgroundView",loader,"setBlurRadiusFollowAlpha",float.class,new HookCallback() {
             @Override protected void afterHookedMethod(Param p) {
-                HookConfig c=ShadeHook.snapshot();if(p.hasThrowable()||!c.enabled||!c.cloud||!c.cloudCardArea.blur)return;
+                HookConfig c=ShadeHook.snapshot();if(p.hasThrowable()||!c.enabled||!c.cloud)return;
+                HookConfig.Area area=cardArea((View)p.thisObject,c);if(!area.blur)return;
                 Object manager=Reflect.getObjectField(p.thisObject,"c");if(manager==null)return;
                 float alpha=Math.max(0f,Math.min(1f,((Number)p.args[0]).floatValue()));
-                Reflect.callMethod(manager,"setBlurRadius",(int)(c.cloudCardArea.radius*alpha));
+                Reflect.callMethod(manager,"setBlurRadius",(int)(area.radius*alpha));
                 ShadeHook.resourceHit("cloud-card-blur");
             }
         }));
     }
     private static void applyCard(View view,Object manager,HookConfig.Area area) {
+        trackGradients(view.getBackground(),view);
         boolean nativeBlur=manager!=null && contains(view.getBackground(),
             Reflect.callMethod(manager,"getBackgroundBlurDrawable"));
         if(nativeBlur) {
@@ -195,6 +202,20 @@ final class CloudHook {
         // Custom native mixing supplies that color once; hide the extra shader entirely.
         tint(view.getBackground(),area,nativeBlur);
         applyCorners(view,area,!nativeBlur);
+    }
+    private static HookConfig.Area cardArea(View view,HookConfig c) {
+        if(!CloudLockHook.pluginLock(view,c))return c.cloudCardArea;
+        HookConfig.Area lock=c.cloudLockArea,card=c.cloudCardArea;
+        ShadeHook.resourceHit("cloud-plugin-lock-material");
+        return new HookConfig.Area(lock.blur,lock.radius,lock.tint,lock.color,card.cornerEnabled,card.corner);
+    }
+    private static void trackGradients(Drawable drawable,View view) {
+        if(drawable==null)return;
+        if(drawable.getClass().getName().equals(BASE+"util.d"))gradients.put(drawable,new java.lang.ref.WeakReference<>(view));
+        else if(drawable instanceof LayerDrawable) {
+            LayerDrawable layers=(LayerDrawable)drawable;
+            for(int i=0;i<layers.getNumberOfLayers();i++)trackGradients(layers.getDrawable(i),view);
+        } else if(drawable instanceof DrawableWrapper)trackGradients(((DrawableWrapper)drawable).getDrawable(),view);
     }
     private static void applyCapsule(View view,CapsuleState state,HookConfig c) {
         if(state.applied==c)return;

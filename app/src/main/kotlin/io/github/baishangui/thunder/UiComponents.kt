@@ -1,6 +1,5 @@
 package io.github.baishangui.thunder
 
-import android.graphics.RenderEffect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
@@ -8,14 +7,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
@@ -33,13 +29,12 @@ import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.backdrop.drawPlainBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.effect
 import com.kyant.backdrop.catalog.components.*
 import com.kyant.shapes.Capsule
 import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.TabRowDefaults
 import top.yukonga.miuix.kmp.basic.RadioButton
@@ -59,7 +54,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.draw.clip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.miuixShape
-import top.yukonga.miuix.kmp.theme.miuixCapsuleShape
 import top.yukonga.miuix.kmp.theme.Colors
 import top.yukonga.miuix.kmp.window.WindowDialog
 import kotlin.math.roundToInt
@@ -95,7 +89,7 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
 }
 
 @Composable internal fun SettingsDivider() {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(LocalGlass.current.colors.dividerLine))
+    HorizontalDivider(color = LocalGlass.current.colors.dividerLine)
 }
 
 @Composable internal fun LiquidAction(text: String, modifier: Modifier = Modifier, enabled: Boolean = true,
@@ -138,10 +132,11 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
         summary = summary.takeIf { it.isNotBlank() },
         insideMargin = PaddingValues(horizontal = 18.dp, vertical = 13.dp),
         startAction = {
-            Box(Modifier.padding(end = 14.dp).size(36.dp)
-                .background(s.colors.secondaryContainer, RoundedCornerShape(12.dp)),
-                contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = s.colors.onSecondaryContainer)
+            Surface(Modifier.padding(end = 14.dp).size(36.dp), shape = miuixShape(12.dp),
+                color = s.colors.secondaryContainer, contentColor = s.colors.onSecondaryContainer) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = s.colors.onSecondaryContainer)
+                }
             }
         },
         endActions = {
@@ -164,10 +159,8 @@ internal val LocalControlHistory = staticCompositionLocalOf { ControlHistory() }
 internal val LocalControlScope = staticCompositionLocalOf { "" }
 @Composable private fun UndoFooter(title: String, restore: (() -> Unit)?) {
     if (restore != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        UiText("回退", 12, color = LocalGlass.current.accent,
-            modifier = Modifier.heightIn(min = 48.dp).clip(miuixCapsuleShape())
-                .clickable(role = Role.Button, onClickLabel = "回退${title}的修改", onClick = restore)
-                .wrapContentHeight().padding(horizontal = 12.dp, vertical = 8.dp))
+        LiquidAction("回退", modifier = Modifier.semantics { contentDescription = "回退${title}的修改" },
+            onClick = restore)
     }
 }
 @Composable internal fun LiquidColorSetting(title: String, color: Int, opaque: Boolean = false, change: (Int) -> Unit) {
@@ -182,8 +175,9 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
             insideMargin = PaddingValues(8.dp),
             onClick = { open = true },
             startAction = {
-                Box(Modifier.size(32.dp).background(LocalGlass.current.colors.secondaryContainer, CircleShape)
-                    .background(Color(color), CircleShape).border(1.dp, LocalGlass.current.colors.outline.copy(alpha = .3f), CircleShape))
+                Surface(Modifier.size(32.dp).clip(CircleShape).drawCheckerboard(), shape = CircleShape,
+                    color = Color(color), border = androidx.compose.foundation.BorderStroke(
+                        1.dp, LocalGlass.current.colors.outline.copy(alpha = .3f))) {}
             },
             endActions = {
                 Icon(MiuixIcons.Regular.ChevronForward, null, Modifier.size(16.dp), tint = LocalGlass.current.muted)
@@ -374,8 +368,8 @@ internal fun hex(color: Int) = "#%08X".format(color)
         }
     }) {
         val keyboard = LocalSoftwareKeyboardController.current
-        Box(Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(12.dp))
-            .drawCheckerboard().background(Color(selection.argb)))
+        Surface(Modifier.fillMaxWidth().height(40.dp).clip(miuixShape(12.dp)).drawCheckerboard(),
+            shape = miuixShape(12.dp), color = Color(selection.argb)) {}
         ColorChannel("色相", "${selection.hue.roundToInt()}°", selection.hue / 360f,
             { update(selection.copy(hue = it * 360f)) }) {
             HsvHueSlider(selection.hue, { update(selection.copy(hue = it * 360f)) })
@@ -423,27 +417,4 @@ internal fun hex(color: Int) = "#%08X".format(color)
             setProgress { change(it.coerceIn(0f, 1f)); true }
         }.focusable(), contentAlignment = Alignment.Center) { content() }
     }
-}
-// Kyant0 Backdrop tutorial: alpha-masked progressive blur. The mask is applied
-// to the blurred backdrop itself so content below the header fades into the page.
-internal const val PROGRESSIVE_SHADER = """
-uniform shader content;
-uniform float2 size;
-layout(color) uniform half4 tint;
-uniform float tintIntensity;
-half4 main(float2 coord) {
-    float mask = 1.0 - smoothstep(size.y * 0.5, size.y, coord.y);
-    return mix(content.eval(coord) * mask, tint * mask, tintIntensity);
-}
-"""
-@Composable internal fun ProgressiveHeader(source: Backdrop, modifier: Modifier) {
-    val s = LocalGlass.current
-    Box(modifier.drawPlainBackdrop(source, shape = { RectangleShape }, effects = {
-        blur(4f.dp.toPx())
-        effect(RenderEffect.createRuntimeShaderEffect(obtainRuntimeShader("thunder-header-alpha-mask", PROGRESSIVE_SHADER).apply {
-            setFloatUniform("size",size.width,size.height)
-            setColorUniform("tint",s.surface.toArgb())
-            setFloatUniform("tintIntensity",if(s.dark) .55f else .65f)
-        },"content"))
-    }))
 }

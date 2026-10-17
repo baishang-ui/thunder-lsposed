@@ -1,5 +1,25 @@
 # 应用 UI 审查与调整
 
+## 2026-10-17：统一使用 MIUIx / Liquid Glass
+
+依据根目录 `AGENTS.md`，应用交互控件统一复用 MIUIx 与 Kyant0 Liquid Glass，
+页面布局和状态绑定保留为薄封装。本轮完成：
+
+- 顶栏改用 MIUIx `SmallTopAppBar` / `Surface`，返回与重启操作继续使用 `LiquidButton`；
+  页面顶部留白读取顶栏实际高度，移除应用自定义渐进模糊 Shader。
+- 回退操作改用 `LiquidButton`；分割线改用 MIUIx `HorizontalDivider`；
+  菜单图标容器、颜色样本与预览材质容器改用 MIUIx `Surface`。
+- 预览比较、示例应用和音量展开选项复用 MIUIx 选项组件；
+  窄屏与大字体继续使用纵向 `RadioButton` 设置行。
+- 预览入口使用 MIUIx 可点击 `Card`，放大预览接入统一的 `WindowDialog`，
+  操作区固定在底部，正文滚动；弹窗中可以切换音乐 / 出行与收起 / 展开。
+- 音乐和音量进度展示改用 MIUIx `LinearProgressIndicator`；
+  手绘关闭图标与音乐波形改为 Miuix Icons。
+- SystemUI / PUI 原始图标作为图片内容展示，时钟和电量文字使用 MIUIx `Text`；
+  应用 UI 目录不再使用 Compose Canvas、自定义 clickable 控件或 RuntimeShader。
+
+以下为此前的审查记录；本轮验证结果见文末。
+
 审查日期：2026-10-16。范围为 thunder 应用自身的 Compose 页面及其公共组件，
 包括主页、调节分类、设置分类、全部二级设置页、图标预览、颜色选择、配置确认与重启反馈弹窗。
 
@@ -91,3 +111,18 @@ Backdrop 1.0.6 的 `lens()` 只支持 `RoundedRectangularShape` 或 `CornerBased
 
 后续新增设置优先复用公共设置行和 Miuix 插槽；自由内容通过 Card 内容边距布局，
 不在文字本身增加圆角裁切，不用固定高度约束可换行的文字区域。
+
+## 2026-10-17 验证结果
+
+本轮在独立构建目录 `.local/ui-library-build` 中执行 Debug 构建、Release 单元测试、
+Release Lint 与 Release APK 构建，最终全部通过。Windows 测试环境补充 Git 的 `sh`
+路径后，77 项单元测试全部通过，0 失败、0 跳过。Lint 为 0 错误、45 项警告；
+这些警告未在本轮清零。LiquidButton 编译签名仍限制为 Backdrop 透镜支持的
+`RoundedRectangularShape`。
+
+检查应用 UI 源码目录，已无 Compose Canvas、自定义 clickable 控件、RuntimeShader、
+原生 Compose Dialog 或 Material3 控件；官方 Liquid Glass 组件内部实现保持原有来源。
+
+测试 APK 使用独立包名 `io.github.baishangui.thunder.previewqa`。本轮两次 ADB 安装
+均未返回完成结果，已取消等待；未完成真机页面截图、触控、大字体或 TalkBack 验收，
+不能用构建和单元测试结果代替这些视觉与交互检查。Release APK 为未签名构建产物。

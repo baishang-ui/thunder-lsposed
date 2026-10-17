@@ -127,7 +127,11 @@ final class VolumeHook {
         hook(loader,MATERIAL+"VolumePlatformBlurHostHelper",new String[]{"applyBarPanelBottomProgress"},new HookCallback() {
             @Override protected void afterHookedMethod(Param p) {
                 Object dialog=Reflect.getObjectField(Reflect.getObjectField(p.thisObject,"deps"),"this$0");
-                Compact panel=panels.get(dialog);if(panel!=null)panel.backgroundProgress=((Number)p.args[0]).floatValue();
+                Compact panel=panels.get(dialog);
+                if(panel!=null) {
+                    panel.backgroundProgress=((Number)p.args[0]).floatValue();
+                    panel.applyShortcutMaterial(panel.backgroundProgress,false);
+                }
             }
         });
         hook(loader,BASE+"view.OplusVolumeDialogView$CustomDialog",new String[]{"dispatchTouchEvent"},new HookCallback() {
@@ -177,15 +181,16 @@ final class VolumeHook {
             @Override protected void beforeHookedMethod(Param p) {
                 View bar=(View)p.thisObject;Compact panel=containing(bar);if(panel==null)return;
                 float progress=panel.progress();if(progress>=1f)return;
+                float base=((Number)Reflect.getObjectField(bar,"mBackgroundWidth")).floatValue();
+                float baseRadius=((Number)Reflect.getObjectField(bar,"mBackgroundRadius")).floatValue();
+                if(Math.abs(base-panel.startBarWidth)<.01f&&Math.abs(baseRadius-panel.startBarRadius)<.01f)return;
                 float[] pose=new float[MORPH_FIELDS.length];
                 for(int i=0;i<pose.length;i++)pose[i]=((Number)Reflect.getObjectField(bar,MORPH_FIELDS[i])).floatValue();
                 p.setObjectExtra("volume.widthPose",pose);
-                float base=((Number)Reflect.getObjectField(bar,"mBackgroundWidth")).floatValue();
                 float width=VolumePanelGeometry.mix(panel.startBarWidth,base,progress);
                 float ratio=base<=0?1:width/base;
                 Reflect.setObjectField(bar,MORPH_FIELDS[0],pose[0]*ratio);
                 Reflect.setObjectField(bar,MORPH_FIELDS[1],pose[1]*ratio);
-                float baseRadius=((Number)Reflect.getObjectField(bar,"mBackgroundRadius")).floatValue();
                 float radius=VolumePanelGeometry.mix(panel.startBarRadius,baseRadius,progress);
                 float cornerRatio=baseRadius<=0?1:radius/baseRadius;
                 float backgroundRadius=Math.min(pose[2]*cornerRatio,pose[0]*ratio/2f);
@@ -215,6 +220,21 @@ final class VolumeHook {
                 }
             });
         }
+        // Expansion also hot-updates the cached static shader without calling any
+        // ViewBlurProxy backend. Apply the same scoped override at that consumer.
+        for(String consumer:new String[]{"applyPlatformBlurMixAfterConfigWrite","hotUpdateStaticPlatformLightAndStroke"}) {
+        hook(loader,MATERIAL+"VolumeBlurManager",new String[]{consumer},new HookCallback() {
+            @Override protected void beforeHookedMethod(Param p) {
+                Object blur=consumer.equals("hotUpdateStaticPlatformLightAndStroke")?p.args[1]:Reflect.callMethod(p.args[0],"getBlurConfig");
+                String role=String.valueOf(Reflect.getAdditionalInstanceField(blur,"thunder.role"));
+                if(role.startsWith("volume-"))ShadeHook.overrideNativeConfig(p,blur,"BlurTypePlatformStatic");
+            }
+            @Override protected void afterHookedMethod(Param p) {ShadeHook.restoreNativeConfig(p);}
+        });
+        }
+        bind("material-animation-deopt",()->Api102Runtime.deoptimizeCallers(Reflect.findClass(MATERIAL+"VolumeBlurManager",loader),
+                "applyVolumeBarPanelBottomAmount","applyVolumeBarProgressMixColors","applySettingsButtonMixColors",
+                "applyPlatformBlurMixAfterConfigWrite","syncVolumeBarPlatformLightBounds","syncVolumeBarProgressCorner"));
         // These small native getters are called by ART-compiled animation code.
         bind("button-animation-deopt",()->Api102Runtime.deoptimizeCallers(Reflect.findClass(BASE+"view.OplusVolumeDialogView",loader),"startBtnThickAnim"));
         bind("animation-deopt",()->Api102Runtime.deoptimizeCallers(Reflect.findClass(BASE+"anim.VolumeItemAnimator",loader),"animateAddImpl","animateMoveImpl","runPendingAnimations"));
@@ -300,6 +320,7 @@ final class VolumeHook {
     }
     private static void styleBar(View v) {
         Compact panel=containing(v);HookConfig c=panel==null?ShadeHook.snapshot():panel.config;
+        if(panel!=null)panel.bars.put(v,true);
         boolean custom=panel!=null||(c.enabled&&c.volumeSize),corner=c.enabled&&c.volumeBar.cornerEnabled;
         int widthPx=panel==null?dp(v,c.volumeWidth):Math.max(1,panel.rowWidth-dp(v,10));
         if(Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(v,"volume.recalculating")))return;
@@ -398,8 +419,9 @@ final class VolumeHook {
         return null;
     }
     private static Compact containing(View v) {
+        ArrayList<Compact> active=new ArrayList<>(panels.values());
         for(View item=v;item!=null;item=item.getParent() instanceof View?(View)item.getParent():null) {
-            Compact panel=forItem(item);if(panel!=null)return panel;
+            for(Compact panel:active)if(item.getParent()==panel.recycler.get())return panel;
         }
         return null;
     }
@@ -430,6 +452,7 @@ final class VolumeHook {
         ViewTreeObserver observer;
         final ViewTreeObserver.OnPreDrawListener frame=()->{tick();return true;};
         final Map<View,Integer> hidden=new WeakHashMap<>();
+        final Map<View,Boolean> bars=new WeakHashMap<>();
         final Rect usable=new Rect();
         final int anchorX,anchorY,anchorRight,inset,sourceHeight,trackTop,trackBottom,sourceRowHeight,anchorTrackY;
         int rowHeight;
@@ -441,6 +464,8 @@ final class VolumeHook {
         int rowWidth;
         float rowOffset;
         FrameLayout shortcuts,soundSegments,zenControl;
+        Method shortcutMixMethod;
+        float shortcutMaterialProgress=Float.NaN;
         final View.OnLayoutChangeListener materialLayout=(v,l,t,r,b,ol,ot,or,ob)->{
             if(r-l!=or-ol||b-t!=ob-ot)refreshMaterial(v);
         };
@@ -550,6 +575,8 @@ final class VolumeHook {
             Object manager;
             try {manager=Reflect.findClass(MATERIAL+"VolumeBlurManager",d.getClass().getClassLoader()).getDeclaredField("INSTANCE").get(null);}
             catch(ReflectiveOperationException error){throw new IllegalStateException(error);}
+            try {shortcutMixMethod=manager.getClass().getDeclaredMethod("applyVolumeBarPanelBottomAmount",View.class,float.class,boolean.class);}
+            catch(ReflectiveOperationException error){throw new IllegalStateException(error);}
             boolean dark=(r.getResources().getConfiguration().uiMode&Configuration.UI_MODE_NIGHT_MASK)==Configuration.UI_MODE_NIGHT_YES;
             int foreground=dark?0xffffffff:0xff000000;
             if(config.volumeBar.tint)foreground=AdaptiveTextColor.foreground(AdaptiveTextColor.composite(config.volumeBar.color,dark?0xff202124:0xfffafafa));
@@ -577,6 +604,7 @@ final class VolumeHook {
                 group.setBackground(group==zenControl?new RippleDrawable(ColorStateList.valueOf((foreground&0xffffff)|0x24000000),material,mask):material);
                 refreshMaterial(group);
             }
+            applyShortcutMaterial(Float.isNaN(backgroundProgress)?0f:backgroundProgress,true);
             for(int i=0;i<5;i++) {
                 ImageView button=i<3?soundButtons[i]:i==3?zenOff:zenOn;
                 FrameLayout.LayoutParams child=new FrameLayout.LayoutParams(side,side);
@@ -620,13 +648,15 @@ final class VolumeHook {
             } catch(Throwable error) {ShadeHook.frameworkFailure("volume-shortcut",error);}
         }
         void updateShortcutState() {
+            updateShortcutState(progress());
+        }
+        void updateShortcutState(float progress) {
             if(shortcuts==null)return;Object d=dialog.get();if(d==null)return;
             Object state=Reflect.getObjectField(Reflect.getObjectField(d,"volumeInteractor"),"mState");
-            boolean ready=state!=null&&progress()>=.95f;
+            boolean ready=state!=null&&progress>=.95f;
             boolean soundReady=ready&&!alertSlider&&!Reflect.getBooleanField(state,"disallowRinger");
             for(int i=0;i<3;i++)soundButtons[i].setEnabled(soundReady&&(i!=1||hasVibrator));
             soundSegments.setAlpha(soundReady?1f:.38f);zenControl.setEnabled(ready);zenControl.setAlpha(ready?1f:.38f);
-            renderShortcutPose();
             if(state==null)return;
             int ringer=Reflect.getIntField(state,"ringerModeInternal"),zen=Reflect.getIntField(state,"zenMode");
             if(zen!=0)lastZen=zen;
@@ -695,25 +725,38 @@ final class VolumeHook {
             return VolumePanelGeometry.progress(xy[0],0,anchorX,0,targetX,0,fallback);
         }
         VolumePanelGeometry.Bounds visualBounds() {
-            return VolumePanelGeometry.widthAt(bounds,Math.round(startBarWidth)+2*inset,progress());
+            return visualBounds(progress());
+        }
+        VolumePanelGeometry.Bounds visualBounds(float progress) {
+            return VolumePanelGeometry.widthAt(bounds,Math.round(startBarWidth)+2*inset,progress);
+        }
+        void applyShortcutMaterial(float progress,boolean force) {
+            float phase=VolumePanelGeometry.clamp(progress);
+            if(shortcutMixMethod==null||(!force&&phase==shortcutMaterialProgress))return;
+            try {
+                // Custom hosts are outside the native row/accessory collections. Forward the
+                // same material phase, including reverse transitions and the terminal zero.
+                shortcutMixMethod.invoke(null,soundSegments,phase,force||phase==0f);
+                shortcutMixMethod.invoke(null,zenControl,phase,force||phase==0f);
+                shortcutMaterialProgress=phase;
+            } catch(ReflectiveOperationException error) {throw new IllegalStateException("Shortcut material phase",error);}
         }
         void watch() {View r=root.get();if(r!=null){observer=r.getViewTreeObserver();observer.addOnPreDrawListener(frame);}}
         void tick() {
             hideAccessories();
-            updateShortcutState();
-            float progress=progress();if(Math.abs(progress-lastProgress)<.0001f)return;lastProgress=progress;
+            float progress=progress();updateShortcutState(progress);
+            if(Math.abs(progress-lastProgress)<.0001f)return;lastProgress=progress;
             if(surface!=null)surface.invalidateSelf();
             if(shortcuts!=null) {
-                VolumePanelGeometry.Bounds visible=visualBounds();
+                VolumePanelGeometry.Bounds visible=visualBounds(progress);
                 int left=visible.x()-bounds.x(),right=left+visible.width()-2*inset;
                 shortcuts.setClipBounds(new Rect(Math.max(0,left),0,Math.max(0,right),barWidth()));
                 shortcuts.setAlpha(VolumePanelGeometry.clamp((progress-.25f)/.75f));
             }
-            View list=recycler.get();if(list!=null)invalidateTree(list);
-        }
-        void invalidateTree(View v) {
-            v.invalidate();
-            if(v instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++)invalidateTree(group.getChildAt(i));
+            // Native row translations already invalidate their display lists. Only a fitted
+            // track width needs an extra draw for our temporary geometry interpolation.
+            if(Math.abs(barWidth()-startBarWidth)>.01f)
+                for(View bar:bars.keySet())bar.invalidate();
         }
         int barWidth() {View r=root.get();return r==null?1:Math.max(1,rowWidth-dp(r,10));}
         void hide(View v) {
