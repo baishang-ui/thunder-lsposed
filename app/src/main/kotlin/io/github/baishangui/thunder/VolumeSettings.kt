@@ -7,11 +7,13 @@ internal data class VolumeSettings(
     val size: Boolean = false, val width: Int = 56, val height: Int = 240,
     val compact: Boolean = false,
     val bar: Area = Area(color = 0x33000000),
-    val panel: Area = Area(color = 0x33000000)
+    val panel: Area = Area(color = 0x33000000),
+    val liquidEntrance: Boolean = false
 ) {
     fun write(b: Bundle) = with(b) {
         putBoolean("volume_size", size); putInt("volume_width", width); putInt("volume_height", height)
         putBoolean("volume_compact", compact)
+        putBoolean("volume_liquid_entrance", liquidEntrance)
         listOf("volume_bar" to bar, "volume_panel" to panel).forEach { (k, a) ->
             putBoolean(k+"_blur", a.blur); putInt(k+"_radius", a.radius)
             putBoolean(k+"_tint", a.tint); putInt(k+"_color", a.color)
@@ -26,13 +28,14 @@ internal data class VolumeSettings(
             val c = HookConfig(b)
             fun area(a: HookConfig.Area) = Area(a.blur,a.radius,a.tint,a.color,a.cornerEnabled,a.corner)
             return VolumeSettings(c.volumeSize,c.volumeWidth,c.volumeHeight,c.volumeCompact,
-                area(c.volumeBar),area(c.volumePanel))
+                area(c.volumeBar),area(c.volumePanel),c.volumeLiquidEntrance)
         }
     }
 }
 
 @Composable internal fun VolumeSettingsControls(value: VolumeSettings, change: (VolumeSettings) -> Unit) {
     SettingsGroup {
+        LiquidSwitchRow("iOS 液态入场", "按音量键弹出时，从屏幕边缘液态吸附、拉伸分离并弹性停稳", value.liquidEntrance) { change(value.copy(liquidEntrance = it)) }
         LiquidSwitchRow("跟随音量条展开", "沿当前音量条横向展开，下方显示声音三段式与免打扰", value.compact) { change(value.copy(compact = it)) }
     }
     SettingsGroup {

@@ -24,9 +24,6 @@ internal object RemoteSettings {
         private set
     var scopeStatus by mutableStateOf("作用域：等待 LSPosed 连接")
         private set
-    fun actualScope(): Set<String>? = service?.let { framework ->
-        runCatching { framework.scope.toSet() }.getOrNull()
-    }
     fun refreshScope() {
         val framework = service ?: return
         Thread({ updateScope(framework) }, "Thunder-scope-check").start()

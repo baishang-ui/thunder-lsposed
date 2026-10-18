@@ -35,6 +35,7 @@ public class OplusQSThreeStageLayout extends FrameLayout {
     public void tintColor(Integer color){}
     public int getActiveIconColor(boolean active){return active?0xffeeeeee:0xff777777;}
     public void clearRunnable(){cleared=true;}
+    public void setTranslationXAndScale(){}
     public static class Motion {public boolean cancelled;public void cancel(){cancelled=true;}}
     public static class Scale {public final Motion spring=new Motion();private Motion getSpringAnim(){return spring;}}
     public static class Alpha {public final Motion alphaSpringAnim=new Motion(),colorSpringAnim=new Motion();}

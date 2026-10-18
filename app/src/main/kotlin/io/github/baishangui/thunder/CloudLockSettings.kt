@@ -2,6 +2,8 @@ package io.github.baishangui.thunder
 
 import android.os.Bundle
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.Modifier
 
 internal data class CloudLockSettings(
     val style: Int = 0,
@@ -38,16 +40,22 @@ internal data class CloudLockSettings(
 
 @Composable internal fun CloudLockControls(value: CloudLockSettings, change: (CloudLockSettings) -> Unit) {
     SettingsGroup {
-        UiText("锁屏流体云样式", 14, muted = true)
-        UiText("自定义锁屏胶囊和展开卡片的背景材质，关闭对应开关即跟随系统。", 12, muted = true)
+        UiText("锁屏时的背景", 15, bold = true)
+        UiText("调整锁屏流体云胶囊与卡片的模糊、混色。关闭对应开关即使用系统材质。", 12, muted = true)
+        UiText("这里只调整背景；卡片圆角沿用对应形态的设置。", 12, muted = true)
     }
-    AreaControls("锁屏材质", value.area, corner = false) { change(value.copy(style = 2, area = it)) }
+    CloudMaterialControls("锁屏背景材质", value.area) { change(value.copy(style = 2, area = it)) }
 }
 
 @Composable internal fun CloudAppColorControls(value: CloudLockSettings, change: (CloudLockSettings) -> Unit) {
     SettingsGroup {
-        LiquidValueSlider("自定义遮罩强度", value.maskStrength, 0..200, "%") { change(value.withMaskStrength(it)) }
-        UiText("0% 关闭遮罩，100% 为系统强度，200% 为两倍强度。", 12, muted = true)
-        UiText("作用于系统支持的流体云应用色背景，保留渐变方向和进出动画。", 12, muted = true)
+        UiText("应用提供的背景颜色", 15, bold = true)
+        UiText("调节音乐、出行等应用为流体云提供的背景色强度，对支持此效果的卡片生效，锁屏时也适用。", 12, muted = true)
+        LiquidValueSlider("应用色强度", value.maskStrength, 0..200, "%") { change(value.withMaskStrength(it)) }
+        UiText("0% 隐藏应用色 · 100% 系统强度 · 200% 两倍强度", 12, muted = true)
+        if (value.maskStrength != 100) {
+            SettingsDivider()
+            LiquidAction("恢复系统强度", Modifier.fillMaxWidth()) { change(value.withMaskStrength(100)) }
+        }
     }
 }

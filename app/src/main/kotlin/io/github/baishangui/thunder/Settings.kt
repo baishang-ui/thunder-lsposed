@@ -29,7 +29,9 @@ internal data class Settings(
     val colorMode: Int = 0,
     val statusBar: StatusBarSettings = StatusBarSettings(),
     val gestureBar: GestureBarSettings = GestureBarSettings(),
-    val cloudLock: CloudLockSettings = CloudLockSettings()
+    val cloudLock: CloudLockSettings = CloudLockSettings(),
+    val panelSaturationEnabled: Boolean = false,
+    val panelSaturation: Int = 100
 ) {
     fun bundle() = Bundle().apply {
         volume.write(this)
@@ -37,6 +39,7 @@ internal data class Settings(
         gestureBar.write(this)
         cloudLock.write(this)
         putBoolean("enabled", enabled); putInt("theme", theme)
+        putBoolean("panel_saturation_enabled", panelSaturationEnabled); putInt("panel_saturation", panelSaturation)
         putInt("color_mode", colorMode)
         putInt("status_bar_hidden_icons", hiddenStatusIcons)
         putInt("status_bar_icon_style", statusIconStyle)
@@ -60,7 +63,7 @@ internal data class Settings(
     fun json(): String {
         val data = JSONObject()
         bundle().let { b -> b.keySet().sorted().forEach { k -> @Suppress("DEPRECATION") data.put(k, b.get(k)) } }
-        return JSONObject().put("format", "thunder.settings").put("version", 19).put("settings", data).toString(2)
+        return JSONObject().put("format", "thunder.settings").put("version", 22).put("settings", data).toString(2)
     }
     companion object {
         fun from(b: Bundle): Settings {
@@ -94,14 +97,24 @@ internal data class Settings(
                 colorMode = b.getInt("color_mode", 0).coerceIn(0, 2),
                 statusBar = StatusBarSettings.from(b),
                 gestureBar = GestureBarSettings.from(b),
-                cloudLock = CloudLockSettings.from(b))
+                cloudLock = CloudLockSettings.from(b),
+                panelSaturationEnabled = b.getBoolean("panel_saturation_enabled", false),
+                panelSaturation = b.getInt("panel_saturation", 100).coerceIn(0, 200))
         }
         fun parse(text: String): Settings {
             require(text.toByteArray(Charsets.UTF_8).size <= 65536) { "配置不能超过 64 KB" }
             val root = JSONObject(text)
             val version = root.opt("version")
-            require(root.opt("format") == "thunder.settings" && version in setOf(3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19)) { "不是受支持的 thunder 配置" }
+            require(root.opt("format") == "thunder.settings" && version in setOf(3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22)) { "不是受支持的 thunder 配置" }
             val data = root.getJSONObject("settings")
+            // v21's black/white overlay was the wrong control. Keep the saved material,
+            // discard that adjustment and start actual saturation at the identity value.
+            if (version == 21) {
+                require(data.get("panel_tone_enabled") is Boolean) { "panel_tone_enabled 必须是布尔值" }
+                val tone = data.get("panel_tone")
+                require(tone is Int && tone in -100..100) { "panel_tone 超出允许范围或类型错误" }
+                data.remove("panel_tone_enabled"); data.remove("panel_tone")
+            }
             // Early v18 exports offered a material source; handlestyles now use their own material.
             if (version == 18 && data.has("gesture_material")) {
                 val source = data.get("gesture_material")
@@ -127,11 +140,13 @@ internal data class Settings(
                 }
             }
             val defaults = Settings().bundle().apply {
+                if (version != 22) { remove("panel_saturation_enabled"); remove("panel_saturation") }
+                if (version !in setOf(20,21,22)) remove("volume_liquid_entrance")
                 // Older exports retain their manually selected UI colors.
-                if (version !in setOf(16,17,18,19)) remove("color_mode")
-                if (version !in setOf(17,18,19)) StatusBarSettings.keys.forEach { remove(it) }
-                if (version !in setOf(18,19)) GestureBarSettings.keys.forEach { remove(it) }
-                if (version != 19) CloudLockSettings.keys.forEach { remove(it) }
+                if (version !in setOf(16,17,18,19,20,21,22)) remove("color_mode")
+                if (version !in setOf(17,18,19,20,21,22)) StatusBarSettings.keys.forEach { remove(it) }
+                if (version !in setOf(18,19,20,21,22)) GestureBarSettings.keys.forEach { remove(it) }
+                if (version !in setOf(19,20,21,22)) CloudLockSettings.keys.forEach { remove(it) }
                 // v7 and v12 serialize rows separately; v8–v11 seed them from the shared material.
                 if(version in setOf(8,9,10,11)) {
                     keySet().filter { it.startsWith("notification_card_") }.forEach { remove(it) }
@@ -152,7 +167,7 @@ internal data class Settings(
                 listOf("notification_card","cloud_card").flatMap { k ->
                     listOf("blur","radius","tint","color","corner_enabled","corner").map { "${k}_$it" }
                 }
-            val expected = defaults.keySet() - (if (version !in setOf(13,14,15,16,17,18,19)) VolumeSettings.keys else emptySet()) - (if (version !in setOf(13,14,15,16,17,18,19)) setOf("gesture_bar_hidden", "gesture_bar_remove_inset") else emptySet()) - (if (version !in setOf(11,12,13,14,15,16,17,18,19)) setOf("status_bar_stack_signals") else emptySet()) - (if (version !in setOf(9,10,11,12,13,14,15,16,17,18,19)) setOf("status_bar_icon_style") else emptySet()) - (if (version in setOf(3,4,5,6)) v7 else emptySet()) - (if (version == 3) added else emptySet()) -
+            val expected = defaults.keySet() - (if (version !in setOf(13,14,15,16,17,18,19,20,21,22)) VolumeSettings.keys else emptySet()) - (if (version !in setOf(13,14,15,16,17,18,19,20,21,22)) setOf("gesture_bar_hidden", "gesture_bar_remove_inset") else emptySet()) - (if (version !in setOf(11,12,13,14,15,16,17,18,19,20,21,22)) setOf("status_bar_stack_signals") else emptySet()) - (if (version !in setOf(9,10,11,12,13,14,15,16,17,18,19,20,21,22)) setOf("status_bar_icon_style") else emptySet()) - (if (version in setOf(3,4,5,6)) v7 else emptySet()) - (if (version == 3) added else emptySet()) -
                 (if (version == 3 || version == 4) setOf("status_bar_hidden_icons") else emptySet()) -
                 (if (version in setOf(3,4,5)) setOf("qs_card_tint","qs_card_color") else emptySet())
             require(data.keys().asSequence().toSet() == expected) { "配置字段不完整或包含未知字段" }
@@ -164,7 +179,7 @@ internal data class Settings(
                     is Int -> { require(value is Int) { "$k 必须是整数" }; b.putInt(k, value) }
                 }
             }
-            val ranges = mapOf("theme" to 0..2, "color_mode" to 0..2, "glass_strength" to 0..100, "refraction" to 0..100,
+            val ranges = mapOf("panel_saturation" to 0..200, "theme" to 0..2, "color_mode" to 0..2, "glass_strength" to 0..100, "refraction" to 0..100,
                 "roundness" to 16..36, "panel_radius" to 0..200, "banner_radius" to 0..200, "notification_margin" to 0..64, "cloud_height" to 20..64, "cloud_corner" to 0..48, "cloud_radius" to 0..200,
                 "status_bar_icon_style" to 0..1, "status_bar_hidden_icons" to 0..StatusBarIcons.ALL,
                 "qs_card_radius" to 0..200,"qs_card_corner" to 0..64,"banner_corner" to 0..64,"notification_card_corner" to 0..64,

@@ -25,7 +25,8 @@ import com.kyant.backdrop.catalog.components.LiquidButton
 /** C17 four-column panel, measured in phone dp; icons come from the installed SystemUI package. */
 @Composable internal fun C17ControlCenterPreview(settings: Settings) {
     val card = settings.cardArea
-    MaterialSample(settings.panel, Modifier.fillMaxSize(), defaultCorner = 0, defaultColor = Color(0x30101218), defaultBlur = 44f) {
+    MaterialSample(settings.panel, Modifier.fillMaxSize(), defaultCorner = 0, defaultColor = Color(0x30101218), defaultBlur = 44f,
+        saturation = if (settings.panelSaturationEnabled) settings.panelSaturation / 100f else 1f) {
         PreviewLabel("中国联通 | 中国联通", Modifier.offset(36.dp, 18.dp), size = 12)
         NativePreviewIcon("oplus_qs_setting_icon", Modifier.offset(304.dp, 15.dp).size(20.dp), fallback = "ic_settings")
         listOf(50 to "WLAN", 126 to "蓝牙").forEachIndexed { index, (top, title) ->
@@ -102,7 +103,8 @@ import com.kyant.backdrop.catalog.components.LiquidButton
 
 @Composable internal fun C17NotificationPreview(settings: Settings, page: SettingsPage) {
     val banner = page == SettingsPage.Banner
-    if (!banner) MaterialSample(settings.panel, Modifier.fillMaxSize(), defaultCorner = 0, defaultColor = Color(0x28101218), defaultBlur = 44f)
+    if (!banner) MaterialSample(settings.panel, Modifier.fillMaxSize(), defaultCorner = 0, defaultColor = Color(0x28101218), defaultBlur = 44f,
+        saturation = if (settings.panelSaturationEnabled) settings.panelSaturation / 100f else 1f)
     if (banner) {
         PreviewLabel("9:41", Modifier.offset(24.dp, 17.dp), size = 14, bold = true)
         NativePreviewIcon("stat_signal_wifi_signal_4_os17", Modifier.offset(296.dp, 16.dp).size(20.dp))

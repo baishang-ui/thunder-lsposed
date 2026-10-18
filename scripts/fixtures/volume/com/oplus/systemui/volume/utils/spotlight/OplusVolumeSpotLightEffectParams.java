@@ -1,0 +1,1 @@
+package com.oplus.systemui.volume.utils.spotlight;public class OplusVolumeSpotLightEffectParams {public static void apply(VolumeSpotLightTarget t,android.content.Context c,com.coui.appcompat.spotlight.COUISpotLightEffectDrawable d){d.target=t;}}

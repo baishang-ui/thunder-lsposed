@@ -9,12 +9,29 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** Ordinary Java reflection only. API 102 forbids calls into the legacy Xposed API. */
 final class Reflect {
-    private record Key(String name, java.util.List<Class<?>> args) { }
     private static final Object[] NO_ARGS = new Object[0];
+    private static final class MethodEntry {
+        final Method method;
+        final Class<?>[] types;
+        final MethodEntry next;
+        MethodEntry(Method method,Object[] args,MethodEntry next) {
+            this.method=method;this.next=next;types=new Class<?>[args.length];
+            for(int i=0;i<args.length;i++)types[i]=args[i]==null?null:args[i].getClass();
+        }
+        Method find(Object[] args) {
+            for(MethodEntry entry=this;entry!=null;entry=entry.next) {
+                if(entry.types.length!=args.length)continue;
+                int i=0;
+                while(i<args.length&&entry.types[i]==(args[i]==null?null:args[i].getClass()))i++;
+                if(i==args.length)return entry.method;
+            }
+            return null;
+        }
+    }
     private static final class Members {
         final Map<String,Field> fields = new ConcurrentHashMap<>();
         final Map<String,Method> noArgMethods = new ConcurrentHashMap<>();
-        final Map<Key,Method> methods = new ConcurrentHashMap<>();
+        final Map<String,MethodEntry> methods = new ConcurrentHashMap<>();
     }
     // Separate class ownership from the lookup key. Hot field/getter calls need no
     // temporary keys, lists or argument-type arrays, and plugin loaders can unload.
@@ -43,8 +60,14 @@ final class Reflect {
     static void setObjectField(Object object,String name,Object value) {
         try { field(object,name).set(object,value); } catch (IllegalAccessException e) { throw new IllegalStateException(e); }
     }
-    static int getIntField(Object object,String name) { return (Integer)getObjectField(object,name); }
-    static void setIntField(Object object,String name,int value) { setObjectField(object,name,value); }
+    static int getIntField(Object object,String name) {
+        try { Field f=field(object,name);return f.getType()==int.class?f.getInt(object):(Integer)f.get(object); }
+        catch(IllegalAccessException e){throw new IllegalStateException(e);}
+    }
+    static void setIntField(Object object,String name,int value) {
+        try { Field f=field(object,name);if(f.getType()==int.class)f.setInt(object,value);else f.set(object,value); }
+        catch(IllegalAccessException e){throw new IllegalStateException(e);}
+    }
     static boolean getBooleanField(Object object,String name) { return (Boolean)getObjectField(object,name); }
     static void setBooleanField(Object object,String name,boolean value) { setObjectField(object,name,value); }
     private static Class<?> boxed(Class<?> c) {
@@ -78,11 +101,18 @@ final class Reflect {
     }
     static Object callMethod(Object object,String name,Object... args) {
         if(args.length==0)return callMethod(object,name);
-        Class<?>[] types=new Class<?>[args.length];
-        for(int i=0;i<args.length;i++)types[i]=args[i]==null?Void.class:args[i].getClass();
         Class<?> type=object.getClass();
-        Method m=members.get(type).methods.computeIfAbsent(new Key(name,java.util.List.of(types)),
-            k->resolveMethod(type,name,args));
+        Members cache=members.get(type);
+        MethodEntry entry=cache.methods.get(name);
+        Method m=entry==null?null:entry.find(args);
+        if(m==null)synchronized(cache) {
+            entry=cache.methods.get(name);
+            m=entry==null?null:entry.find(args);
+            if(m==null) {
+                m=resolveMethod(type,name,args);
+                cache.methods.put(name,new MethodEntry(m,args,entry));
+            }
+        }
         return invoke(m,object,args);
     }
     private static Object invoke(Method m,Object object,Object[] args) {
@@ -101,6 +131,14 @@ final class Reflect {
     // Identity, not data-class equals/hashCode: configs may mutate and compare equal.
     private static final ReferenceQueue<Object> queue=new ReferenceQueue<>();
     private static final Map<IdentityRef,Map<String,Object>> extras=new HashMap<>();
+    // All metadata access holds Reflect.class. Reuse only the lookup probe, never a
+    // stored key, and clear its strong reference even when lookup fails.
+    private static final Lookup lookup=new Lookup();
+    private static final class Lookup {
+        Object value;
+        @Override public int hashCode(){return System.identityHashCode(value);}
+        @Override public boolean equals(Object other){return other instanceof IdentityRef r&&value==r.get();}
+    }
     private static final class IdentityRef extends WeakReference<Object> {
         final int hash;
         IdentityRef(Object value,ReferenceQueue<Object> q){super(value,q);hash=System.identityHashCode(value);}
@@ -109,7 +147,9 @@ final class Reflect {
     }
     private static Map<String,Object> state(Object object,boolean create) {
         for(Object dead;(dead=queue.poll())!=null;)extras.remove(dead);
-        IdentityRef ref=new IdentityRef(object,null);Map<String,Object> map=extras.get(ref);
+        Map<String,Object> map;
+        lookup.value=object;
+        try {map=extras.get(lookup);}finally {lookup.value=null;}
         if(map==null&&create){map=new HashMap<>();extras.put(new IdentityRef(object,queue),map);}return map;
     }
     static synchronized Object getAdditionalInstanceField(Object object,String name){Map<String,Object> m=state(object,false);return m==null?null:m.get(name);}

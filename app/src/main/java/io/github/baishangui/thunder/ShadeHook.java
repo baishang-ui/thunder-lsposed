@@ -24,14 +24,12 @@ public final class ShadeHook {
     private static final String ROLE = "thunder.role";
     private static final Uri URI = Uri.parse("content://io.github.baishangui.thunder.settings");
     private static volatile HookConfig config = new HookConfig(null);
-    private static volatile Object qsManager;
     private static volatile Context context;
     private static Handler worker, main;
     private static final Runnable reportTask = ShadeHook::report;
     private static boolean reportScheduled, reportUnavailable;
     private static long reportGeneration, reportRetryDelay = 2500;
     private static LiveSettings liveSettings;
-    private static volatile boolean qsVisible;
     private static final Map<Object, Boolean> proxies = Collections.synchronizedMap(new WeakHashMap<>());
     private static boolean installed, initialized;
     private static String reportProcess = "com.android.systemui";
@@ -41,6 +39,7 @@ public final class ShadeHook {
     private static final Map<String,String> failureDetails = new ConcurrentHashMap<>();
     private static final Map<String,String> effective = new ConcurrentHashMap<>();
     private static final ThreadLocal<Integer> livePanelDepth = ThreadLocal.withInitial(() -> 0);
+    private static final ThreadLocal<Integer> panelPlatformRadius = new ThreadLocal<>();
     private static String settingsSource = "unavailable";
     private static Class<?> shaderClass, shaderConfigClass, multiShaderConfigClass, mixClass, motionConfigClass;
 
@@ -60,23 +59,9 @@ public final class ShadeHook {
         install("volume-panel", () -> VolumeHook.install(loader));
         install("notification-backgrounds", () -> NotificationCardHook.install(loader));
         install("adaptive-panel-text", AdaptiveTextHook::install);
+        install("panel-saturation", () -> PanelSaturationHook.install(loader));
         install("cloud-plugin-loader", () -> CloudHook.watch(loader));
         install("cloud-lock-screen", () -> CloudLockHook.install(loader));
-        install("qs", () -> Api102Runtime.hookAllConstructors(Reflect.findClass(
-            "com.oplus.systemui.separate.OplusSeparateQSManager", loader), new HookCallback() {
-                @Override protected void afterHookedMethod(HookCallback.Param p) { qsManager = p.thisObject; }
-            }));
-        install("qs-transition", () -> Api102Runtime.findAndHookMethod(
-            "com.oplus.systemui.separate.OplusSeparateQSManager", loader, "getBlurFraction", new HookCallback() {
-                @Override protected void afterHookedMethod(HookCallback.Param p) {
-                    if (p.hasThrowable() || !(p.getResult() instanceof Number)) return;
-                    boolean visible = ((Number) p.getResult()).floatValue() > 0.001f;
-                    if (visible != qsVisible) {
-                        qsVisible = visible;
-                        main.post(ShadeHook::refreshProxies);
-                    }
-                }
-            }));
         install("mix-api", () -> {
             shaderClass = Reflect.findClass(BLUR+"MixColorWithShader", loader);
             shaderConfigClass = Reflect.findClass(BLUR+"BlurMixConfig$BlurMixSingleWithShader", loader);
@@ -240,6 +225,16 @@ public final class ShadeHook {
             }));
         // Backends are also called directly from setBlurAmount / setBlurType,
         // without applyBlurConfig. Patch at each native consumer, not just getters.
+        install("panel-continuous-radius", () -> Api102Runtime.findAndHookMethod(
+            "com.oplus.posteffect.BlurParam",loader,"setBlurRadius",int.class,new HookCallback() {
+                @Override protected void beforeHookedMethod(HookCallback.Param p) {
+                    Integer radius=panelPlatformRadius.get();
+                    // The opaque single-shader consumer imposes a 15/25px floor
+                    // after platformBlurRadiusForAmount. Honor the selected
+                    // panel radius at the final write without fading its capture.
+                    if(radius!=null)p.args[0]=radius;
+                }
+            }));
         for(String method:new String[]{"applyBlurConfig","applyConfigToMotionBlur","applyConfigToPlatformBlur",
                 "applyConfigToStaticBlur","applyConfigToBlendWallpaper"}) {
             install("native-"+method, () -> Api102Runtime.findAndHookMethod(BLUR+"ViewBlurProxy",loader,method,new HookCallback() {
@@ -247,10 +242,12 @@ public final class ShadeHook {
                     Object blur=Reflect.callMethod(p.thisObject,"getBlurConfig");
                     Object type=Reflect.callMethod(p.thisObject,"getBlurType");
                     String backend=type==null?"unknown":type.getClass().getSimpleName();
+                    if("applyConfigToPlatformBlur".equals(method))enterPanelRadius(p,blur);
                     overrideNativeConfig(p,blur,backend);
                 }
                 @Override protected void afterHookedMethod(HookCallback.Param p) {
-                    restoreNativeConfig(p);
+                    try { restoreNativeConfig(p); }
+                    finally { restorePanelRadius(p); }
                 }
             }));
         }
@@ -380,6 +377,21 @@ public final class ShadeHook {
             }
         }));
     }
+    private static void enterPanelRadius(HookCallback.Param p,Object blur) {
+        p.setObjectExtra("panel-radius-scope",new Object[]{panelPlatformRadius.get()});
+        // A nested non-panel consumer must not inherit the surrounding radius.
+        panelPlatformRadius.remove();
+        HookConfig.Area a=area(blur);
+        if(a==null||!a.blur||!"panel".equals(Reflect.getAdditionalInstanceField(blur,ROLE)))return;
+        float amount=((Number)Reflect.getObjectField(p.thisObject,"blurAmount")).floatValue();
+        panelPlatformRadius.set((int)(a.radius*Math.max(0f,Math.min(1f,amount))));
+    }
+    private static void restorePanelRadius(HookCallback.Param p) {
+        Object saved=p.getObjectExtra("panel-radius-scope");
+        if(!(saved instanceof Object[]))return;
+        Integer previous=(Integer)((Object[])saved)[0];
+        if(previous==null)panelPlatformRadius.remove();else panelPlatformRadius.set(previous);
+    }
     static void overrideNativeConfig(HookCallback.Param p,Object blur,String backend) {
         // Producer replacements may remain cached even after customization is disabled.
         p.setObjectExtra("config",blur);
@@ -488,6 +500,10 @@ public final class ShadeHook {
         if (hooks.add(key)) requestReport();
     }
     static HookConfig snapshot() { return config; }
+    static boolean isPanelBackground(Object blur) {
+        return blur!=null && "panel".equals(Reflect.getAdditionalInstanceField(blur,ROLE))
+            && shaderConfigClass!=null && shaderConfigClass.isInstance(nativeMix(Reflect.getObjectField(blur,"platformMixConfig")));
+    }
     static void trackVolume(Object proxy,String role) {
         Reflect.setAdditionalInstanceField(Reflect.callMethod(proxy,"getBlurConfig"),ROLE,role);
         proxies.put(proxy,true);Reflect.callMethod(proxy,"applyBlurConfig");
@@ -526,6 +542,9 @@ public final class ShadeHook {
         // C17 disables capture fading while mirror scaling is active. Retain
         // that policy on every cache read, independently of the selected tint.
         Reflect.callMethod(replacement,"setAlphaWithBlurAmount",Reflect.callMethod(original,"getAlphaWithBlurAmount"));
+        // A placeholder is drawn before the asynchronous capture exists. It cannot
+        // represent a blend with that capture: full tint here flashes on first pull.
+        Reflect.callMethod(replacement,"setPlaceHolderColor",0);
         return replacement;
     }
     private static Object nativeMix(Object mix) {
@@ -536,7 +555,8 @@ public final class ShadeHook {
     private static HookCallback livePanelScope(boolean controller) {
         return new HookCallback() {
             @Override protected void beforeHookedMethod(HookCallback.Param p) {
-                if(!config.enabled||!config.shade.blur)return;
+                HookConfig c=config;
+                if(!c.enabled||(!c.shade.blur&&!(c.panelSaturationEnabled&&c.panelSaturation!=100)))return;
                 Object state;
                 if(controller) {
                     Object owner=Reflect.callMethod(p.thisObject,"getScrimController");
@@ -628,7 +648,7 @@ public final class ShadeHook {
         }
     }
     private static void refreshProxies() {
-        // Rebuild native cached render parameters after settings load or shared-panel scene changes.
+        // Settings changes rebuild native caches; normal shade animation uses native updates.
         ArrayList<Object> current;
         synchronized (proxies) { current = new ArrayList<>(proxies.keySet()); }
         for (Object proxy : current) {

@@ -3,6 +3,13 @@ public class VolumeBlurManager {
  public static final VolumeBlurManager INSTANCE=new VolumeBlurManager();public int shortcutMaterials,accessoryMaterials;public boolean shortcutBlur;
  public static final java.util.Map<android.view.View,Float> phases=new java.util.WeakHashMap<>();public static int phaseWrites;
  public static void applyVolumeBarPanelBottomAmount(android.view.View host,float progress,boolean force){phases.put(host,progress);phaseWrites++;}
+ public int progressWrites;
+ public com.oplusos.systemui.common.blurability.drawable.AutoBlurDrawable getVolumeBarProgressDrawable(android.content.Context context,android.view.View host,float corner){
+  if(!shortcutBlur)return null;
+  return new com.oplusos.systemui.common.blurability.drawable.AutoBlurDrawable(new com.oplusos.systemui.common.blurability.ViewBlurProxy(new com.oplusos.systemui.common.blurability.BlurConfig()));
+ }
+ public void syncVolumeBarProgressCorner(com.oplusos.systemui.common.blurability.drawable.AutoBlurDrawable drawable,float corner,Float weight){drawable.proxy.config.cornerRadius=corner;}
+ public void applyVolumeBarProgressMixColors(com.oplusos.systemui.common.blurability.drawable.AutoBlurDrawable drawable,android.content.Context context,boolean force){progressWrites++;}
  public static void applyPlatformBlurMixAfterConfigWrite(com.oplusos.systemui.common.blurability.ViewBlurProxy proxy,boolean force){}
  public static void hotUpdateStaticPlatformLightAndStroke(Object drawable,com.oplusos.systemui.common.blurability.BlurConfig config){}
  public android.graphics.drawable.Drawable getVolumeBarBackground(android.content.Context c,android.view.View v,android.view.View host,float r,boolean b){return shortcutBackground(host);}

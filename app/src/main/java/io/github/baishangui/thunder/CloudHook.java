@@ -17,9 +17,13 @@ import java.util.WeakHashMap;
 final class CloudHook {
     private static final String BASE="com.oplus.systemui.plugins.seedling.";
     private static final Map<ClassLoader,Boolean> installed=Collections.synchronizedMap(new WeakHashMap<>());
-    private static final ThreadLocal<Boolean> geometryRead=ThreadLocal.withInitial(() -> false);
+    private static final ThreadLocal<Integer> geometryRead=ThreadLocal.withInitial(() -> 0);
     private static final Map<View,Boolean> outlines=Collections.synchronizedMap(new WeakHashMap<>());
-    static boolean readingNativeCorners(){return geometryRead.get();}
+    static boolean readingNativeCorners(){return geometryRead.get()>0;}
+    static void beginNativeCorners(){geometryRead.set(geometryRead.get()+1);}
+    static void endNativeCorners(){int depth=geometryRead.get()-1;if(depth<=0)geometryRead.remove();else geometryRead.set(depth);}
+    private record NativeOutline(ViewOutlineProvider provider,boolean clip) { }
+    private static final Map<View,NativeOutline> fallbackOutlines=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View,SharedBackground> shared=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View,CapsuleState> capsules=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<Drawable,java.lang.ref.WeakReference<View>> gradients=Collections.synchronizedMap(new WeakHashMap<>());
@@ -78,9 +82,9 @@ final class CloudHook {
             // Parent outlines, animated bounds and the gradient all consume this Triple.
             // Smooth2 reads a different system dimension, so resource overrides alone miss it.
             Api102Runtime.findAndHookMethod(BASE+"util.c",loader,"f",new HookCallback() {
-                @Override protected void beforeHookedMethod(Param p) {geometryRead.set(true);}
+                @Override protected void beforeHookedMethod(Param p) {beginNativeCorners();}
                 @Override protected void afterHookedMethod(Param p) throws Throwable {
-                    geometryRead.remove();
+                    endNativeCorners();
                     if(p.hasThrowable()||p.getResult()==null)return;
                     HookConfig c=ShadeHook.snapshot();if(!c.enabled||!c.cloud||!c.cloudCardArea.cornerEnabled)return;
                     Object context=Reflect.callMethod(Reflect.callMethod(companionField.get(null),"getInstance"),"getPluginCtx");
@@ -95,24 +99,62 @@ final class CloudHook {
             @Override protected void beforeHookedMethod(Param p) {
                 if(!(p.args[0] instanceof View))return;
                 View view=(View)p.args[0];
-                if(!view.getClass().getName().startsWith(BASE+"card.")&&!shared.containsKey(view))return;
+                if(!cardSurface(view))return;
                 outlines.put(view,true);
                 Object saved=Reflect.getObjectField(p.thisObject,"b");
-                Object nativeCorners=Reflect.getAdditionalInstanceField(saved,"thunder.native-corners");
-                if(nativeCorners==null)nativeCorners=saved;
+                Object nativeCorners=nativeCorners(saved);
                 HookConfig c=ShadeHook.snapshot();HookConfig.Area area=c.cloudCardArea;
+                Object scaleValue=Reflect.getAdditionalInstanceField(p.thisObject,"thunder.cloud-corner-scale");
+                float scale=scaleValue instanceof Number?((Number)scaleValue).floatValue():1f;
                 Object corners=c.enabled&&c.cloud&&area.cornerEnabled?
-                    cornerConfig(nativeCorners,area.corner*view.getResources().getDisplayMetrics().density):nativeCorners;
+                    cornerConfig(nativeCorners,area.corner*view.getResources().getDisplayMetrics().density*scale):nativeCorners;
                 p.setObjectExtra("corners",saved);Reflect.setObjectField(p.thisObject,"b",corners);
             }
             @Override protected void afterHookedMethod(Param p) {
                 Object corners=p.getObjectExtra("corners");if(corners!=null)Reflect.setObjectField(p.thisObject,"b",corners);
             }
         }));
+        // k.c creates a NEW Triple and divides radius by animation scale. Preserve
+        // both its native baseline and scale; overwriting getOutline with raw dp
+        // breaks animated clipping and loses the baseline when custom corners stop.
+        bind(loader,"outline-scale",() -> Api102Runtime.findAndHookMethod("com.oplus.systemui.plugins.common.util.k",loader,"c",
+            View.class,android.graphics.Rect.class,float.class,"kotlin.Triple",int.class,new HookCallback() {
+                @Override protected void afterHookedMethod(Param p) {
+                    if(p.hasThrowable()||!(p.args[0] instanceof View))return;
+                    View view=(View)p.args[0];Object provider=view.getOutlineProvider();
+                    if(provider==null||!provider.getClass().getName().equals("com.oplus.systemui.plugins.common.util.j"))return;
+                    float scale=((Number)p.args[2]).floatValue();
+                    if((((Number)p.args[4]).intValue()&8)!=0||scale<=0f)scale=1f;
+                    Object nativeConfig=nativeCorners(p.args[3]);
+                    Object baseline=Reflect.newInstance(nativeConfig.getClass(),Reflect.callMethod(nativeConfig,"d"),
+                        ((Number)Reflect.callMethod(nativeConfig,"e")).floatValue()/scale,Reflect.callMethod(nativeConfig,"f"));
+                    Reflect.setObjectField(provider,"b",baseline);
+                    Reflect.setAdditionalInstanceField(provider,"thunder.cloud-corner-scale",1f/scale);
+                }
+            }));
+        bind(loader,"press-corners",() -> Api102Runtime.findAndHookMethod(BASE+"card.ui.view.k",loader,"b",
+            android.graphics.Canvas.class,int.class,int.class,new HookCallback() {
+                @Override protected void beforeHookedMethod(Param p) {
+                    Object saved=Reflect.getObjectField(p.thisObject,"b");
+                    if(saved==null)return;
+                    p.setObjectExtra("corners",saved);
+                    HookConfig c=ShadeHook.snapshot();Object value=nativeCorners(saved);
+                    if(c.enabled&&c.cloud&&c.cloudCardArea.cornerEnabled)value=cornerConfig(value,
+                        c.cloudCardArea.corner*android.content.res.Resources.getSystem().getDisplayMetrics().density);
+                    Reflect.setObjectField(p.thisObject,"b",value);
+                    ShadeHook.resourceHit("cloud-press-corners");
+                }
+                @Override protected void afterHookedMethod(Param p) {
+                    Object saved=p.getObjectExtra("corners");if(saved!=null)Reflect.setObjectField(p.thisObject,"b",saved);
+                }
+            }));
         // C17 BackgroundUtils is also called by InstantContainer for lock-screen content,
         // including its deferred layout path. Apply after every background recreation.
         bind(loader,"shared-background",() -> Api102Runtime.findAndHookMethod("com.heytap.log.nx.obus.a",loader,"b",
             View.class,"com.oplus.view.ViewRootManager",new HookCallback() {
+                @Override protected void beforeHookedMethod(Param p) {
+                    if(p.args[0] instanceof View)restoreFallbackOutline((View)p.args[0]);
+                }
                 @Override protected void afterHookedMethod(Param p) {
                     if(p.hasThrowable()||!(p.args[0] instanceof View))return;
                     View view=(View)p.args[0];Object manager=p.args[1];
@@ -190,6 +232,28 @@ final class CloudHook {
                 ShadeHook.resourceHit("cloud-card-blur");
             }
         }));
+        for(String type:new String[]{"com.oplus.systemui.plugins.common.util.k",BASE+"card.ui.view.k"})
+            bind(loader,"geometry-deopt-"+type,() -> Api102Runtime.deoptimizeCallers(Reflect.findClass(type,loader),type.endsWith("view.k")?"b":"c"));
+    }
+    private static Object nativeCorners(Object corners) {
+        Object original=Reflect.getAdditionalInstanceField(corners,"thunder.native-corners");
+        return original==null?corners:original;
+    }
+    static boolean inCard(View view) {
+        for(int depth=0;view!=null&&depth<32;depth++) {
+            if(shared.containsKey(view)||view.getClass().getName().startsWith(BASE+"card.ui.view."))return true;
+            Object parent=view.getParent();view=parent instanceof View?(View)parent:null;
+        }
+        return false;
+    }
+    private static boolean cardSurface(View view) {
+        String name=view.getClass().getName();
+        return shared.containsKey(view)||name.startsWith(BASE+"card.")||
+            (name.equals("com.oplus.systemui.plugins.shared.template.component.media.view.MediaBackGroundView")&&inCard(view));
+    }
+    private static void restoreFallbackOutline(View view) {
+        NativeOutline saved=fallbackOutlines.remove(view);
+        if(saved!=null){view.setOutlineProvider(saved.provider);view.setClipToOutline(saved.clip);view.invalidateOutline();}
     }
     private static void applyCard(View view,Object manager,HookConfig.Area area) {
         trackGradients(view.getBackground(),view);
@@ -303,6 +367,7 @@ final class CloudHook {
         java.util.ArrayList<Map.Entry<View,SharedBackground>> backgrounds;
         synchronized(shared){backgrounds=new java.util.ArrayList<>(shared.entrySet());}
         for(Map.Entry<View,SharedBackground> entry:backgrounds)try {
+            restoreFallbackOutline(entry.getKey());
             Object factory=entry.getValue().factory;
             if(factory!=null)Reflect.callMethod(factory,"b",entry.getKey(),entry.getValue().manager.get());
         } catch(Throwable error){ShadeHook.frameworkFailure("cloud-refresh-background",error);}
@@ -337,6 +402,7 @@ final class CloudHook {
         float radius=area.corner*view.getResources().getDisplayMetrics().density;
         round(view.getBackground(),radius);round(view.getForeground(),radius);
         if(fallbackOutline) {
+            fallbackOutlines.putIfAbsent(view,new NativeOutline(view.getOutlineProvider(),view.getClipToOutline()));
             // The non-blur path installs an outline with its own cached system radius.
             view.setOutlineProvider(new ViewOutlineProvider() {
                 @Override public void getOutline(View target,Outline outline) {

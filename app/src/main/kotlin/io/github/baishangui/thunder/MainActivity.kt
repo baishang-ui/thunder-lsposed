@@ -399,7 +399,7 @@ private fun alphaPercent(c: Int)=TintColor.percent(c)
 
 @Composable internal fun AreaControls(title: String,area: Area,blur: Boolean=true,corner: Boolean=true,
                                     cornerRange: IntRange=0..64,unifiedCorners: Boolean=false,
-                                    showTitle: Boolean=false,onChange: (Area)->Unit) {
+                                    showTitle: Boolean=false,onRestore: (() -> Unit)?=null,onChange: (Area)->Unit) {
     CompositionLocalProvider(LocalControlScope provides "${LocalControlScope.current}:$title") {
         if (showTitle) UiText(title,14,muted=true,modifier=Modifier.padding(start=8.dp,top=4.dp))
         SettingsGroup {
@@ -415,9 +415,11 @@ private fun alphaPercent(c: Int)=TintColor.percent(c)
                 LiquidSwitchRow("自定义圆角", if(unifiedCorners) "所有磁贴统一半径，与通知条使用相同的 dp 单位" else "", area.cornerEnabled) { onChange(area.copy(cornerEnabled=it)) }
                 if (area.cornerEnabled) LiquidValueSlider("圆角半径",area.corner,cornerRange," dp") { onChange(area.copy(corner=it)) }
             }
-            if (area.blur || area.tint || area.cornerEnabled) {
+            if (area.blur || area.tint || area.cornerEnabled || onRestore != null) {
                 SettingsDivider()
-                LiquidAction("恢复系统材质",Modifier.fillMaxWidth()) { onChange(area.copy(blur=false,tint=false,cornerEnabled=false)) }
+                LiquidAction("恢复系统材质",Modifier.fillMaxWidth()) {
+                    if (onRestore != null) onRestore() else onChange(area.copy(blur=false,tint=false,cornerEnabled=false))
+                }
             }
         }
     }

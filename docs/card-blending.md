@@ -92,10 +92,14 @@ if (blendMode == 4) { col = colorDodgeBlend(blendColor, col); }
 
 缩放同步与背景透明度分别处理：`panelMix()` 每次创建或复用配置都保留来源的 `alphaWithBlurAmount`，不会把所选混色透明度用于淡化整张截图。单层 Shader 仅在 Drawable 已经按展开量淡入时跳过颜色 alpha 相乘。回归同时检查原生 `true`/`false` 两种策略、0%/半透明/100% 混色及下拉各阶段的背景不透明度，防止缩小恢复后出现双背景叠影。
 
+C17 的 `PlatformBlurDrawable.applyBlurConfig()` 在单层 Shader 且 `alphaWithBlurAmount=false` 时，会在 `platformBlurRadiusForAmount()` 返回后将非零进度的半径抬至至少 15px；`panelClosedOnDown=true` 时下限为 25px。保留原生背景不透明度后，这一下限会覆盖自定义的连续半径，导致起始几帧突然变糊，甚至使自定义 0 半径失效。`panel-continuous-radius` 仅在启用整体面板自定义模糊的 `ViewBlurProxy.applyConfigToPlatformBlur()` 调用内，约束最终 `BlurParam.setBlurRadius()` 写入值为所选半径 × 展开进度；嵌套的其他平台代理暂停该作用域，正常结束或异常后恢复。仅调整混色、关闭自定义模糊或关闭模块时继续使用系统半径策略。该修正不改变背景透明度、颜色插值和缩放。
+
 ## 验证与限制
 
 `CardBlendCheck` 运行实际钩子，覆盖四种区域、单层/多层配置，黑白和彩色、0/半透明/全不透明值，黑灰白底图，以及 0、0.25、0.5、1 的展开进度。检查包括额外层清空、软件占位色、动态原配置为空、静态与动态遮罩、异常还原、关闭自定义及生产者缓存还原。数学计算复用了固件 AGSL 分支与 helper/Drawable 的 alpha 处理规则，未执行原生渲染器。
 
 其他效果检查覆盖流体云非空管理器却走纯色回退、嵌套多填色只着色一次、背景资源不重复注入、无模糊颜色滤镜的恢复、壁纸 overlay、横幅角色切换和文字估算。新增回归在修正前分别暴露动画标记、滤镜、占位色等缺陷。
 
-运行 `python3 scripts/check_effects.py`，也可通过 `--only CardBlendCheck HookCheck QsTintCheck QsStateCheck CloudCheck CloudLayerCheck NotificationStyleCheck AdaptiveTextCheck` 单独检查混色路径。Android 单元测试、Lint 与 Release 构建另行执行。最终硬件合成、广色域/HDR、真实底图与动画视觉表现仍需设备检查。
+`PanelStartFrameCheck` 在实际模块回调之后模拟上述固件半径下限，核对最终写入参数；覆盖 15/25px 两条分支、0/1/73/200 自定义半径、展开与收起的起始小进度、混色开关、嵌套非面板代理、异常作用域还原及系统恢复。此检查在修正前于 0.1% 展开进度复现了 0 半径被抬高至 15px 的失败。
+
+运行 `python3 scripts/check_effects.py`，也可通过 `--only PanelStartFrameCheck CardBlendCheck HookCheck QsTintCheck QsStateCheck CloudCheck CloudLayerCheck NotificationStyleCheck AdaptiveTextCheck` 单独检查混色路径。Android 单元测试、Lint 与 Release 构建另行执行。最终硬件合成、广色域/HDR、真实底图与动画视觉表现仍需设备检查。

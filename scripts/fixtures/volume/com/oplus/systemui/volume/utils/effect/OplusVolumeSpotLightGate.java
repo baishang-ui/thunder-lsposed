@@ -1,0 +1,1 @@
+package com.oplus.systemui.volume.utils.effect;public class OplusVolumeSpotLightGate {public static boolean isVolumeSpotLightEnabled(android.content.Context c,boolean t){return t;}}

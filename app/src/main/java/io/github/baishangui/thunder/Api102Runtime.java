@@ -4,7 +4,6 @@ import android.content.SharedPreferences;
 import android.util.Log;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
-import java.util.HashMap;
 import io.github.libxposed.api.XposedInterface;
 
 /** Registers real API 102 interceptor chains, with invocation-local state. */
@@ -55,7 +54,7 @@ public final class Api102Runtime {
     }
     private static final class Invocation extends HookCallback.Param {
         Object result; Throwable error; boolean replaced;
-        Invocation(Object object, Object[] args) { super(object, args, new HashMap<>()); }
+        Invocation(Object object, Object[] args) { super(object, args, null); }
         @Override public Object getResult() { return result; }
         @Override public boolean hasThrowable() { return error != null; }
         @Override public void setResult(Object value) { result=value; error=null; replaced=true; }

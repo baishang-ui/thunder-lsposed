@@ -2,7 +2,6 @@ package io.github.baishangui.thunder
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -15,10 +14,11 @@ internal enum class SettingsPage(val title: String, val category: String) {
     Layout("通知布局", "控制与通知"),
     Banner("通知横幅", "控制与通知"),
     Volume("音量面板", "音量"),
-    CloudCapsule("胶囊状态", "流体云"),
-    CloudCard("卡片状态", "流体云"),
-    CloudLock("锁屏样式", "流体云"),
-    CloudAppColor("应用取色遮罩", "流体云"),
+    Cloud("流体云", "调节"),
+    CloudCapsule("状态栏胶囊", "流体云 · 显示形态"),
+    CloudCard("展开卡片", "流体云 · 显示形态"),
+    CloudLock("锁屏背景", "流体云 · 背景效果"),
+    CloudAppColor("应用色背景", "流体云 · 背景效果"),
     StatusBar("状态栏修改", "状态栏"),
     StatusLayout("布局与间距", "状态栏"),
     StatusClock("时钟修改", "状态栏"),
@@ -32,11 +32,12 @@ internal enum class SettingsPage(val title: String, val category: String) {
 
     val parent: SettingsPage? get() = when (this) {
         StatusLayout, StatusClock, StatusIcons, StatusStyle -> StatusBar
+        CloudCapsule, CloudCard, CloudLock, CloudAppColor -> Cloud
         else -> null
     }
 }
 
-private fun Area.summary(corner: Boolean = true): String = buildList {
+internal fun Area.summary(corner: Boolean = true): String = buildList {
     if (blur) add("模糊 $radius px")
     if (tint) add("混色 ${TintColor.percent(color)}%")
     if (corner && cornerEnabled) add("圆角 ${this@summary.corner} dp")
@@ -44,17 +45,14 @@ private fun Area.summary(corner: Boolean = true): String = buildList {
 
 @Composable internal fun AdjustmentMenu(settings: Settings, open: (SettingsPage) -> Unit) {
     SettingsMenuGroup("控制与通知") {
-        SettingsMenuItem("整体背景", settings.panel.summary(corner = false), MiuixIcons.Regular.Background) { open(SettingsPage.Panel) }
+        SettingsMenuItem("整体背景", if (settings.panelSaturationEnabled) "背景饱和度 ${settings.panelSaturation}%" else settings.panel.summary(corner = false), MiuixIcons.Regular.Background) { open(SettingsPage.Panel) }
         SettingsMenuItem("控制中心磁贴", settings.cardArea.summary(), MiuixIcons.Regular.Layers) { open(SettingsPage.Cards) }
         SettingsMenuItem("通知中心通知条", settings.notificationArea.summary(), MiuixIcons.Regular.Messages) { open(SettingsPage.NotificationCards) }
         SettingsMenuItem("通知布局", if (settings.margins) "${settings.margin} dp" else "跟随系统", MiuixIcons.Regular.ListView) { open(SettingsPage.Layout) }
         SettingsMenuItem("通知横幅", settings.banner.summary(), MiuixIcons.Regular.Messages) { open(SettingsPage.Banner) }
     }
     SettingsMenuGroup("流体云") {
-        SettingsMenuItem("胶囊状态", if (settings.cloud) settings.cloudArea.summary() else "未启用", MiuixIcons.Regular.CloudFill) { open(SettingsPage.CloudCapsule) }
-        SettingsMenuItem("卡片状态", if (settings.cloud) settings.cloudCardArea.summary() else "未启用", MiuixIcons.Regular.Notes) { open(SettingsPage.CloudCard) }
-        SettingsMenuItem("锁屏样式", if (!settings.cloud) "未启用" else if (settings.cloudLock.style != 0 && (settings.cloudLock.area.blur || settings.cloudLock.area.tint)) "自定义" else "跟随系统", MiuixIcons.Regular.Theme) { open(SettingsPage.CloudLock) }
-        SettingsMenuItem("应用取色遮罩", if (!settings.cloud) "未启用" else when (val strength = settings.cloudLock.maskStrength) { 0 -> "已关闭"; 100 -> "系统强度"; else -> "强度 $strength%" }, MiuixIcons.Regular.Layers) { open(SettingsPage.CloudAppColor) }
+        SettingsMenuItem("流体云外观", if (settings.cloud) "胶囊、展开卡片与背景效果" else "已关闭 · 查看与编辑已保存的外观", MiuixIcons.Regular.CloudFill) { open(SettingsPage.Cloud) }
     }
     SettingsMenuGroup("状态栏") {
         SettingsMenuItem("状态栏修改", "左右边距、中间间距、时钟与图标", MiuixIcons.Regular.Theme) { open(SettingsPage.StatusBar) }
@@ -92,7 +90,20 @@ private fun Area.summary(corner: Boolean = true): String = buildList {
         SettingsPage.StatusClock -> StatusBarClockControls(settings.statusBar) { change(settings.copy(statusBar = it)) }
         SettingsPage.Volume -> VolumeSettingsControls(settings.volume) { change(settings.copy(volume = it)) }
         SettingsPage.Panel -> {
-            AreaControls("背景材质", settings.panel, corner = false) { change(settings.copy(panel = it)) }
+            AreaControls("背景材质", settings.panel, corner = false,
+                onRestore = if (settings.panelSaturationEnabled) ({ change(settings.copy(panelSaturationEnabled = false,
+                    panel = settings.panel.copy(blur = false, tint = false, cornerEnabled = false))) }) else null) {
+                change(settings.copy(panel = it))
+            }
+            SettingsGroup {
+                LiquidSwitchRow("调整背景饱和度", "调整模糊背景的色彩浓淡", settings.panelSaturationEnabled) {
+                    change(settings.copy(panelSaturationEnabled = it))
+                }
+                if (settings.panelSaturationEnabled) {
+                    LiquidValueSlider("背景饱和度", settings.panelSaturation, 0..200, "%") { change(settings.copy(panelSaturation = it)) }
+                    UiText("0% 灰度 · 100% 原始饱和度 · 200% 增强色彩。对控制中心和通知中心的背景生效。", 12, muted = true)
+                }
+            }
         }
         SettingsPage.Cards -> {
             AreaControls("磁贴材质", settings.cardArea, unifiedCorners = true) { change(settings.copy(cardArea = it)) }
@@ -109,29 +120,9 @@ private fun Area.summary(corner: Boolean = true): String = buildList {
             LiquidAction("测试通知横幅", Modifier.fillMaxWidth(), onClick = testNotification)
             UiText("返回桌面后发送测试通知，15 秒后自动移除。", 12, muted = true)
         }
-        SettingsPage.CloudCapsule, SettingsPage.CloudCard, SettingsPage.CloudLock, SettingsPage.CloudAppColor -> {
-            // All cloud pages share the master switch and retain independent parameters.
-            CompositionLocalProvider(LocalControlScope provides "cloud-master") {
-                SettingsGroup {
-                    LiquidSwitchRow("流体云外观", "胶囊、卡片、锁屏样式与取色遮罩共用开关", settings.cloud) { change(settings.copy(cloud = it)) }
-                }
-            }
-            if (settings.cloud) {
-                if (page == SettingsPage.CloudCapsule) {
-                    SettingsGroup {
-                        LiquidSwitchRow("自定义高度", "", settings.cloudHeightEnabled) { change(settings.copy(cloudHeightEnabled = it)) }
-                        if (settings.cloudHeightEnabled) LiquidValueSlider("胶囊高度", settings.cloudHeight, 20..64, " dp") { change(settings.copy(cloudHeight = it)) }
-                    }
-                    AreaControls("胶囊材质", settings.cloudArea.copy(cornerEnabled = settings.cloudCornerEnabled, corner = settings.cloudCorner), cornerRange = 0..48) {
-                        change(settings.copy(cloudArea = it.copy(cornerEnabled = false, corner = 28), cloudCornerEnabled = it.cornerEnabled, cloudCorner = it.corner))
-                    }
-                } else when (page) {
-                    SettingsPage.CloudLock -> CloudLockControls(settings.cloudLock) { change(settings.copy(cloudLock = it)) }
-                    SettingsPage.CloudAppColor -> CloudAppColorControls(settings.cloudLock) { change(settings.copy(cloudLock = it)) }
-                    else -> AreaControls("展开卡片材质", settings.cloudCardArea) { change(settings.copy(cloudCardArea = it)) }
-                }
-            }
-        }
+        SettingsPage.Cloud -> CloudOverview(settings, change, open)
+        SettingsPage.CloudCapsule, SettingsPage.CloudCard, SettingsPage.CloudLock, SettingsPage.CloudAppColor ->
+            CloudDetails(page, settings, change, open)
         SettingsPage.GestureBar -> {
             SettingsGroup {
                 LiquidSwitchRow("隐藏手势条", "", settings.hideGestureBar) { change(settings.copy(hideGestureBar = it)) }

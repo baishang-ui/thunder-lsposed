@@ -6,6 +6,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class VolumeSettingsTest {
+    @Test fun liquidEntranceRoundTripsAndOlderExportsKeepTheNativeEntrance() {
+        val settings = Settings(volume = VolumeSettings(liquidEntrance = true))
+        assertEquals(settings, Settings.parse(settings.json()))
+        assertEquals(settings, Settings.from(settings.bundle()))
+        assertTrue(HookConfig(settings.bundle()).volumeLiquidEntrance)
+        for (version in 13..19) {
+            val old = JSONObject(Settings().json()).legacyVersion(version)
+            if (version < 16) old.getJSONObject("settings").remove("color_mode")
+            assertFalse(Settings.parse(old.toString()).volume.liquidEntrance)
+        }
+        val root = JSONObject(settings.json())
+        root.getJSONObject("settings").put("volume_liquid_entrance", "true")
+        assertThrows(IllegalArgumentException::class.java) { Settings.parse(root.toString()) }
+        root.getJSONObject("settings").remove("volume_liquid_entrance")
+        assertThrows(IllegalArgumentException::class.java) { Settings.parse(root.toString()) }
+        assertFalse(HookConfig(Bundle()).volumeLiquidEntrance)
+    }
     @Test fun shortestVolumeBarRoundTripsAndRuntimeUsesTheSameLowerBound() {
         for (height in listOf(80, 100, 120)) {
             val settings = Settings(volume = VolumeSettings(size = true, height = height))
@@ -41,7 +58,7 @@ class VolumeSettingsTest {
             val migrated=Settings.parse(old.toString())
             assertEquals(settings,migrated)
             assertFalse(migrated.bundle().keySet().any { it.startsWith("volume_button") })
-            assertEquals(19,JSONObject(migrated.json()).getInt("version"))
+            assertEquals(22,JSONObject(migrated.json()).getInt("version"))
             old.getJSONObject("settings").put("volume_buttons_blur","false")
             assertThrows(IllegalArgumentException::class.java) { Settings.parse(old.toString()) }
         }

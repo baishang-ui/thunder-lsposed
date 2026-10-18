@@ -1,1 +1,1 @@
-package com.oplus.systemui.volume.utils.material;public class OplusVolumeBarMaterialHost {public Object context;public float resolveCornerRadius(float r){return r;}}
+package com.oplus.systemui.volume.utils.material;public class OplusVolumeBarMaterialHost {public Object context;public android.graphics.Rect visual=new android.graphics.Rect(0,0,56,240);public void resolveVisualShapeInto(android.graphics.Rect r){r.left=visual.left;r.top=visual.top;r.right=visual.right;r.bottom=visual.bottom;}public float resolveCornerRadius(float r){return r;}}

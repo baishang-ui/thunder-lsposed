@@ -40,6 +40,19 @@ final class NotificationCardHook {
         if(cloudLock!=null)return cloudLock;
         return "banner".equals(Reflect.getAdditionalInstanceField(view,"thunder.role"))?c.banner:c.notificationCard;
     }
+    static HookConfig.Area containingArea(View view) {
+        for(int depth=0;view!=null&&depth<32;depth++) {
+            // Match by class name as templates may come from the plugin loader.
+            for(Class<?> type=view.getClass();type!=null;type=type.getSuperclass()) {
+                if(type.getName().equals(ROW+"ExpandableNotificationRow")) {
+                    Object background=Reflect.getObjectField(view,"mBackgroundNormal");
+                    return background instanceof View?area((View)background):null;
+                }
+            }
+            Object parent=view.getParent();view=parent instanceof View?(View)parent:null;
+        }
+        return null;
+    }
     static void overrideCorners(HookCallback.Param p,Object blur,HookConfig.Area area) {
         Float volumeRadius=VolumeHook.cornerRadius(blur,area);
         if(!area.cornerEnabled&&volumeRadius==null)return;

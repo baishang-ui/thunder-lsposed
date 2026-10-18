@@ -16,8 +16,6 @@ final class IosStatusIcons {
         Symbol(Kind kind) { this(kind,4,4); }
         Symbol marked(int flags) { return new Symbol(kind,level,maximum,row,flags,label); }
     }
-    record Stroke(String path,float width,float scale,float x,float y,boolean evenOdd) { }
-    static Stroke[] paths(Kind kind) { return IosIconAssets.paths(kind); }
     private static Symbol label(String text) { return new Symbol(Kind.LABEL,4,4,0,0,text); }
     private static final String PREFIX="com.android.systemui:drawable/";
     private static String name(String resource) {

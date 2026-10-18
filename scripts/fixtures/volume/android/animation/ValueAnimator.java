@@ -5,6 +5,8 @@ import android.view.animation.PathInterpolator;
 
 /** An explicit frame clock: tests advance real handler interpolation without sleeping. */
 public final class ValueAnimator {
+    public static float durationScale=1;
+    public static float getDurationScale(){return durationScale;}
     public interface AnimatorUpdateListener {void onAnimationUpdate(ValueAnimator animator);}
     public static final List<ValueAnimator> running=new ArrayList<>();
     public final List<AnimatorUpdateListener> listeners=new ArrayList<>();

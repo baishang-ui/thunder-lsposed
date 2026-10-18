@@ -57,7 +57,7 @@ def symbols():
     java = str(Path(home) / 'bin/java') if home else shutil.which('java')
     with tempfile.TemporaryDirectory(prefix='thunder-icons-') as directory:
         folder = Path(directory)
-        for name in ['IosStatusIcons.java', 'IosIconAssets.java', 'IosBatteryResources.java']:
+        for name in ['IosStatusIcons.java', 'IosBatteryResources.java']:
             (folder / name).write_text((SOURCE / name).read_text())
         (folder / 'HookConfig.java').write_text('package io.github.baishangui.thunder; class HookConfig { boolean enabled; int statusIconStyle; }')
         (folder / 'Export.java').write_text('''package io.github.baishangui.thunder;

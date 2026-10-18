@@ -50,7 +50,7 @@ public final class CardBlendCheck {
                 check(mix.getAlphaWithBlurAmount()==(!role.equals("panel")||original.getAlphaWithBlurAmount()),
                     "panel retains native capture opacity; cards fade through drawable alpha: "+role);
                 if(multi)check(((BlurMixConfig.BlurMixMultiWithShader)mix).backgroundShaderParam.topMode==0,"empty extra shader");
-                check(mix.getPlaceHolderColor()==(color>>>24==0?0:color),"single and multi software fallback use same selected tint");
+                check(mix.getPlaceHolderColor()==(role.equals("panel")||color>>>24==0?0:color),"panel waits for its capture; card placeholders retain their material tint");
                 double alpha=(color>>>24)/255.0;
                 // Native helper scales single/background colors; multi foreground stays unscaled.
                 // Panels may keep an opaque scaled capture and animate tint in the

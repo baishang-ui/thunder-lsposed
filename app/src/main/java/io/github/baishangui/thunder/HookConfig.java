@@ -5,7 +5,9 @@ import android.os.Bundle;
 /** Immutable snapshot: no disk or Binder work in drawing callbacks. */
 final class HookConfig {
     final boolean enabled;
-    final boolean volumeSize, volumeCompact;
+    final boolean panelSaturationEnabled;
+    final int panelSaturation;
+    final boolean volumeSize, volumeCompact, volumeLiquidEntrance;
     final int volumeWidth, volumeHeight;
     final Area volumeBar, volumePanel;
     final long revision;
@@ -30,6 +32,7 @@ final class HookConfig {
     HookConfig(Bundle data) {
         volumeSize = data != null && data.getBoolean("volume_size",false);
         volumeCompact = data != null && data.getBoolean("volume_compact",false);
+        volumeLiquidEntrance = data != null && data.getBoolean("volume_liquid_entrance",false);
         volumeWidth = bounded(data,"volume_width",56,32,96);
         volumeHeight = bounded(data,"volume_height",240,80,400);
         volumeBar = new Area(data,"volume_bar");
@@ -63,6 +66,8 @@ final class HookConfig {
         statusBarClockSize = bounded(data,"status_bar_clock_size",14,8,24);
         statusIconStyle = data != null && data.getInt("status_bar_icon_style", 0) == 1 ? 1 : 0;
         hiddenStatusIcons = data == null ? 0 : data.getInt("status_bar_hidden_icons", 0) & StatusBarIcons.ALL;
+        panelSaturationEnabled = data != null && data.getBoolean("panel_saturation_enabled",false);
+        panelSaturation = bounded(data,"panel_saturation",100,0,200);
         shade = new Area(data, data != null && data.containsKey("panel_radius") ? "panel" : "shade");
         qs = shade; banner = new Area(data, "banner");
         qsCards = new Area(data,"qs_card");

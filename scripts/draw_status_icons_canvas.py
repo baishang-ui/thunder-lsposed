@@ -78,7 +78,7 @@ def glyph(c,kind,x,y,density=1,level=4,ink=INK,stacked=False,flags=0,label='',ch
     elif kind=='BATTERY':
         c.translate(1.5,-2)
         for i,(d,*_) in enumerate(paths(kind)):c.drawPath(path(d),paint((fill or ink) if i==0 else ink,1 if i==0 else .5))
-        # Same luminance rule and numeral/bolt placement as IosIconDrawable.
+        # Design-sheet battery contrast and numeral/bolt placement.
         rgb=bytes.fromhex((fill or ink).lstrip('#'))
         linear=[v/255/12.92 if v/255<=.04045 else ((v/255+.055)/1.055)**2.4 for v in rgb]
         contrast='#000000' if sum(v*w for v,w in zip(linear,[.2126,.7152,.0722]))>.45 else '#ffffff'

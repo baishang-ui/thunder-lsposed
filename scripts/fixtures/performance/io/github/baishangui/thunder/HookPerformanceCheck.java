@@ -8,7 +8,8 @@ import android.widget.TextView;
 /** Host-JVM microbenchmark. Allocation evidence only; this does not measure ART or GPU work. */
 public class HookPerformanceCheck {
     private static volatile Object sink;
-    static class Target { private int value = 1000; private Object read() { return this; } }
+    private static volatile int intSink;
+    static class Target { private int value = 1000; private Object read() { return this; } private Object echo(Object value) { return value; } }
     private static void measure(String label, Runnable operation) {
         int iterations = 200000;
         for (int i = 0; i < iterations; i++) operation.run();
@@ -25,6 +26,11 @@ public class HookPerformanceCheck {
     }
     public static void main(String[] args) {
         Target target = new Target();
+        measure("typed-int-field", () -> intSink = Reflect.getIntField(target, "value"));
+        Reflect.setAdditionalInstanceField(target, "state", "cached");
+        measure("instance-state-read", () -> sink = Reflect.getAdditionalInstanceField(target, "state"));
+        Reflect.removeAdditionalInstanceField(target, "state");
+        measure("one-arg-method", () -> sink = Reflect.callMethod(target, "echo", target));
         measure("field+no-arg-method", () -> {
             sink = Reflect.getObjectField(target, "value");
             sink = Reflect.callMethod(target, "read");
@@ -36,5 +42,11 @@ public class HookPerformanceCheck {
         middle.background = null; panel.id = 42; panel.res.name = "notification_panel";
         text.parent = middle; middle.parent = panel;
         measure("panel-text-background", () -> sink = AdaptiveTextHook.background(text, config));
+        data.putBoolean("panel_saturation_enabled",true);data.putInt("panel_saturation",150);
+        try {PanelSaturationCheck.config(data);}catch(Exception e){throw new AssertionError(e);}
+        var blur=new com.oplusos.systemui.common.blurability.BlurConfig();
+        Reflect.setAdditionalInstanceField(blur,"thunder.role","panel");
+        var drawable=new com.oplus.posteffect.drawable.BaseDrawable();
+        measure("stationary-saturation-track", () -> PanelSaturationHook.track(drawable,blur,1f));
     }
 }

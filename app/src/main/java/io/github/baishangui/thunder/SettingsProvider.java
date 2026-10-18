@@ -48,11 +48,13 @@ public final class SettingsProvider extends ContentProvider {
         SharedPreferences prefs = preferences(context);
         if ("settings".equals(method)) {
             Bundle result = new Bundle();
-            for (String key : new String[]{"volume_size","volume_compact"})
+            for (String key : new String[]{"volume_size","volume_compact","volume_liquid_entrance"})
                 result.putBoolean(key,prefs.getBoolean(key,false));
             result.putInt("volume_width",Math.max(32,Math.min(96,prefs.getInt("volume_width",56))));
             result.putInt("volume_height",Math.max(80,Math.min(400,prefs.getInt("volume_height",240))));
             result.putBoolean("enabled", prefs.getBoolean("enabled", true));
+            result.putBoolean("panel_saturation_enabled", prefs.getBoolean("panel_saturation_enabled", false));
+            result.putInt("panel_saturation", Math.max(0,Math.min(200,prefs.getInt("panel_saturation",100))));
             result.putBoolean("gesture_bar_hidden", prefs.getBoolean("gesture_bar_hidden", false));
             result.putBoolean("gesture_bar_remove_inset", prefs.getBoolean("gesture_bar_remove_inset", false));
             for (String key : new String[]{"gesture_style", "gesture_colors"})

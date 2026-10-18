@@ -28,6 +28,7 @@ import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawPlainBackdrop
 import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorFilter
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -41,20 +42,24 @@ internal val LocalPreviewBackdrop = staticCompositionLocalOf<Backdrop> { error("
 
 /** The preview consumes the same draft as the controls; it never writes settings or calls SystemUI. */
 @Composable internal fun SettingsPreview(page: SettingsPage, settings: Settings) {
-    if (page in setOf(SettingsPage.Configuration, SettingsPage.Runtime, SettingsPage.About)) return
+    if (page in setOf(SettingsPage.Configuration, SettingsPage.Runtime, SettingsPage.About, SettingsPage.Cloud)) return
     var comparison by rememberSaveable(page) { mutableIntStateOf(0) }
     var appSample by rememberSaveable(page) { mutableIntStateOf(0) }
     var volumeExpanded by rememberSaveable(page) { mutableIntStateOf(1) }
     var enlarged by rememberSaveable(page) { mutableStateOf(false) }
     val cloud = page in setOf(SettingsPage.CloudCapsule, SettingsPage.CloudCard, SettingsPage.CloudLock, SettingsPage.CloudAppColor)
     val appearance = page == SettingsPage.Appearance
-    val effective = if (comparison == 1 || (!appearance && !settings.enabled)) Settings() else settings
+    val effective = when {
+        comparison == 1 || (!appearance && !settings.enabled) -> Settings()
+        cloud -> settings.copy(cloud = true)
+        else -> settings
+    }
     val resources = rememberNativePreviewResources()
     CompositionLocalProvider(LocalNativePreviewResources provides resources) {
         SettingsGroup {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 UiText("效果预览", 15, bold = true)
-                if (!appearance) PreviewOptions(listOf("当前", "系统"), comparison) { comparison = it }
+                if (!appearance) PreviewOptions(listOf(if (cloud && !settings.cloud) "已保存" else "当前", "系统"), comparison) { comparison = it }
                 else UiText("实时", 12, muted = true)
             }
             if (page == SettingsPage.CloudAppColor) PreviewOptions(listOf("音乐", "出行"), appSample) { appSample = it }
@@ -66,7 +71,7 @@ internal val LocalPreviewBackdrop = staticCompositionLocalOf<Backdrop> { error("
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 UiText(when {
                     !appearance && !settings.enabled && comparison == 0 -> "模块已关闭 · 系统效果"
-                    cloud && !settings.cloud && comparison == 0 -> "流体云外观已关闭"
+                    cloud && !settings.cloud && comparison == 0 -> "外观已关闭 · 预览已保存样式"
                     page == SettingsPage.CloudAppColor -> "示例应用色 · 随强度变化"
                     page == SettingsPage.StatusStyle -> "样式需重启系统界面应用"
                     else -> "系统资源 · 示例内容"
@@ -152,11 +157,16 @@ internal val LocalPreviewBackdrop = staticCompositionLocalOf<Backdrop> { error("
 
 /** Blur only the wallpaper behind a surface, leaving labels sharp like the native material. */
 @Composable internal fun MaterialSample(area: Area, modifier: Modifier = Modifier, defaultCorner: Int = 28,
-    defaultColor: Color = PreviewSurface, defaultBlur: Float = 80f, content: @Composable BoxScope.() -> Unit = {}) {
+    defaultColor: Color = PreviewSurface, defaultBlur: Float = 80f, saturation: Float = 1f,
+    content: @Composable BoxScope.() -> Unit = {}) {
     val shape = miuixShape((if (area.cornerEnabled) area.corner else defaultCorner).dp)
     val source = LocalPreviewBackdrop.current
     val radius = if (area.blur) area.radius.toFloat() else defaultBlur
-    Surface(modifier.drawPlainBackdrop(source, shape = { shape }, effects = { if (radius > 0) blur(radius) }),
+    val saturationFilter = remember(saturation) { ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(saturation) }) }
+    Surface(modifier.drawPlainBackdrop(source, shape = { shape }, effects = {
+        if (radius > 0) blur(radius)
+        if (saturation != 1f) colorFilter(saturationFilter)
+    }),
         shape = shape, color = if (area.tint) Color(area.color) else defaultColor,
         contentColor = PreviewInk,
         border = androidx.compose.foundation.BorderStroke(.5.dp, Color.White.copy(alpha = .12f))) {

@@ -15,9 +15,11 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--only', nargs='+', help='Run only the named Java check classes')
 parser.add_argument('--benchmark', action='store_true', help='Measure warmed hook hot paths on the host JVM (not device FPS)')
 parser.add_argument('--entries', action='store_true', help='Also check module package lifecycle routing with --only')
+parser.add_argument('--java-source-root', type=Path, help='Production Java source snapshot for baseline comparisons')
 args = parser.parse_args()
 
 ROOT = Path(__file__).resolve().parent.parent
+JAVA_SOURCE = args.java_source_root or ROOT / 'app/src/main/java'
 required = {'com.android.systemui', 'com.oplus.systemui.plugins'}
 manifest = ET.parse(ROOT / 'app/src/main/AndroidManifest.xml').getroot()
 visible = {p.attrib['{http://schemas.android.com/apk/res/android}name'] for p in manifest.findall('./queries/package')}
@@ -45,14 +47,18 @@ with tempfile.TemporaryDirectory(prefix='thunder-effects-') as folder:
             target = src / path.relative_to(ROOT / 'scripts/fixtures' / fixture)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(path.read_text(encoding='utf-8'), encoding='utf-8')
-    for name in ['StatusBarLayoutHook', 'StatusBarClockHook', 'StatusBarClockTransitionHook', 'VolumeHook', 'VolumePanelGeometry', 'GestureBarHook', 'ShadeHook', 'QsCardHook', 'QsCornerHook', 'NotificationCardHook', 'AdaptiveTextColor', 'AdaptiveTextHook', 'LiveSettings', 'HookConfig', 'SettingsProvider', 'ResourceOverrides', 'Reflect', 'CloudHook', 'CloudLockHook', 'CloudSdkHook', 'CloudTemplateHook', 'HookEntry', 'StatusBarIcons', 'StatusBarIconHook', 'IosStatusIcons', 'IosIconAssets', 'IosIconDrawable', 'IosStatusBarHook', 'IosStatusResources', 'IosBatteryResources']:
+    for name in ['StatusBarLayoutHook', 'StatusBarClockHook', 'StatusBarClockTransitionHook', 'VolumeHook', 'VolumeShortcutFeedback', 'VolumeLiquidEntrance', 'VolumePanelGeometry', 'GestureBarHook', 'PanelSaturationHook', 'ShadeHook', 'QsCardHook', 'QsCornerHook', 'NotificationCardHook', 'AdaptiveTextColor', 'AdaptiveTextHook', 'LiveSettings', 'HookConfig', 'SettingsProvider', 'ResourceOverrides', 'Reflect', 'CloudHook', 'CloudLockHook', 'CloudSdkHook', 'CloudTemplateHook', 'HookEntry', 'StatusBarIcons', 'StatusBarIconHook', 'IosStatusIcons', 'IosStatusBarHook', 'IosStatusResources', 'IosBatteryResources']:
         path = Path('io/github/baishangui/thunder') / (name + '.java')
-        (src / path).write_text((ROOT / 'app/src/main/java' / path).read_text(encoding='utf-8'), encoding='utf-8')
+        (src / path).write_text((JAVA_SOURCE / path).read_text(encoding='utf-8'), encoding='utf-8')
     # Match generated compiled-resource references without pretending to inflate Android XML.
     resource_names = list(dict.fromkeys(re.findall(r'R\.drawable\.(\w+)', (ROOT / 'app/src/main/java/io/github/baishangui/thunder/IosStatusResources.java').read_text())))
     (src / 'io/github/baishangui/thunder/R.java').write_text('package io.github.baishangui.thunder; final class R { static class drawable {' + ''.join(f'static final int {name}={index};' for index, name in enumerate(resource_names, 1000)) + '} }')
-    subprocess.run([javac, '-encoding', 'UTF-8', '-d', str(classes), *map(str, src.rglob('*.java'))], check=True)
-    checks = ['StatusBarLayoutCheck', 'StatusBarClockTransitionCheck', 'ReflectCheck', 'AdaptiveTextPerformanceCheck', 'RuntimeReportCheck', 'ProviderVisibilityCheck', 'VolumePanelCheck', 'GestureBarCheck', 'CardBlendCheck', 'HookCheck', 'ProviderCheck', 'CloudCheck', 'CloudLayerCheck', 'CloudLockCheck', 'CloudSdkCheck', 'CloudTemplateCheck', 'StatusBarIconCheck', 'IosStatusBarCheck', 'IosDrawSafetyCheck', 'IosRenderPathCheck', 'IosCoverageCheck', 'QsTintCheck', 'QsStateCheck', 'QsGeometryCheck', 'NotificationStyleCheck', 'NotificationExpansionCheck', 'AdaptiveTextCheck']
+    # Keep the Windows command line below CreateProcess's limit as fixtures grow.
+    compile_args = folder / 'javac.args'
+    compile_args.write_text('\n'.join('"' + p.as_posix() + '"' for p in src.rglob('*.java')), encoding='utf-8')
+    subprocess.run([javac, '-encoding', 'UTF-8', '-d', str(classes), '@' + str(compile_args)], check=True)
+    checks = ['StatusBarLayoutCheck', 'StatusBarClockTransitionCheck', 'ReflectCheck', 'AdaptiveTextPerformanceCheck', 'RuntimeReportCheck', 'ProviderVisibilityCheck', 'VolumePanelCheck', 'VolumeLiquidEntranceCheck', 'GestureBarCheck', 'CardBlendCheck', 'PanelStartFrameCheck', 'HookCheck', 'ProviderCheck', 'CloudCheck', 'CloudLayerCheck', 'CloudLockCheck', 'CloudSdkCheck', 'CloudTemplateCheck', 'StatusBarIconCheck', 'IosStatusBarCheck', 'IosDrawSafetyCheck', 'IosRenderPathCheck', 'IosCoverageCheck', 'QsTintCheck', 'QsStateCheck', 'QsGeometryCheck', 'NotificationStyleCheck', 'NotificationExpansionCheck', 'AdaptiveTextCheck']
+    checks.extend(['PanelSaturationCheck', 'PanelColorContinuityCheck', 'ShortcutPerformanceCheck', 'CloudGeometryCheck', 'CloudNotificationGeometryCheck'])
     if args.only:
         unknown = set(args.only) - set(checks)
         if unknown: raise SystemExit('Unknown checks: ' + ', '.join(sorted(unknown)))

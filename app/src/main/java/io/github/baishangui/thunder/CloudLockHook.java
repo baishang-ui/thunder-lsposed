@@ -55,7 +55,11 @@ final class CloudLockHook {
         Object type=Reflect.getAdditionalInstanceField(blur,"thunder.cloud-type");
         if("CUSTOM".equals(type)) {
             Object manager=referent(blur,"thunder.cloud-manager");
-            if(manager!=null&&Boolean.TRUE.equals(Reflect.callMethod(manager,"isKeyguardMaterialColorState")))return c.cloudLockArea;
+            if(manager!=null&&Boolean.TRUE.equals(Reflect.callMethod(manager,"isKeyguardMaterialColorState"))) {
+                HookConfig.Area material=c.cloudLockArea;
+                HookConfig.Area corners="banner".equals(Reflect.getAdditionalInstanceField(blur,"thunder.role"))?c.banner:c.notificationCard;
+                return new HookConfig.Area(material.blur,material.radius,material.tint,material.color,corners.cornerEnabled,corners.corner);
+            }
         } else if("CAPSULE".equals(type)) {
             Object view=referent(blur,"thunder.cloud-view");
             if(view instanceof View&&flowCapsule((View)view))return c.cloudLockArea;
