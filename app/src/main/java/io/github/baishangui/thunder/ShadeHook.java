@@ -84,13 +84,28 @@ public final class ShadeHook {
             mixClass = Reflect.findClass(BLUR+"MixColor", loader);
             motionConfigClass = Reflect.findClass(BLUR+"BlurMixConfig$BlurMixSingle", loader);
         });
+        install("panel-mirror-scale", () -> Api102Runtime.findAndHookMethod(
+            BLUR+"BlurMixConfig",loader,"setMirrorScale",float.class,new HookCallback() {
+                @Override protected void afterHookedMethod(HookCallback.Param p) {
+                    if(p.hasThrowable())return;
+                    Object original=nativeMix(p.thisObject);
+                    // applyPanelMirrorScale writes through our getter replacement.
+                    // Keep the source current before a later getter/cache refresh
+                    // copies its flags back, including after tint is disabled.
+                    if(original!=p.thisObject)Reflect.callMethod(original,"setMirrorScale",p.args[0]);
+                }
+            }));
+        install("deopt-panel-mirror-scale", () -> Api102Runtime.deoptimizeCallers(Reflect.findClass(
+            "com.oplusos.systemui.common.util.NotifiAndQsPlatformBlurExKt",loader),"applyPanelMirrorScale"));
         install("single-tint-alpha", () -> Api102Runtime.findAndHookMethod(
             "com.oplusos.systemui.common.util.ShaderBlendParamHelper",loader,
             "updateMixSingleShaderParams",shaderConfigClass,float.class,new HookCallback() {
                 @Override protected void beforeHookedMethod(HookCallback.Param p) {
-                    // The native helper scales single/background tint alpha, but leaves multi
-                    // foreground alpha alone. Our drawable alpha already applies blurAmount.
-                    if(Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(p.args[0],"thunder-custom-tint")))p.args[1]=1f;
+                    // Skip tint fading only when the whole capture already fades.
+                    // Scaled panels keep native capture opacity and fade just tint;
+                    // fading that capture would expose the unscaled background below.
+                    if(Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(p.args[0],"thunder-custom-tint"))
+                            && Boolean.TRUE.equals(Reflect.callMethod(p.args[0],"getAlphaWithBlurAmount")))p.args[1]=1f;
                 }
             }));
         // Replace before ViewBlurProxy caches producer configs; retain their native source for restore.
@@ -149,7 +164,7 @@ public final class ShadeHook {
                 }
             }));
         install("deopt-scrim-ext", () -> Api102Runtime.deoptimizeCallers(Reflect.findClass(
-            "com.oplus.systemui.scrim.ScrimViewExImp",loader),"updateColorWithTint","setBlurAmount","setViewAlpha","setColor"));
+            "com.oplus.systemui.scrim.ScrimViewExImp",loader),"updateColorWithTint","setBlurAmount","setBlurAndScaleAmount","setViewAlpha","setColor"));
         install("deopt-mask", () -> Api102Runtime.deoptimizeCallers(Reflect.findClass(
             BLUR+"drawable.MaskDrawable",loader),"draw"));
         install("panel", () -> Api102Runtime.hookAllConstructors(Reflect.findClass(BLUR+"ViewBlurProxy", loader),
@@ -505,8 +520,13 @@ public final class ShadeHook {
         } catch(Throwable error) { failed("panel-owner",error); }
     }
     private static Object panelMix(Object original,HookConfig.Area area) {
+        original=nativeMix(original);
         if(shaderConfigClass==null||!shaderConfigClass.isInstance(original))return original;
-        return backgroundMix(original,area);
+        Object replacement=backgroundMix(original,area);
+        // C17 disables capture fading while mirror scaling is active. Retain
+        // that policy on every cache read, independently of the selected tint.
+        Reflect.callMethod(replacement,"setAlphaWithBlurAmount",Reflect.callMethod(original,"getAlphaWithBlurAmount"));
+        return replacement;
     }
     private static Object nativeMix(Object mix) {
         if(mix==null)return null;
@@ -621,6 +641,7 @@ public final class ShadeHook {
         CloudHook.refresh();
         CloudLockHook.refresh();
         CloudSdkHook.refresh();
+        CloudTemplateHook.refresh();
         VolumeHook.refresh();
     }
     private interface Install { void run() throws Throwable; }

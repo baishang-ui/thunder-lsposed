@@ -31,7 +31,7 @@ final class HookConfig {
         volumeSize = data != null && data.getBoolean("volume_size",false);
         volumeCompact = data != null && data.getBoolean("volume_compact",false);
         volumeWidth = bounded(data,"volume_width",56,32,96);
-        volumeHeight = bounded(data,"volume_height",240,120,400);
+        volumeHeight = bounded(data,"volume_height",240,80,400);
         volumeBar = new Area(data,"volume_bar");
         volumePanel = new Area(data,"volume_panel");
         enabled = data != null && data.getBoolean("enabled", true);
@@ -73,10 +73,10 @@ final class HookConfig {
         margins = data != null && data.getBoolean("notification_margins", false);
         margin = Math.max(0, Math.min(64, data == null ? 30 : data.getInt("notification_margin", 30)));
         cloud = data != null && data.getBoolean("cloud_enabled", true);
-        cloudLockStyle = bounded(data,"cloud_lock_style",0,0,2);
+        // Legacy preset value 1 now selects the saved custom settings as well.
+        cloudLockStyle = bounded(data,"cloud_lock_style",0,0,2)==0 ? 0 : 2;
         cloudLockCustomArea = new Area(data,"cloud_lock");
-        // PUI C17 SystemUI overlay: transparent top #000c0c0c, grey bottom #3cd8d8d8.
-        cloudLockArea = cloudLockStyle == 1 ? new Area(false,100,true,0x3cd8d8d8,false,28) : cloudLockCustomArea;
+        cloudLockArea = cloudLockCustomArea;
         cloudAppColor = data == null || data.getBoolean("cloud_app_color",true);
         cloudAppColorStrengthEnabled = data != null && data.getBoolean("cloud_app_color_strength_enabled",false);
         cloudAppColorStrength = bounded(data,"cloud_app_color_strength",100,0,200);

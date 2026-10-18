@@ -51,7 +51,7 @@ public final class SettingsProvider extends ContentProvider {
             for (String key : new String[]{"volume_size","volume_compact"})
                 result.putBoolean(key,prefs.getBoolean(key,false));
             result.putInt("volume_width",Math.max(32,Math.min(96,prefs.getInt("volume_width",56))));
-            result.putInt("volume_height",Math.max(120,Math.min(400,prefs.getInt("volume_height",240))));
+            result.putInt("volume_height",Math.max(80,Math.min(400,prefs.getInt("volume_height",240))));
             result.putBoolean("enabled", prefs.getBoolean("enabled", true));
             result.putBoolean("gesture_bar_hidden", prefs.getBoolean("gesture_bar_hidden", false));
             result.putBoolean("gesture_bar_remove_inset", prefs.getBoolean("gesture_bar_remove_inset", false));

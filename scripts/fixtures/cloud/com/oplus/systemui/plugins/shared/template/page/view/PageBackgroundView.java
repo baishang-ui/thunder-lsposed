@@ -1,0 +1,1 @@
+package com.oplus.systemui.plugins.shared.template.page.view; public class PageBackgroundView implements android.graphics.drawable.Drawable.Callback {public void invalidateDrawable(android.graphics.drawable.Drawable d){}}

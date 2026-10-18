@@ -19,7 +19,7 @@ internal data class VolumeSettings(
         }
     }
     companion object {
-        val ranges = mapOf("volume_width" to 32..96, "volume_height" to 120..400) +
+        val ranges = mapOf("volume_width" to 32..96, "volume_height" to 80..400) +
             listOf("volume_bar", "volume_panel").flatMap { k -> listOf(k+"_radius" to 0..200, k+"_corner" to 0..64) }.toMap()
         val keys: Set<String> = Bundle().also { VolumeSettings().write(it) }.keySet().toSet()
         fun from(b: Bundle): VolumeSettings {
@@ -39,7 +39,7 @@ internal data class VolumeSettings(
         LiquidSwitchRow("自定义尺寸", "按钮边长跟随音量条宽度", value.size) { change(value.copy(size = it)) }
         if (value.size) {
             LiquidValueSlider("音量条宽度", value.width, 32..96, " dp") { change(value.copy(width = it)) }
-            LiquidValueSlider("音量条长度", value.height, 120..400, " dp") { change(value.copy(height = it)) }
+            LiquidValueSlider("音量条长度", value.height, 80..400, " dp") { change(value.copy(height = it)) }
         }
     }
     AreaControls("音量条与按钮材质", value.bar, showTitle = true) { change(value.copy(bar = it)) }

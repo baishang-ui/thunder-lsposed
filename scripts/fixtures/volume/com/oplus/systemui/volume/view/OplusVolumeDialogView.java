@@ -2,6 +2,8 @@ package com.oplus.systemui.volume.view;
 public class OplusVolumeDialogView {
  public Object volumeInteractor;public com.oplus.systemui.volume.VolumeListAdapter volumeListAdapter=new com.oplus.systemui.volume.VolumeListAdapter();
  public android.view.View mMoreRowStreamLl=new android.view.View(),mAppVolumeAdjustFl=new android.view.View(),mODICaptionsView=new android.view.View();
+ public android.view.ViewGroup mVerticalRowIconParent=new android.view.ViewGroup();public com.oplus.systemui.volume.anim.PanelExpandPreludeAnimator panelExpandPrelude=new com.oplus.systemui.volume.anim.PanelExpandPreludeAnimator();
+ public void showOrHideAnimation(float x,boolean show,int reason,Long generation){}
  public android.view.View mSettingsButton=accessory(48,48),mVolumeSettingText=accessory(-2,24),mVolumePanelTitleIcon=accessory(32,32),mVolumePanelTitleText=accessory(-2,24),mVolumePanelTipsText=accessory(-2,24),mSnackBar;
  public androidx.recyclerview.widget.RecyclerView mVolumeRecyclerview=new androidx.recyclerview.widget.RecyclerView();public android.view.ViewGroup mDialogView=new androidx.constraintlayout.widget.ConstraintLayout();public int expansions;
  public static android.view.View accessory(int w,int h){android.view.View v=new android.view.View();v.actualWidth=w;v.actualHeight=h;v.measuredWidth=90;v.measuredHeight=h;v.layout=new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(w,h);return v;}

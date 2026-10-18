@@ -53,8 +53,8 @@ private fun Area.summary(corner: Boolean = true): String = buildList {
     SettingsMenuGroup("流体云") {
         SettingsMenuItem("胶囊状态", if (settings.cloud) settings.cloudArea.summary() else "未启用", MiuixIcons.Regular.CloudFill) { open(SettingsPage.CloudCapsule) }
         SettingsMenuItem("卡片状态", if (settings.cloud) settings.cloudCardArea.summary() else "未启用", MiuixIcons.Regular.Notes) { open(SettingsPage.CloudCard) }
-        SettingsMenuItem("锁屏样式", if (settings.cloud) listOf("跟随系统", "PUI 材质", "自定义")[settings.cloudLock.style] else "未启用", MiuixIcons.Regular.Theme) { open(SettingsPage.CloudLock) }
-        SettingsMenuItem("应用取色遮罩", if (!settings.cloud) "未启用" else if (!settings.cloudLock.appColor) "已关闭" else if (settings.cloudLock.strengthEnabled) "强度 ${settings.cloudLock.strength}%" else "系统强度", MiuixIcons.Regular.Layers) { open(SettingsPage.CloudAppColor) }
+        SettingsMenuItem("锁屏样式", if (!settings.cloud) "未启用" else if (settings.cloudLock.style != 0 && (settings.cloudLock.area.blur || settings.cloudLock.area.tint)) "自定义" else "跟随系统", MiuixIcons.Regular.Theme) { open(SettingsPage.CloudLock) }
+        SettingsMenuItem("应用取色遮罩", if (!settings.cloud) "未启用" else when (val strength = settings.cloudLock.maskStrength) { 0 -> "已关闭"; 100 -> "系统强度"; else -> "强度 $strength%" }, MiuixIcons.Regular.Layers) { open(SettingsPage.CloudAppColor) }
     }
     SettingsMenuGroup("状态栏") {
         SettingsMenuItem("状态栏修改", "左右边距、中间间距、时钟与图标", MiuixIcons.Regular.Theme) { open(SettingsPage.StatusBar) }

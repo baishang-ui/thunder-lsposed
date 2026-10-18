@@ -1,5 +1,6 @@
 package io.github.baishangui.thunder
 
+import android.graphics.RenderEffect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
@@ -29,6 +30,9 @@ import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.drawPlainBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.effect
 import com.kyant.backdrop.catalog.components.*
 import com.kyant.shapes.Capsule
 import com.kyant.shapes.RoundedRectangle
@@ -66,6 +70,34 @@ internal data class GlassStyle(val source: Backdrop, val dark: Boolean, val sett
     val background get() = if (settings.colorMode == 0 && !dark) Color(settings.backdropColor) else colors.background
 }
 internal val LocalGlass = staticCompositionLocalOf<GlassStyle> { error("Missing UI style") }
+
+// Kyant0's official Progressive Blur tutorial; keep the original header tint.
+// https://kyant.gitbook.io/backdrop/tutorials/progressive-blur
+private const val HEADER_ALPHA_MASK = """
+uniform shader content;
+uniform float2 size;
+layout(color) uniform half4 tint;
+uniform float tintIntensity;
+half4 main(float2 coord) {
+    float blurAlpha = smoothstep(size.y, size.y * 0.5, coord.y);
+    float tintAlpha = smoothstep(size.y, size.y * 0.5, coord.y);
+    return mix(content.eval(coord) * blurAlpha, tint * tintAlpha, tintIntensity);
+}
+"""
+
+@Composable internal fun ProgressiveHeader(source: Backdrop, modifier: Modifier) {
+    val style = LocalGlass.current
+    Box(modifier.drawPlainBackdrop(source, shape = { RectangleShape }, effects = {
+        blur(4f.dp.toPx())
+        effect(RenderEffect.createRuntimeShaderEffect(
+            obtainRuntimeShader("AlphaMask", HEADER_ALPHA_MASK).apply {
+                setFloatUniform("size", size.width, size.height)
+                setColorUniform("tint", style.surface.toArgb())
+                setFloatUniform("tintIntensity", if (style.dark) .55f else .65f)
+            }, "content"
+        ))
+    }))
+}
 
 // The original Catalog components use these values in place of their hardcoded theme.
 data class LiquidAppearance(val dark: Boolean, val accent: Color, val blur: Float = 1f, val refraction: Float = 1f)

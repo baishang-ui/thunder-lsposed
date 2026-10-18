@@ -47,10 +47,22 @@ vectors have been removed.
 Copyright compose-miuix-ui contributors, Apache License 2.0; license under
 `app/src/main/assets/licenses/miuix.txt`.
 
-The application header uses Miuix `SmallTopAppBar` and `Surface`, with the
-existing Liquid buttons in its navigation/action slots. Its measured height is
-used for page spacing, including font scaling. The previous application-owned
-progressive-blur shader has been removed.
+The application header uses Miuix `SmallTopAppBar` and a transparent `Surface`,
+with reserved navigation/action slots. The existing Liquid buttons sit in a fixed
+root overlay above the header and outside the predictive-back transform, so their
+position is independent of title/subtitle measurement. A shared,
+font-aware height is used for the header and page spacing, avoiding a one-frame
+padding change after navigation. The backdrop follows Kyant0's official
+[Progressive Blur tutorial](https://kyant.gitbook.io/backdrop/tutorials/progressive-blur):
+`drawPlainBackdrop`, a 4 dp blur and the tutorial's `AlphaMask` effect, retaining
+the app's original light/dark tint strength. The mask shader follows the official
+tutorial verbatim; only its size, tint and tint-intensity uniforms are supplied by
+the app.
+
+[Kyant0 Shapes](https://github.com/Kyant0/Shapes) is already included as
+`io.github.kyant0:shapes:1.2.0`. Its `RoundedRectangle` supplies text-button
+corners, and `Capsule` supplies icon-button and Liquid control shapes, including
+the bottom navigation. These remain library shapes rather than app-drawn paths.
 
 Preview selection uses Miuix `TabRowWithContour` / `RadioButton`, preview cards
 use Miuix `Card` / `Surface`, and enlarged previews use Miuix `WindowDialog`.

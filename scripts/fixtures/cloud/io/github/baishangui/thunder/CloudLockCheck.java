@@ -20,6 +20,15 @@ public class CloudLockCheck {
         public boolean keyguard=true;
         public boolean isKeyguardMaterialColorState() { return keyguard; }
     }
+    public static class SharedProxy extends ViewBlurProxy {
+        int applies;
+        HookConfig.Area material;
+        SharedProxy(BlurConfig config) { super(config); }
+        @Override public void applyBlurConfig() {
+            applies++;
+            material=CloudLockHook.area(getBlurConfig(),ShadeHook.snapshot());
+        }
+    }
     private static Bundle settings() {
         Bundle b=new Bundle();b.putBoolean("enabled",true);b.putBoolean("cloud_enabled",true);return b;
     }
@@ -57,6 +66,11 @@ public class CloudLockCheck {
         producer=scope(app);gradient(app,original);end(producer);
         check(Arrays.equals(app.colors,new int[]{0x406688aa,0x00446688,0x80123456}),"every native gradient stop scales once");
         check(original[0]==0x806688aa&&app.orientation==GradientDrawable.Orientation.BL_TR,"gradient input and direction remain native");
+        b.putInt("cloud_app_color_strength",0);CloudCheck.config(b);CloudLockHook.refresh();
+        check(Arrays.equals(app.colors,new int[]{0x006688aa,0x00446688,0x00123456}),
+            "zero slider strength disables every gradient stop without a separate switch");
+        b.putInt("cloud_app_color_strength",100);CloudCheck.config(b);CloudLockHook.refresh();
+        check(Arrays.equals(app.colors,original),"100 percent slider strength restores the original native mask");
         b.putInt("cloud_app_color_strength",200);CloudCheck.config(b);CloudLockHook.refresh();
         check(app.colors[0]==0xff6688aa&&app.colors[1]==0x00446688,"live strength doubles original alpha with saturation, not previous result");
         b.putBoolean("cloud_app_color",false);CloudCheck.config(b);CloudLockHook.refresh();
@@ -73,10 +87,11 @@ public class CloudLockCheck {
         producer=scope(app);var nested=scope(other);solid(other,0x80663322,false);end(nested);solid(app,0x806688aa,false);end(producer);
         CloudLockHook.refresh();check(app.color==0x806688aa,"nested producer scopes restore their previous target");
 
-        b=settings();b.putInt("cloud_lock_style",1);CloudCheck.config(b);
+        b=settings();b.putInt("cloud_lock_style",2);b.putBoolean("cloud_lock_tint",true);
+        b.putInt("cloud_lock_color",0x3c778899);CloudCheck.config(b);
         Manager manager=new Manager();BlurConfig blur=new BlurConfig();View view=new View();
         CloudLockHook.track(view,new ViewBlurProxy(blur),"CUSTOM",manager);
-        check(CloudLockHook.area(blur,ShadeHook.snapshot()).color==0x3cd8d8d8,"PUI material applies to lock-screen flow card");
+        check(CloudLockHook.area(blur,ShadeHook.snapshot()).color==0x3c778899,"custom material applies to lock-screen flow card");
         manager.keyguard=false;check(CloudLockHook.area(blur,ShadeHook.snapshot())==null,"shade cards keep existing independent material");
         CapsuleItemView item=new CapsuleItemView();item.entry=new CapsuleSeedingData();View background=new View();background.parent=item;
         BlurConfig capsule=new BlurConfig();CloudLockHook.track(background,new ViewBlurProxy(capsule),"CAPSULE",manager);
@@ -88,8 +103,8 @@ public class CloudLockCheck {
         Object nativeMix=capsule.platformMixConfig;
         var frame=QsTintCheck.before(backend,capsuleProxy);
         var mixed=(BlurMixConfig.BlurMixSingleWithShader)capsule.platformMixConfig;
-        check(mixed.backgroundShaderParam.topLayerColor==0x3cd8d8d8&&mixed.backgroundShaderParam.bottomLayerColor==0,
-            "actual native shader receives PUI tint once and removes extra mixing");
+        check(mixed.backgroundShaderParam.topLayerColor==0x3c778899&&mixed.backgroundShaderParam.bottomLayerColor==0,
+            "actual native shader receives custom tint once and removes extra mixing");
         QsTintCheck.after(backend,frame);
         check(capsule.platformMixConfig==nativeMix,"native shader config restores after rendering");
         for(Object plain:new Object[]{new BlurMixConfig.BlurMixSingle(new com.oplusos.systemui.common.blurability.MixColor(4,0xff123456,0xff654321)),
@@ -97,7 +112,7 @@ public class CloudLockCheck {
             capsule.platformMixConfig=plain;
             frame=QsTintCheck.before(backend,capsuleProxy);
             check(capsule.platformMixConfig instanceof BlurMixConfig.BlurMixSingleWithShader&&
-                ((BlurMixConfig.BlurMixSingleWithShader)capsule.platformMixConfig).backgroundShaderParam.topLayerColor==0x3cd8d8d8,
+                ((BlurMixConfig.BlurMixSingleWithShader)capsule.platformMixConfig).backgroundShaderParam.topLayerColor==0x3c778899,
                 "compositor-only lock material receives custom tint instead of silently ignoring it");
             QsTintCheck.after(backend,frame);
             check(capsule.platformMixConfig==plain,"plain compositor material restores after rendering");
@@ -112,10 +127,30 @@ public class CloudLockCheck {
         String draw="com.oplus.systemui.notification.lockscreen.capsule.CapsuleBackgroundHelper#drawCapsuleBg";
         String fallback="com.oplus.systemui.notification.lockscreen.capsule.CapsuleBackgroundHelper#getBackgroundColor";
         var helper=new com.oplus.systemui.notification.lockscreen.capsule.CapsuleBackgroundHelper();helper.viewBlurProxy=capsuleProxy;
+        SharedProxy shared=new SharedProxy(new BlurConfig());
+        helper.smoothSharedViewBlurProxy=shared;
         var drawFrame=QsTintCheck.before(draw,helper,background,new android.graphics.Canvas());
+        check(shared.material!=null&&shared.material.color==0x44556677,
+            "pooled background inherits the drawing capsule, even without a parent or manager registration");
         check((Integer)CloudCheck.after(fallback,helper,0xff123456)==0x44556677,"no-blur fallback uses selected lock material inside the native clip");
         drawFrame.failure=new RuntimeException("fallback failed");QsTintCheck.after(draw,drawFrame);
         check((Integer)CloudCheck.after(fallback,helper,0xff123456)==0xff123456,"fallback drawing scope clears after native failure");
+        CapsuleItemView ordinary=new CapsuleItemView();ordinary.entry=new Object();
+        View otherBackground=new View();otherBackground.parent=ordinary;
+        var otherHelper=new com.oplus.systemui.notification.lockscreen.capsule.CapsuleBackgroundHelper();
+        otherHelper.smoothSharedViewBlurProxy=shared;
+        drawFrame=QsTintCheck.before(draw,otherHelper,otherBackground,new android.graphics.Canvas());
+        QsTintCheck.after(draw,drawFrame);
+        check(shared.material==null,"shared proxy restores native material when reused by an ordinary notification");
+        int applies=shared.applies;
+        drawFrame=QsTintCheck.before(draw,helper,background,new android.graphics.Canvas());
+        QsTintCheck.after(draw,drawFrame);
+        check(shared.applies==applies+1&&shared.material!=null,
+            "returning a pooled proxy to the same flow capsule reapplies material despite unchanged settings");
+        applies=shared.applies;
+        drawFrame=QsTintCheck.before(draw,helper,background,new android.graphics.Canvas());
+        QsTintCheck.after(draw,drawFrame);
+        check(shared.applies==applies,"unchanged frames do not rebuild shared background material");
         item.entry=new Object();check(CloudLockHook.area(capsule,ShadeHook.snapshot())==null,"ordinary notification capsules are excluded");
         b.putInt("cloud_lock_style",0);CloudCheck.config(b);manager.keyguard=true;
         check(CloudLockHook.area(blur,ShadeHook.snapshot())==null,"system style restores existing native or card material");

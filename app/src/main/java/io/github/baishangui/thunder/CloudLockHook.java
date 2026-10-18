@@ -27,6 +27,7 @@ final class CloudLockHook {
         Reflect.setAdditionalInstanceField(blur,"thunder.cloud-type",type);
         Reflect.setAdditionalInstanceField(blur,"thunder.cloud-view",new WeakReference<>(view));
         Reflect.setAdditionalInstanceField(blur,"thunder.cloud-manager",new WeakReference<>(manager));
+        if("CAPSULE".equals(type))Reflect.setAdditionalInstanceField(blur,"thunder.role","cloud-lock");
         Reflect.setAdditionalInstanceField(view,"thunder.cloud-config",new WeakReference<>(blur));
         views.put(view,true);
     }
@@ -70,6 +71,19 @@ final class CloudLockHook {
         Object service=Reflect.callMethod(view.getContext(),"getSystemService","keyguard");
         return service!=null&&Boolean.TRUE.equals(Reflect.callMethod(service,"isKeyguardLocked"));
     }
+    private static void prepareCapsule(Object proxy,View view,HookConfig c,boolean flow) {
+        if(proxy==null)return;
+        // The smooth proxy is pooled and its host is a transient container view.
+        // Bind it to the capsule actually drawing it, rather than the pool host.
+        Object blur=Reflect.callMethod(proxy,"getBlurConfig");
+        if(referent(blur,"thunder.cloud-view")!=view)track(view,proxy,"CAPSULE",null);
+        if(Reflect.getAdditionalInstanceField(proxy,"thunder.cloud-snapshot")==c&&
+                Boolean.valueOf(flow).equals(Reflect.getAdditionalInstanceField(proxy,"thunder.cloud-flow")))return;
+        Reflect.callMethod(proxy,"applyBlurConfig");
+        // Cache on the pooled resource, so another helper's write invalidates it.
+        Reflect.setAdditionalInstanceField(proxy,"thunder.cloud-snapshot",c);
+        Reflect.setAdditionalInstanceField(proxy,"thunder.cloud-flow",flow);
+    }
     static void install(ClassLoader loader) {
         bind("fallback-color",() -> Api102Runtime.findAndHookMethod(LOCK+"CapsuleBackgroundHelper",loader,"getBackgroundColor",new HookCallback() {
             @Override protected void afterHookedMethod(Param p) {
@@ -85,14 +99,8 @@ final class CloudLockHook {
                 HookConfig c=ShadeHook.snapshot();boolean flow=flowCapsule(view);
                 Object proxy=Reflect.getObjectField(p.thisObject,"viewBlurProxy");
                 Object shared=Reflect.getObjectField(p.thisObject,"smoothSharedViewBlurProxy");
-                if(Reflect.getAdditionalInstanceField(p.thisObject,"thunder.cloud-snapshot")==c&&
-                        Boolean.valueOf(flow).equals(Reflect.getAdditionalInstanceField(p.thisObject,"thunder.cloud-flow"))&&
-                        referent(p.thisObject,"thunder.cloud-shared")==shared)return;
-                if(proxy!=null)Reflect.callMethod(proxy,"applyBlurConfig");
-                if(shared!=null)Reflect.callMethod(shared,"applyBlurConfig");
-                Reflect.setAdditionalInstanceField(p.thisObject,"thunder.cloud-snapshot",c);
-                Reflect.setAdditionalInstanceField(p.thisObject,"thunder.cloud-flow",flow);
-                Reflect.setAdditionalInstanceField(p.thisObject,"thunder.cloud-shared",new WeakReference<>(shared));
+                prepareCapsule(proxy,view,c,flow);
+                prepareCapsule(shared,view,c,flow);
             }
             @Override protected void afterHookedMethod(Param p) {
                 Object previous=p.getObjectExtra("cloud-drawing");

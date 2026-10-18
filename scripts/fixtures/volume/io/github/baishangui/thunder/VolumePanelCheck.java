@@ -11,6 +11,7 @@ import androidx.constraintlayout.widget.ConstraintLayout.LayoutParams;
 import com.oplus.systemui.volume.*;
 import com.oplus.systemui.volume.view.*;
 import com.oplus.systemui.volume.anim.VolumeItemAnimator;
+import com.oplus.systemui.plugins.qs.customize.view.tile.OplusQSThreeStageLayout;
 import com.oplus.systemui.volume.utils.material.VolumePlatformBlurHostHelper;
 import com.oplusos.systemui.common.blurability.*;
 import com.oplusos.systemui.common.blurability.drawable.AutoBlurDrawable;
@@ -62,10 +63,11 @@ public final class VolumePanelCheck {
         ViewGroup quick=(ViewGroup)d.mDialogView.getChildAt(d.mDialogView.getChildCount()-1);
         // Detach the driver to exercise the native background-progress fallback at the endpoint.
         h.itemView.attached=false;d.mDialogView.observer.dispatchOnPreDraw();
-        ViewGroup segments=(ViewGroup)quick.getChildAt(0);
-        segments.getChildAt(2).performClick();
+        OplusQSThreeStageLayout segments=(OplusQSThreeStageLayout)quick.getChildAt(0);
+        segments.frameLayoutViews.get(1).performClick();
         check(owner.mState.ringerModeInternal==((hardwareSlider||noVibrator)?2:1),"direct vibration segment respects vibrator capability and physical alert slider");
-        segments.getChildAt(3).performClick();
+        check(segments.selectedIndex==2-owner.mState.ringerModeInternal,"rejected native segment reconciles with authoritative ringer state");
+        segments.frameLayoutViews.get(2).performClick();
         check(owner.mState.ringerModeInternal==(hardwareSlider?2:0),"silent segment remains directly selectable without a vibrator");
         CloudCheck.after(VIEW+"#resetSliderState",d,null);
         com.oplusos.systemui.common.feature.FeatureOption.alertSlider=false;
@@ -83,10 +85,8 @@ public final class VolumePanelCheck {
         for(int i=0;i<2;i++) {
             ViewGroup group=(ViewGroup)quick.getChildAt(i);Drawable background=group.getBackground();
             if(i==1)background=((DrawableWrapper)background).getDrawable();
-            GradientDrawable selection=(GradientDrawable)group.getChildAt(0).getBackground();
-            check(selection.getColor().getDefaultColor()==0&&selection.strokeWidth>0&&selection.radius==expected,"selected shortcut keeps shared tint and follows corner "+corner);
-            RippleDrawable ripple=(RippleDrawable)(i==1?group.getBackground():group.getChildAt(1).getBackground());
-            check(((GradientDrawable)ripple.mask).getCornerRadius()==expected,"shortcut ripple mask follows the shared corner "+corner);
+            check(group.getChildAt(0).getBackground() instanceof ColorDrawable,"selection uses the native filled drawable instead of a custom outline");
+            if(i==1)check(((GradientDrawable)((RippleDrawable)group.getBackground()).mask).getCornerRadius()==expected,"DND ripple follows shared corner");
             if(nativeBlur) {
                 AutoBlurDrawable auto=(AutoBlurDrawable)background;BlurConfig blur=auto.proxy.config;
                 check(group.getWidth()==0&&"volume-buttons".equals(Reflect.getAdditionalInstanceField(blur,"thunder.role")),"actual unlaid shortcut background is registered with shared material role");
@@ -159,6 +159,8 @@ public final class VolumePanelCheck {
     }
     public static void main(String[] args)throws Throwable {
         ShadeHook.install("com.android.systemui","com.android.systemui",VolumePanelCheck.class.getClassLoader());
+        check(java.util.Arrays.stream(com.oplus.systemui.qs.base.res.SepQSResPool.Builder.class.getDeclaredMethods()).filter(m->m.getName().equals("build")).count()==2,"native builder fixture includes both the covariant implementation and its synthetic bridge");
+        failedShortcutInitializationRestoresAnUnmountedPanel();
         check(!Api102Runtime.callbacks.containsKey(OWNER+"#computeTimeoutH$1"),"compact mode preserves native timeout policy");
         check(!Api102Runtime.callbacks.containsKey(OWNER+"#onStateChangedH"),"volume state and restrictions remain bound to native rows");
         check(Api102Runtime.callbacks.containsKey(VIEW+"#expandPanel")&&Api102Runtime.callbacks.containsKey(ANIM+"#getEndX"),"native expansion and geometry hooks are installed");
@@ -218,6 +220,8 @@ public final class VolumePanelCheck {
         Object controller=owner.mController,adapter=d.volumeListAdapter,nativeAnimator=d.volumeListAdapter.nativeAnimator;
         HookCallback.Param expand=before(VIEW+"#expandPanel",d);
         check(!expand.returnEarly,"native expand method is allowed to execute");
+        check(before(BASE+"anim.PanelExpandPreludeAnimator#start",d.panelExpandPrelude).returnEarly&&d.panelExpandPrelude.cancelled,"compact expansion suppresses only its own fullscreen button shrink/fade prelude");
+        check(before(VIEW+"#startBtnThickAnim",d,20f,true).returnEarly,"compact handoff does not start a competing upward button animation");
         owner.expandPanel();d.expandPanel();CloudCheck.after(BASE+"VolumeListAdapter#switchToDataSourcePanel",adapter,null,false);
         check(owner.mExpanded&&d.expansions==1&&d.volumeListAdapter.source==1,"native expanded flag, view expansion and panel data source run normally");
         check(owner.mController==controller&&d.volumeListAdapter==adapter&&d.volumeListAdapter.nativeAnimator==nativeAnimator,"native controller, adapter and animator instances are preserved");
@@ -251,19 +255,30 @@ public final class VolumePanelCheck {
             if(i==3)check(visibleLeft+trackWidth==panel.right-22,"last painted track has the same trailing panel padding");
             if(i==0){activeEndX=x;activeEndY=y;}
             float start=item.itemView.screenX-item.itemView.translationX+endpoint("resolvePanelStartTranslationX",animator,item);
-            check(start==900,"native expand/collapse returns row "+i+" to captured sidebar anchor");
+            float expectedStart=i==0?900:Math.max(900,x+trackWidth+22);
+            check(start==expectedStart,"native expand/collapse row "+i+" preserves the source anchor and gives added rows at least one column of motion");
+            if(i>0)check(start-x>=trackWidth+22,"added row "+i+" including the final alarm row has a horizontal entrance and reverse exit");
         }
         HookCallback.Param flatMaterial=CloudCheck.param(null,new GradientDrawable(),new android.content.Context(),d.mDialogView,row.slider,28f,true);
         Api102Runtime.callbacks.get(factory).after(flatMaterial);
         Drawable flatBar=(Drawable)flatMaterial.getResult();
         int lastWidth=0;float nativeWidth=row.slider.mCurBackgroundWidth;int halfWidth=0;
         View untouched=new View();((ViewGroup)h.itemView).addView(untouched);
+        int sourceBarX=row.slider.screenX,sourceGroupX=d.mVerticalRowIconParent.screenX,sourceGroupY=d.mVerticalRowIconParent.screenY;
+        // Native ConstraintLayout rebases the accessory parent before the first row frame.
+        d.mVerticalRowIconParent.screenX-=180;d.mVerticalRowIconParent.screenY-=32;
         for(float fraction:new float[]{0,.25f,.5f,.75f,1}) {
             h.itemView.screenX=Math.round(900+(activeEndX-900)*fraction);h.itemView.screenY=Math.round(300+(activeEndY-300)*fraction);
+            row.slider.screenX=sourceBarX+h.itemView.screenX-900;
             d.mDialogView.observer.dispatchOnPreDraw();bounded.draw(new Canvas());Rect frame=original.getBounds();
+            android.graphics.Path panelClip=(android.graphics.Path)Reflect.getObjectField(bounded,"clip");
+            check(panelClip.smooth&&panelClip.bounds!=null&&panelClip.bounds.left==frame.left&&panelClip.bounds.top==frame.top&&panelClip.bounds.width()==frame.width()&&panelClip.bounds.height()==frame.height(),"panel at "+fraction+" uses the native smooth corner path at its animated bounds");
             check(frame.width()>=lastWidth&&frame.right==panel.right,"native motion at "+fraction+" drives an inward width change with a fixed sidebar edge");
             if(fraction==0)check(frame.width()<panel.width()/2,"panel starts as a narrow surface beside the original volume bar");
             if(fraction==.5f)halfWidth=frame.width();lastWidth=frame.width();
+            check(Math.abs(d.mVerticalRowIconParent.screenX-sourceGroupX-(row.slider.screenX-sourceBarX))<1f&&d.mVerticalRowIconParent.screenY==sourceGroupY,
+                    "original buttons move with the active volume row at "+fraction+" without drifting upwards");
+            if(fraction<=.5f)check(d.mVerticalRowIconParent.getAlpha()==1f,"original buttons stay visible during the initial movement before new controls enter");
             HookCallback.Param widthDraw=before(BAR+"#draw",row.slider,new Canvas());
             if(fraction==0)check(widthDraw.getObjectExtra("volume.widthPose")==null,"identical start/end geometry skips temporary pose allocation and field writes");
             float expected=nativeWidth*(209+(row.slider.mBackgroundWidth-209)*fraction)/row.slider.mBackgroundWidth;
@@ -276,6 +291,17 @@ public final class VolumePanelCheck {
             check(row.slider.mCurBackgroundWidth==nativeWidth,"native press pose restores after the width draw, including errors");
         }
         check(lastWidth==panel.width(),"native motion reaches the final compact width exactly");
+        RecyclerView.ViewHolder added=new RecyclerView.ViewHolder(d.mVolumeRecyclerview.getChildAt(1),1);
+        HookCallback.Param entrance=before(ANIM+"#animateAddImpl",animator,added,4);
+        HookCallback.Param stagger=before("android.view.ViewPropertyAnimator#setStartDelay",added.itemView.animate(),33L);
+        check(stagger.args[0].equals(132L),"new rows keep their native stagger with a short delay behind the original bar/button handoff");
+        QsTintCheck.after(ANIM+"#animateAddImpl",entrance);
+        check(before("android.view.ViewPropertyAnimator#setStartDelay",added.itemView.animate(),33L).args[0].equals(33L),"entrance delay does not affect unrelated animations on the UI thread");
+        entrance=before(ANIM+"#animateMoveImpl",animator,h,0,0,0,0,4);
+        check(before("android.view.ViewPropertyAnimator#setStartDelay",h.itemView.animate(),0L).args[0].equals(0L),"the original volume row starts moving immediately");
+        QsTintCheck.after(ANIM+"#animateMoveImpl",entrance);
+        OplusVolumeDialogView unrelated=new OplusVolumeDialogImpl().mOplusVolumeDialogView;
+        check(!before(BASE+"anim.PanelExpandPreludeAnimator#start",unrelated.panelExpandPrelude).returnEarly,"other volume panels retain the unmodified native prelude");
         check(untouched.invalidations==0,"expansion does not recursively invalidate unrelated row children");
         h.itemView.screenX=Math.round(900+(activeEndX-900)*.5f);h.itemView.screenY=Math.round(300+(activeEndY-300)*.5f);
         d.mDialogView.observer.dispatchOnPreDraw();bounded.draw(new Canvas());
@@ -286,46 +312,52 @@ public final class VolumePanelCheck {
         h.itemView.screenX=Math.round(activeEndX);h.itemView.screenY=Math.round(activeEndY);
         d.mDialogView.observer.dispatchOnPreDraw();bounded.draw(new Canvas());
         ViewGroup quick=(ViewGroup)d.mDialogView.getChildAt(d.mDialogView.getChildCount()-1);
-        ViewGroup segments=(ViewGroup)quick.getChildAt(0),zenControl=(ViewGroup)quick.getChildAt(1);
-        android.widget.ImageView sound=(android.widget.ImageView)segments.getChildAt(1),vibrate=(android.widget.ImageView)segments.getChildAt(2),silent=(android.widget.ImageView)segments.getChildAt(3);
-        View selector=segments.getChildAt(0),zen=zenControl;
-        android.widget.ImageView zenOff=(android.widget.ImageView)zenControl.getChildAt(1),zenOn=(android.widget.ImageView)zenControl.getChildAt(2);
-        check(segments.getChildCount()==4&&sound.layout.width==209&&sound.layout.height==209&&zen.layout.width==209,"three sound segments and DND share four square icon slots with the bar width");
-        check(((android.widget.FrameLayout.LayoutParams)sound.layout).leftMargin==0&&((android.widget.FrameLayout.LayoutParams)vibrate.layout).leftMargin==231&&((android.widget.FrameLayout.LayoutParams)silent.layout).leftMargin==462&&((android.widget.FrameLayout.LayoutParams)zen.layout).leftMargin==693&&quick.layout.width==902,"four icon slots fill the bottom row and align with the four bar columns");
-        check(sound.mResource==Math.abs("status_bar_qs_mute_inactive".hashCode())&&vibrate.mResource==Math.abs("status_bar_qs_vibrate_on".hashCode())&&silent.mResource==Math.abs("status_bar_qs_mute_active".hashCode()),"sound segments use the exact current ColorOS three-stage tile resources");
-        check(zenOff.mResource==Math.abs("status_bar_qs_dnd_inactive".hashCode())&&zenOn.mResource==Math.abs("status_bar_qs_dnd_active".hashCode()),"DND uses the native ColorOS moon icons rather than generic AOSP resources");
+        OplusQSThreeStageLayout segments=(OplusQSThreeStageLayout)quick.getChildAt(0);
+        segments.indicatorView.getBackground().setState(new int[0]);
+        d.mDialogView.observer.dispatchOnPreDraw();
+        check(java.util.Arrays.equals(segments.indicatorView.getBackground().getState(),new int[]{com.oplus.systemui.qs.base.res.model.TileViewFlag.Active.getAttr(),com.oplus.systemui.qs.base.res.model.TileViewFlag.Toggleable.getAttr()}),"stationary pre-draw restores both native toggleable and active states required by the highlight builder");
+        ViewGroup zenControl=(ViewGroup)quick.getChildAt(1);
+        View sound=segments.frameLayoutViews.get(0),vibrate=segments.frameLayoutViews.get(1),silent=segments.frameLayoutViews.get(2),zen=zenControl;
+        com.oplus.systemui.plugins.qs.customize.view.tile.OplusQSIconView zenIcon=(com.oplus.systemui.plugins.qs.customize.view.tile.OplusQSIconView)zenControl.getChildAt(1);
+        check(segments.layout.width==2*231+209&&segments.layout.height==209&&zen.layout.width==209,"native three-stage layout and DND fit the existing shortcut row");
+        check(segments.drawableUpdates==2&&segments.indicatorView.layout.width==116&&segments.iconViews.get(0).layout.width==55,"native normal/theme surfaces and bounded indicator/icon geometry are configured");
+        check(zenIcon.state.spec.equals("dnd")&&zenIcon.state.lottiePrefix.equals("qs_dnd_lottie")&&zenIcon.state.lottieSupport==17&&zenIcon.iconViewProxy.detail,"DND uses the actual native QS icon and its Lottie asset policy inside the volume dialog");
+        check(segments.disableTheme&&zenIcon.themeDisabled,"both shortcut icon palettes match the normal native highlight instead of mixing QS theme colors");
+        String palette="com.oplus.systemui.plugins.qs.customize.view.tile.OplusQSThreeStageLayout#getActiveIconColor";
+        check(((Number)CloudCheck.after(palette,segments,0xffffffff,true)).intValue()==AdaptiveTextColor.foreground(0xff778899),"volume native selected icons retain contrast against the actual opaque native highlight");
+        check(((Number)CloudCheck.after(palette,new OplusQSThreeStageLayout(new android.content.Context()),0xffabcdef,true)).intValue()==0xffabcdef,"control-center instances retain their original native palette");
+        check(((com.oplus.systemui.qs.base.res.SepQSResPool.Selection)zenControl.getChildAt(0).getBackground()).pathProvider==com.oplusos.systemui.common.outline.OvalOutlineProvider.INSTANCE,"DND selection shares the three-stage native oval path provider");
+        check(segments.indicatorView.getBackground() instanceof com.oplus.systemui.qs.base.res.SepQSResPool.Selection&&((com.oplus.systemui.qs.base.res.SepQSResPool.Selection)segments.indicatorView.getBackground()).pathProvider==com.oplusos.systemui.common.outline.OvalOutlineProvider.INSTANCE,"both shortcut highlights use the same native material rather than a QS-only theme transition wrapper");
+        for(View selection:new View[]{segments.indicatorView,zenControl.getChildAt(0)}) {
+            selection.actualWidth=selection.actualHeight=116;
+            for(View.OnLayoutChangeListener listener:selection.layoutListeners)listener.onLayoutChange(selection,0,0,116,116,0,0,0,0);
+            check(selection.getBackground().getBounds().width()==116&&((com.oplus.systemui.qs.base.res.SepQSResPool.Selection)selection.getBackground()).pathUpdates>0,"native selection mask path refreshes after real layout instead of retaining an empty construction path");
+        }
         LayoutParams quickLp=(LayoutParams)quick.layout;
         check(quickLp.topMargin==panel.bottom-22-209&&quickLp.height==209,"shortcut row sits one shared spacing below the track and one spacing above the panel bottom");
         check(com.oplus.systemui.volume.utils.material.VolumeBlurManager.INSTANCE.shortcutMaterials>=2&&com.oplus.systemui.volume.utils.material.VolumeBlurManager.INSTANCE.accessoryMaterials==0,"expanded shortcuts use the same native BAR_BACKGROUND material as the tracks, without the brighter SIDE_ACCESSORY mix");
         check(sound.isEnabled()&&zen.isEnabled(),"shortcuts enable when native expansion reaches its endpoint");
-        check(selector.getTranslationX()==0&&sound.getAlpha()==1&&zenOn.getAlpha()==0&&ValueAnimator.running.isEmpty(),"initial native state renders immediately without a startup switching animation");
-        sound.performClick();check(owner.mController.ringerCalls==0,"selecting the current sound segment avoids redundant native writes");
-        vibrate.performClick();check(owner.mState.ringerModeInternal==1,"vibration segment directly selects vibration through the native controller");
-        ValueAnimator firstMotion=ValueAnimator.running.get(0);
-        check(firstMotion.duration==200&&selector.getTranslationX()==0,"sound switching starts a short animation from the current selection pose");
-        firstMotion.advance(.2f);float interruptedX=selector.getTranslationX(),interruptedAlpha=vibrate.getAlpha();
-        check(interruptedX>0&&interruptedX<231&&interruptedAlpha>.6f&&interruptedAlpha<1&&vibrate.scaleX>.92f&&vibrate.scaleX<1,"intermediate sound frames slide the selector and smoothly transition icon emphasis");
-        silent.performClick();check(owner.mState.ringerModeInternal==0,"silent segment directly selects silent");
-        check(firstMotion.cancelled&&firstMotion.listeners.isEmpty()&&selector.getTranslationX()==interruptedX&&vibrate.getAlpha()==interruptedAlpha,"rapid reversal cancels stale callbacks and preserves the exact current selection pose");
-        ValueAnimator.finishAll();
-        check(selector.getTranslationX()==462&&silent.getAlpha()==1&&sound.getAlpha()==.6f,"sound selection reaches the exact silent slot without changing cell geometry");
-        sound.performClick();check(owner.mState.ringerModeInternal==2&&owner.mController.ringerCalls==3,"ringing segment directly selects ringing without changing stream volume");
-        ValueAnimator.finishAll();
+        check(segments.selectedIndex==0&&!zenIcon.state.value&&ValueAnimator.running.isEmpty(),"initial sound state goes directly to the native component without an app animation");
+        sound.performClick();check(owner.mController.ringerCalls==0,"current native sound segment avoids redundant writes");
+        vibrate.performClick();check(owner.mState.ringerModeInternal==1&&segments.selectedIndex==1,"native vibration selection routes to the controller using ringer mode one");
+        silent.performClick();check(owner.mState.ringerModeInternal==0&&segments.selectedIndex==2,"native silent selection maps segment two to ringer mode zero");
+        sound.performClick();check(owner.mState.ringerModeInternal==2&&owner.mController.ringerCalls==3,"native ringing selection maps segment zero to ringer mode two");
+        check(ValueAnimator.running.isEmpty(),"sound switching is entirely delegated to vendor springs and Lottie");
         owner.mState.zenMode=3;d.mDialogView.observer.dispatchOnPreDraw();
-        ValueAnimator zenMotion=ValueAnimator.running.get(0);zenMotion.advance(.2f);
-        float interruptedZen=zenOn.getAlpha();
-        check(interruptedZen>0&&interruptedZen<1&&Math.abs(zenOff.getAlpha()+interruptedZen-1)<.0001f&&zenOn.scaleX<1,"DND crossfades both native icons with a subtle scale transition at stationary panel frames");
+        com.coui.appcompat.animation.dynamicanimation.COUISpringAnimation zenMotion=com.coui.appcompat.animation.dynamicanimation.COUISpringAnimation.running.get(0);zenMotion.advance(.2f);
+        float interruptedZen=zenControl.getChildAt(0).getAlpha();
+        check(interruptedZen>0&&interruptedZen<1&&zenIcon.animatedUpdates>0&&ValueAnimator.running.isEmpty(),"DND state changes run native Lottie and a native highlight spring without a handcrafted icon crossfade");
+        check(zenIcon.submittedTint!=null&&zenIcon.submittedTint.getDefaultColor()==zenIcon.iconViewProxy.tint.getDefaultColor(),"DND Lottie captures the target contrast tint when its native animation is submitted");
         zen.performClick();check(owner.mState.zenMode==0,"DND shortcut disables the active native zen mode");
-        check(zenMotion.cancelled&&zenMotion.listeners.isEmpty()&&zenOn.getAlpha()==interruptedZen,"reversing DND during transition continues from the visible icon blend");
-        ValueAnimator.finishAll();
-        check(zenOff.getAlpha()==1&&zenOn.getAlpha()==0&&zenControl.getChildAt(0).getAlpha()==0,"DND off finishes with its inactive native icon and no selected fill");
+        check(!zenMotion.cancelled&&zenMotion.target==0&&zenControl.getChildAt(0).getAlpha()==interruptedZen,"reversing DND retargets the existing native spring without snapping the visible highlight");
+        com.coui.appcompat.animation.dynamicanimation.COUISpringAnimation.finishAll();
+        check(!zenIcon.state.value&&zenControl.getChildAt(0).getAlpha()==0,"DND off finishes with its inactive native icon and no selected fill");
         zen.performClick();check(owner.mState.zenMode==3&&owner.mController.zenCalls==2,"DND shortcut restores the previous zen mode instead of forcing a new policy");
-        ValueAnimator.finishAll();
-        check(zenOn.getAlpha()==1&&zenOff.getAlpha()==0&&zenControl.getChildAt(0).getAlpha()==1,"DND on finishes with the native active icon and selected fill");
+        com.coui.appcompat.animation.dynamicanimation.COUISpringAnimation.finishAll();
+        check(zenIcon.state.value&&zenControl.getChildAt(0).getAlpha()==1,"DND on finishes with the native active icon and selected fill");
         owner.mState.ringerModeInternal=0;d.mDialogView.observer.dispatchOnPreDraw();
         check(silent.selected&&!sound.selected&&silent.getContentDescription().toString().contains("已选中"),"external native mode updates refresh segment selection and accessibility at stationary frames");
-        ValueAnimator externalMotion=ValueAnimator.running.get(0);externalMotion.advance(.15f);
-        check(selector.getTranslationX()>0&&selector.getTranslationX()<462&&owner.mController.ringerCalls==3&&owner.mController.zenCalls==2,"external state changes also animate without extra controller writes");
+        check(segments.selectedIndex==2&&owner.mController.ringerCalls==3&&owner.mController.zenCalls==2,"external state updates go through the native selection API without extra controller writes");
         owner.mState.disallowRinger=true;d.mDialogView.observer.dispatchOnPreDraw();sound.performClick();
         check(!sound.isEnabled()&&owner.mController.ringerCalls==3,"native ringer restrictions disable the shortcut and block writes");
         owner.mState.disallowRinger=false;
@@ -347,14 +379,23 @@ public final class VolumePanelCheck {
         check(outsideUp.returnEarly,"outside gesture remains consumed until release");
         check(outside.returnEarly&&owner.dismissals==1,"outside tap requests native dismiss rather than destroying transition state");
         check(d.mDialogView.getBackground()==bounded,"compact surface remains through native collapse");
+        before(VIEW+"#showOrHideAnimation",d,0f,false,1,null);
+        h.itemView.screenX=900;row.slider.screenX=sourceBarX;row.slider.setAlpha(.35f);
+        d.mDialogView.observer.dispatchOnPreDraw();
+        check(Math.abs(d.mVerticalRowIconParent.getAlpha()-.35f)<.001f,"returning sidebar buttons fade with the original volume bar during panel dismissal");
+        row.slider.setAlpha(0f);d.mDialogView.observer.dispatchOnPreDraw();
+        row.slider.setAlpha(1f);d.mDialogView.observer.dispatchOnPreDraw();
+        check(d.mVerticalRowIconParent.getAlpha()==0f&&quick.getAlpha()==0f,"native remove-animation alpha reset cannot flash old buttons back before terminal hide");
         CloudCheck.after(VIEW+"#resetSliderState",d,null);
         check(d.mDialogView.getBackground()==original&&button.leftToLeft==-1&&button.topMargin==0&&button.width==209&&button.height==209,"native terminal reset restores background and configured sidebar button size");
         check(d.mVolumeRecyclerview.layout.height==940,"native terminal reset restores the full configured sidebar length");
         check(d.mVolumePanelTipsText.getVisibility()==4&&d.mVolumePanelTitleText.getVisibility()==View.VISIBLE&&d.mSettingsButton.getVisibility()==View.VISIBLE,"terminal cleanup restores each accessory original visibility");
         check(d.mDialogView.observer.listeners.isEmpty(),"terminal reset removes the native frame observer");
         check(quick.getParent()==null&&sound.click==null&&vibrate.click==null&&silent.click==null&&zen.click==null,"native terminal cleanup removes the shortcut row and all four click listeners");
-        float stoppedX=selector.getTranslationX();externalMotion.advance(1);
-        check(externalMotion.cancelled&&externalMotion.listeners.isEmpty()&&ValueAnimator.running.isEmpty()&&selector.getTranslationX()==stoppedX,"terminal cleanup cancels switching animation and prevents late frame mutations");
+        check(segments.cleared&&segments.indicatorSpringTranslationX.cancelled&&segments.springAnimationBounce.cancelled&&segments.lottieViews.stream().allMatch(v->v.cancelled),"terminal cleanup cancels vendor indicator springs, pending gestures and Lottie animations");
+        check(segments.iconSpringAnimatorSets.stream().allMatch(v->v.cancelled)&&segments.scaleSyncAnimatorHelper.stream().allMatch(v->v.spring.cancelled)&&segments.iconAlphaSpringAnimatorSets.stream().allMatch(v->v.alphaSpringAnim.cancelled&&v.colorSpringAnim.cancelled),"terminal cleanup cancels native icon translation, scale and color springs");
+        check(segments.pressScaleHelper.stream().allMatch(v->v.spring.cancelled),"terminal cleanup also cancels native press feedback springs");
+        check(zenIcon.recycled&&zen.touch==null&&zenMotion.cancelled,"terminal cleanup recycles the native DND icon and cancels its spring and touch feedback");
         float nativeEnd=endpoint("getEndX",animator,h);
         check(nativeEnd==999,"completed transitions no longer override native animator endpoints");
         Bundle off=config();off.putBoolean("enabled",false);CloudCheck.config(off);VolumeHook.refresh();
@@ -370,10 +411,26 @@ public final class VolumePanelCheck {
         Api102Runtime.callbacks.get(BASE+"utils.material.VolumeBlurManager#getVolumePanelBackground").after(panelMaterial);
         d.mDialogView.setBackground(panelAuto);CloudCheck.after(HELPER+"#mountPanelBackground",helper,null);
         draw=before(QsTintCheck.B+"ViewBlurProxy#applyConfigToPlatformBlur",panelAuto.proxy);
-        check(panelBlur.cornerRadius==77&&panelBlur.pathProvider==nativePath,"default compact card updates cached native blur corners while retaining native shape provider");
+        check(panelBlur.cornerRadius==77&&panelBlur.pathProvider==null&&panelBlur.radiusWeight==3f&&panelBlur.enableMotionSmoothCorner,"offset compact panel uses native backend local smooth geometry without a view-space path provider");
         QsTintCheck.after(QsTintCheck.B+"ViewBlurProxy#applyConfigToPlatformBlur",draw);
+        check(panelBlur.pathProvider==nativePath&&panelBlur.radiusWeight==null&&!panelBlur.enableMotionSmoothCorner,"panel smooth shape overrides restore the native config after submission");
         d.mDialogView.getBackground().draw(new Canvas());
         check(panelAuto.getBounds().left==Math.max(22,12+Math.round((h.itemView.actualWidth-56)/2f)-22),"left sidebar anchors panel padding to the visible track instead of its transparent holder");
+        RecyclerView.ViewHolder leftAdded=holder(d,3,900,300);
+        float leftBase=leftAdded.itemView.screenX-leftAdded.itemView.getTranslationX();
+        float leftEnd=leftBase+endpoint("getEndX",animator,leftAdded);
+        float leftStart=leftBase+endpoint("resolvePanelStartTranslationX",animator,leftAdded);
+        check(leftStart<=leftEnd-row.slider.layout.width-22,"left-side panels give the last added row an outward start and the matching reverse exit");
+        GradientDrawable plainPanel=new GradientDrawable();plainPanel.setCornerRadius(77);
+        HookCallback.Param plainFactory=CloudCheck.param(null,plainPanel,new android.content.Context(),true,d.mDialogView,77f);
+        Api102Runtime.callbacks.get(BASE+"utils.material.VolumeBlurManager#getVolumePanelBackground").after(plainFactory);
+        Drawable smoothFlat=(Drawable)plainFactory.getResult();smoothFlat.setBounds(panelAuto.getBounds());smoothFlat.draw(new Canvas());
+        check(((android.graphics.Path)Reflect.getObjectField(smoothFlat,"clip")).smooth&&plainPanel.getCornerRadius()==77,"default panel flat material uses native smooth clipping and restores the underlying circular radius");
+        defaults.putBoolean("volume_panel_tint",true);defaults.putInt("volume_panel_color",0x44112233);CloudCheck.config(defaults);
+        smoothFlat.draw(new Canvas());
+        Object smoothFill=Reflect.getObjectField(smoothFlat,"fill");
+        check(smoothFill instanceof com.oplusos.systemui.common.view.SmoothCornersGradientDrawable&&Reflect.getObjectField(smoothFill,"weight").equals(3f),"tinted panel fill uses the native smooth drawable rather than intersecting a circular fill");
+        defaults.putBoolean("volume_panel_tint",false);CloudCheck.config(defaults);
         before(BAR+"#onMeasure",row.slider,0,0);check(row.slider.mBackgroundRadius<=row.slider.mBackgroundWidth/2,"compact sizing without custom corners keeps native radius within track width");
         d.volumeListAdapter.count=1;CloudCheck.after(BASE+"VolumeListAdapter#switchToDataSourcePanel",d.volumeListAdapter,null,false);
         d.mDialogView.getBackground().draw(new Canvas());
@@ -395,5 +452,18 @@ public final class VolumePanelCheck {
         }
         cornerOnlyScenario(0);cornerOnlyScenario(18);
         System.out.println("Volume native preservation checks passed: "+checks);
+    }
+    static void failedShortcutInitializationRestoresAnUnmountedPanel()throws Throwable {
+        CloudCheck.config(config());
+        OplusVolumeDialogImpl owner=new OplusVolumeDialogImpl();OplusVolumeDialogView d=owner.mOplusVolumeDialogView;
+        d.mDialogView.res=volumeResources();d.mDialogView.setBackground(null);
+        OplusVolumeRow row=new OplusVolumeRow();owner.mRows.add(row);d.volumeListAdapter.rows.add(row);
+        RecyclerView.ViewHolder h=holder(d,0,900,300);((ViewGroup)h.itemView).addView(row.view);row.sliderFrame.parent=row.view;row.slider.parent=row.sliderFrame;
+        OplusQSThreeStageLayout.failConstruction=true;
+        try {
+            HookCallback.Param result=before(VIEW+"#expandPanel",d);
+            check(!result.returnEarly&&d.mDialogView.getBackground()==null,"failed native shortcut initialization preserves a null native background and allows native expansion");
+            check(d.mSettingsButton.getVisibility()==View.VISIBLE&&d.mDialogView.observer.listeners.isEmpty(),"failed shortcut initialization restores accessories without leaving a compact frame observer");
+        } finally {OplusQSThreeStageLayout.failConstruction=false;}
     }
 }

@@ -1,7 +1,6 @@
 package io.github.baishangui.thunder;
 
 import android.content.Context;
-import android.animation.ValueAnimator;
 import android.graphics.Canvas;
 import android.graphics.Outline;
 import android.graphics.Path;
@@ -9,14 +8,13 @@ import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.DrawableWrapper;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.LayerDrawable;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
-import android.view.animation.PathInterpolator;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.drawable.RippleDrawable;
@@ -37,8 +35,18 @@ final class VolumeHook {
     private static final Map<View,Map<String,Object>> barDefaults=Collections.synchronizedMap(new WeakHashMap<>());
     private static final String[] MORPH_FIELDS={"mCurBackgroundWidth","mCurProgressWidth","mCurBackgroundRadius","mCurProgressRadius","mCurPaddingVertical"};
     private static final String[] ACCESSORIES={"mVolumePanelTitleIcon","mVolumePanelTitleText","mVolumePanelTipsText","mSettingsButton","mVolumeSettingText"};
+    private static final ThreadLocal<Boolean> delayedEntrance=new ThreadLocal<>();
+    private static final float PANEL_SMOOTH_WEIGHT=3f;
+    private static Method panelClipBuilder;
+    private static Class<?> panelFillType;
 
     static void install(ClassLoader loader) {
+        bind("smooth-panel",()->{
+            try {panelClipBuilder=Reflect.findClass(MATERIAL+"OplusVolumeShapePathHelper",loader).getMethod(
+                    "buildClipPath",Path.class,Rect.class,float.class,float.class,boolean.class);}
+            catch(NoSuchMethodException error) {throw new IllegalStateException("Native panel shape API",error);}
+            panelFillType=Reflect.findClass("com.oplusos.systemui.common.view.SmoothCornersGradientDrawable",loader);
+        });
         bind("view",()->Api102Runtime.hookAllConstructors(Reflect.findClass(BASE+"view.OplusVolumeDialogView",loader),new HookCallback() {
             @Override protected void afterHookedMethod(Param p) { if(!p.hasThrowable())dialogs.put(p.thisObject,true); }
         }));
@@ -64,10 +72,62 @@ final class VolumeHook {
                 if(panels.containsKey(p.thisObject))return;
                 HookConfig c=ShadeHook.snapshot();if(!c.enabled||!c.volumeCompact)return;
                 try { preparePanel(p.thisObject); }
-                catch(Throwable error) { restorePanel(p.thisObject);ShadeHook.frameworkFailure("volume-native-panel",error); }
+                catch(Throwable error) {
+                    ShadeHook.frameworkFailure("volume-native-panel",error);
+                    java.io.StringWriter trace=new java.io.StringWriter();
+                    error.printStackTrace(new java.io.PrintWriter(trace));
+                    Api102Runtime.log("Thunder: volume-native-panel initialization\n"+trace);
+                    restorePanel(p.thisObject);
+                }
             }
             @Override protected void afterHookedMethod(Param p) {
                 Compact panel=panels.get(p.thisObject);if(panel!=null)panel.hideAccessories();
+            }
+        });
+        hook(loader,BASE+"anim.PanelExpandPreludeAnimator",new String[]{"start","collapseForPanelDismiss"},new HookCallback() {
+            @Override protected void beforeHookedMethod(Param p) {
+                for(Compact panel:panels.values()) {
+                    Object d=panel.dialog.get();
+                    if(d!=null&&Reflect.getObjectField(d,"panelExpandPrelude")==p.thisObject) {
+                        // Compact expansion hands the existing buttons to the moving row.
+                        // The fullscreen prelude would shrink them upwards before that handoff.
+                        Reflect.callMethod(p.thisObject,"cancelRunningAnimationOnly");p.setResult(null);return;
+                    }
+                }
+            }
+        });
+        hook(loader,BASE+"view.OplusVolumeDialogView",new String[]{"startBtnThickAnim"},new HookCallback() {
+            @Override protected void beforeHookedMethod(Param p) {if(panels.containsKey(p.thisObject))p.setResult(null);}
+        });
+        hook(loader,BASE+"view.OplusVolumeDialogView",new String[]{"showOrHideAnimation"},new HookCallback() {
+            @Override protected void beforeHookedMethod(Param p) {
+                Compact panel=panels.get(p.thisObject);
+                if(panel!=null) {panel.dismissing=!Boolean.TRUE.equals(p.args[1]);panel.dismissOpacity=1f;}
+            }
+        });
+        hook(loader,"com.oplus.systemui.plugins.qs.customize.view.tile.OplusQSThreeStageLayout",new String[]{"getActiveIconColor"},new HookCallback() {
+            @Override protected void afterHookedMethod(Param p) {
+                if(p.hasThrowable()||!Boolean.TRUE.equals(p.args[0]))return;
+                for(Compact panel:panels.values())if(panel.soundSegments==p.thisObject) {
+                    p.setResult(panel.selectedIconColor(((Number)p.getResult()).intValue()));return;
+                }
+            }
+        });
+        hook(loader,BASE+"anim.VolumeItemAnimator",new String[]{"animateAddImpl","animateMoveImpl"},new HookCallback() {
+            @Override protected void beforeHookedMethod(Param p) {
+                delayedEntrance.remove();
+                if(p.args.length==0)return;
+                View item=(View)Reflect.getObjectField(p.args[0],"itemView");Compact panel=forItem(item);
+                if(panel!=null&&((Number)Reflect.callMethod(Reflect.getObjectField(p.thisObject,"adapter"),"getCurrentDataSource")).intValue()==1
+                        &&!panel.isSource(item))delayedEntrance.set(true);
+            }
+            @Override protected void afterHookedMethod(Param p) {delayedEntrance.remove();}
+        });
+        hook(loader,"android.view.ViewPropertyAnimator",new String[]{"setStartDelay"},new HookCallback() {
+            @Override protected void beforeHookedMethod(Param p) {
+                // Keep vendor springs, staggering and completion listeners; only stage new rows
+                // after the original bar/button pair has begun its horizontal movement.
+                if(Boolean.TRUE.equals(delayedEntrance.get()))p.args[0]=((Number)p.args[0]).longValue()+99L;
             }
         });
         hook(loader,BASE+"VolumeListAdapter",new String[]{"switchToDataSourcePanel"},new HookCallback() {
@@ -97,7 +157,12 @@ final class VolumeHook {
                     if(!method.equals("resolvePanelStartTranslationX"))panel.arrange(Reflect.getObjectField(p.thisObject,"adapter"));
                     int[] xy=location(item);
                     if(method.equals("resolvePanelStartTranslationX")) {
-                        p.setResult(VolumePanelGeometry.translation(panel.anchorX,xy[0],item.getTranslationX()));
+                        float start=panel.anchorX;
+                        if(!panel.isSource(item)) {
+                            float end=panel.rowX(p.args[0],item),step=panel.barWidth()+panel.inset;
+                            if(!Float.isNaN(end))start=panel.bounds.opensLeft()?Math.max(start,end+step):Math.min(start,end-step);
+                        }
+                        p.setResult(VolumePanelGeometry.translation(start,xy[0],item.getTranslationX()));
                     } else if(method.equals("getTranslationY")) {
                         float y=VolumePanelGeometry.translation(panel.rowTop,xy[1],item.getTranslationY());
                         // Start and end at the same vertical pose; retain the native X spring.
@@ -105,12 +170,8 @@ final class VolumeHook {
                         Reflect.setObjectField(p.thisObject,"cachedPanelBiasTranslationY",y);p.setResult(y);
                     } else {
                         Object adapter=Reflect.getObjectField(p.thisObject,"adapter");panel.arrange(adapter);
-                        int index=((Number)Reflect.callMethod(p.args[0],"getAbsoluteAdapterPosition")).intValue();
-                        if(index<0)index=((Number)Reflect.callMethod(p.args[0],"getLayoutPosition")).intValue();
-                        if(index<0)index=((Number)Reflect.callMethod(p.args[0],"getOldPosition")).intValue();
-                        if(index<0)return;
                         // Native LayoutManager keeps physical LTR order on both key sides.
-                        float x=VolumePanelGeometry.trackRowX(panel.bounds,index,panel.barWidth(),item.getWidth(),panel.inset)+panel.rowOffset;
+                        float x=panel.rowX(p.args[0],item);if(Float.isNaN(x))return;
                         panel.follow(item,x);
                         p.setResult(VolumePanelGeometry.translation(x,xy[0],item.getTranslationX()));
                     }
@@ -236,8 +297,9 @@ final class VolumeHook {
                 "applyVolumeBarPanelBottomAmount","applyVolumeBarProgressMixColors","applySettingsButtonMixColors",
                 "applyPlatformBlurMixAfterConfigWrite","syncVolumeBarPlatformLightBounds","syncVolumeBarProgressCorner"));
         // These small native getters are called by ART-compiled animation code.
-        bind("button-animation-deopt",()->Api102Runtime.deoptimizeCallers(Reflect.findClass(BASE+"view.OplusVolumeDialogView",loader),"startBtnThickAnim"));
+        bind("button-animation-deopt",()->Api102Runtime.deoptimizeCallers(Reflect.findClass(BASE+"view.OplusVolumeDialogView",loader),"startBtnThickAnim","expandPanel","showOrHideAnimation"));
         bind("animation-deopt",()->Api102Runtime.deoptimizeCallers(Reflect.findClass(BASE+"anim.VolumeItemAnimator",loader),"animateAddImpl","animateMoveImpl","runPendingAnimations"));
+        bind("shortcut-palette-deopt",()->Api102Runtime.deoptimizeCallers(Reflect.findClass("com.oplus.systemui.plugins.qs.customize.view.tile.OplusQSThreeStageLayout",loader),"tintIconColor","selectSegmentAt","setTranslationXAndScale"));
     }
 
     private static Drawable material(Drawable original,Context context,String role,View host,ClassLoader loader) throws Throwable {
@@ -283,6 +345,18 @@ final class VolumeHook {
         if(width<=0&&lp!=null)width=lp.width;
         if(height<=0&&lp!=null)height=lp.height;
         return width>0&&height>0?Math.min(radius,Math.min(width,height)/2f):radius;
+    }
+
+    static boolean smoothPanel(Object blur) {
+        if(!"volume-panel".equals(Reflect.getAdditionalInstanceField(blur,"thunder.role")))return false;
+        Object ref=Reflect.getAdditionalInstanceField(blur,"volume.host");
+        Object host=ref instanceof WeakReference<?>?((WeakReference<?>)ref).get():null;
+        for(Compact panel:new ArrayList<>(panels.values()))if(host!=null&&panel.root.get()==host)return true;
+        return false;
+    }
+    private static void panelClip(Path path,Rect bounds,float radius) {
+        try {panelClipBuilder.invoke(null,path,bounds,radius,PANEL_SMOOTH_WEIGHT,true);}
+        catch(ReflectiveOperationException error) {throw new IllegalStateException("Native panel smooth path",error);}
     }
 
     private static int dp(View v,int value) { return Math.round(value*v.getResources().getDisplayMetrics().density); }
@@ -446,6 +520,9 @@ final class VolumeHook {
         final HookConfig config;
         final WeakReference<Object> dialog;
         final WeakReference<View> root,recycler,anchorItem;
+        final WeakReference<View> sourceBar;
+        final View sourceGroup;
+        final Map<View,float[]> sourceAccessories=new LinkedHashMap<>();
         WeakReference<View> driver;
         final float startBarWidth,startBarRadius;
         float targetX,targetY,backgroundProgress=Float.NaN,lastProgress=-1;
@@ -454,13 +531,14 @@ final class VolumeHook {
         final Map<View,Integer> hidden=new WeakHashMap<>();
         final Map<View,Boolean> bars=new WeakHashMap<>();
         final Rect usable=new Rect();
-        final int anchorX,anchorY,anchorRight,inset,sourceHeight,trackTop,trackBottom,sourceRowHeight,anchorTrackY;
+        final int anchorX,anchorY,anchorRight,inset,sourceHeight,trackTop,trackBottom,sourceRowHeight,anchorTrackY,sourceBarX;
         int rowHeight;
         VolumePanelGeometry.Bounds bounds;
         int rowTop,count,arrangedCount=-1;
         final int labelId;
         NativePanelSurface surface;
-        boolean outsideGesture;
+        boolean outsideGesture,dismissing;
+        float dismissOpacity=1f;
         int rowWidth;
         float rowOffset;
         FrameLayout shortcuts,soundSegments,zenControl;
@@ -469,21 +547,22 @@ final class VolumeHook {
         final View.OnLayoutChangeListener materialLayout=(v,l,t,r,b,ol,ot,or,ob)->{
             if(r-l!=or-ol||b-t!=ob-ot)refreshMaterial(v);
         };
+        final View.OnLayoutChangeListener selectionLayout=(v,l,t,r,b,ol,ot,or,ob)->refreshSelection(v);
         final View.OnAttachStateChangeListener materialAttach=new View.OnAttachStateChangeListener() {
             @Override public void onViewAttachedToWindow(View v) {refreshMaterial(v);}
             @Override public void onViewDetachedFromWindow(View v) { }
         };
-        final ImageView[] soundButtons=new ImageView[3];
-        ImageView zenOff,zenOn;
-        View soundSelection,zenSelection;
-        ValueAnimator shortcutMotion;
-        final float[] soundWeights=new float[3];
-        float selectionX,selectionAlpha,zenWeight;
+        final View[] soundButtons=new View[3];
+        View zenIcon;
+        View zenSelection;
+        int[] selectedFlags;
+        Object zenSpring,zenPress;
         int shortcutStep;
         int shownRinger=-1,shownZen=-1,lastZen=1;
         boolean hasVibrator,alertSlider;
         Compact(Object d,View r,View list,View item,View bar) {
             anchorItem=new WeakReference<>(item);
+            sourceBar=new WeakReference<>(bar);sourceBarX=location(bar)[0];
             startBarWidth=((Number)Reflect.getObjectField(bar,"mBackgroundWidth")).floatValue();
             startBarRadius=((Number)Reflect.getObjectField(bar,"mBackgroundRadius")).floatValue();
             labelId=list.getResources().getIdentifier("volume_text","id","com.android.systemui");
@@ -502,6 +581,17 @@ final class VolumeHook {
             trackBottom=(frame==null?0:frame.getPaddingBottom())+bar.getPaddingBottom()+endPadding;
             sourceRowHeight=bar.getHeight()+(frame==null?0:frame.getPaddingTop()+frame.getPaddingBottom());
             anchorTrackY=location(bar)[1]+bar.getPaddingTop()+endPadding;
+            View group=view(d,"mVerticalRowIconParent");sourceGroup=group;
+            if(group!=null) {
+                Reflect.callMethod(Reflect.callMethod(group,"animate"),"cancel");
+                int[] groupLocation=location(group);
+                sourceAccessories.put(group,new float[]{group.getTranslationX(),group.getTranslationY(),group.getScaleX(),group.getScaleY(),group.getAlpha(),group.getVisibility(),groupLocation[0],groupLocation[1]});
+                for(String key:new String[]{"mMoreRowStreamLl","mAppVolumeAdjustFl","mODICaptionsView"}) {
+                    View button=view(d,key);if(button==null)continue;
+                    Reflect.callMethod(Reflect.callMethod(button,"animate"),"cancel");
+                    sourceAccessories.put(button,new float[]{button.getTranslationX(),button.getTranslationY(),button.getScaleX(),button.getScaleY(),button.getAlpha(),button.getVisibility()});
+                }
+            }
         }
         void arrange(Object adapter) {
             View r=root.get(),list=recycler.get();Object d=dialog.get();if(r==null||list==null||d==null)return;
@@ -537,21 +627,49 @@ final class VolumeHook {
         void arrangeShortcuts() {
             View r=root.get();Object d=dialog.get();if(!(r instanceof ViewGroup parent)||d==null)return;
             if(shortcuts==null) {
+                // Reuse the firmware control, including its indicator drawable, COUI springs,
+                // drag gestures, press feedback and Lottie icons. Do not reproduce its visuals.
+                soundSegments=(FrameLayout)Reflect.newInstance(Reflect.findClass(
+                        "com.oplus.systemui.plugins.qs.customize.view.tile.OplusQSThreeStageLayout",
+                        d.getClass().getClassLoader()),r.getContext());
+                // This host uses the normal native highlight; use its matching native icon
+                // palette too, rather than the QS theme's potentially white-on-white colors.
+                Reflect.setObjectField(soundSegments,"disableTheme",true);
                 shortcuts=new FrameLayout(r.getContext());
-                soundSegments=new FrameLayout(r.getContext());zenControl=new FrameLayout(r.getContext());
+                zenControl=new FrameLayout(r.getContext());
                 for(View group:new View[]{soundSegments,zenControl}) {
                     group.addOnLayoutChangeListener(materialLayout);group.addOnAttachStateChangeListener(materialAttach);
                 }
-                soundSelection=new View(r.getContext());zenSelection=new View(r.getContext());
-                soundSegments.addView(soundSelection);zenControl.addView(zenSelection);
-                for(int i=0;i<soundButtons.length;i++) {
-                    final int mode=2-i;
-                    soundButtons[i]=new ImageView(r.getContext());
-                    soundButtons[i].setOnClickListener(v->shortcut(mode));
-                    soundSegments.addView(soundButtons[i]);
-                }
-                zenOff=new ImageView(r.getContext());zenOn=new ImageView(r.getContext());
-                zenControl.addView(zenOff);zenControl.addView(zenOn);
+                java.util.List<?> frames=(java.util.List<?>)Reflect.getObjectField(soundSegments,"frameLayoutViews");
+                for(int i=0;i<3;i++)soundButtons[i]=(View)frames.get(i);
+                soundSegments.setOnClickListener(v->{
+                    Object mode=v.getTag();
+                    if(mode instanceof Integer selected)shortcut(selected);
+                    // The native control previews a tap/drag before the controller confirms it.
+                    // Reconcile even a rejected mode or an asynchronous controller response.
+                    syncSoundSelection();
+                });
+                zenSelection=new View(r.getContext());zenControl.addView(zenSelection);
+                Object span=Reflect.newInstance(Reflect.findClass("com.oplusos.systemui.common.model.SpanSize",d.getClass().getClassLoader()),1,1);
+                zenIcon=(View)Reflect.newInstance(Reflect.findClass("com.oplus.systemui.plugins.qs.customize.view.tile.OplusQSIconView",d.getClass().getClassLoader()),r.getContext(),span,false);
+                Reflect.callMethod(zenIcon,"disableTheme",true);
+                // Volume is itself a dialog; use the native detail-icon allowance for Lottie.
+                Reflect.callMethod(Reflect.getObjectField(zenIcon,"iconViewProxy"),"setDetailTile",true);
+                zenControl.addView(zenIcon);
+                zenPress=Reflect.newInstance(Reflect.findClass("com.coui.appcompat.pressfeedback.COUIPressFeedbackHelper",d.getClass().getClassLoader()),zenControl,0);
+                zenControl.setOnTouchListener((v,event)->{
+                    int action=event.getActionMasked();
+                    if(action==MotionEvent.ACTION_DOWN||action==MotionEvent.ACTION_UP||action==MotionEvent.ACTION_CANCEL)
+                        Reflect.callMethod(zenPress,"executeFeedbackAnimator",action==MotionEvent.ACTION_DOWN);
+                    return false;
+                });
+                try {
+                    Object alpha=Reflect.findClass("com.coui.appcompat.animation.dynamicanimation.COUIDynamicAnimation",d.getClass().getClassLoader()).getField("ALPHA").get(null);
+                    zenSpring=Reflect.newInstance(Reflect.findClass("com.coui.appcompat.animation.dynamicanimation.COUISpringAnimation",d.getClass().getClassLoader()),zenSelection,alpha,0f);
+                    Object spring=Reflect.newInstance(Reflect.findClass("com.coui.appcompat.animation.dynamicanimation.COUISpringForce",d.getClass().getClassLoader()));
+                    Reflect.callMethod(spring,"setBounce",0f);Reflect.callMethod(spring,"setResponse",.35f);
+                    Reflect.callMethod(zenSpring,"setSpring",spring);
+                } catch(ReflectiveOperationException error){throw new IllegalStateException("Native DND spring",error);}
                 shortcuts.addView(soundSegments);shortcuts.addView(zenControl);
                 Object owner=Reflect.getObjectField(d,"volumeInteractor"),controller=Reflect.getObjectField(owner,"mController");
                 hasVibrator=(Boolean)Reflect.callMethod(controller,"hasVibrator");
@@ -584,14 +702,52 @@ final class VolumeHook {
             FrameLayout.LayoutParams zenLp=new FrameLayout.LayoutParams(side,side);
             zenLp.leftMargin=innerWidth-side;zenControl.setLayoutParams(zenLp);
             float corner=Math.min(side/2f,config.volumeBar.cornerEnabled?dp(r,config.volumeBar.corner):startBarRadius);
-            for(View selection:new View[]{soundSelection,zenSelection}) {
-                selection.setLayoutParams(new FrameLayout.LayoutParams(side,side));
-                // Keep the chosen material ARGB visible in selected slots too. A filled
-                // black/white overlay changes its apparent tint by another 15 percent.
-                GradientDrawable fill=new GradientDrawable();fill.setColor(0);fill.setCornerRadius(corner);
-                fill.setStroke(Math.max(1,dp(r,1)),(foreground&0xffffff)|0x66000000);
-                selection.setBackground(fill);
-            }
+            Reflect.callMethod(soundSegments,"updateContainerLayoutParams",0,0);
+            Reflect.callMethod(soundSegments,"updateIconBgDrawable");
+            Reflect.callMethod(soundSegments,"onIconDrawableUpdate",false);
+            Reflect.callMethod(soundSegments,"onIconDrawableUpdate",true);
+            Reflect.callMethod(soundSegments,"tintColor",(Object)null);
+            View indicator=(View)Reflect.getObjectField(soundSegments,"indicatorView");
+            int indicatorSize=Math.min(dp(r,42),Math.round(side*.75f));
+            ViewGroup.LayoutParams indicatorLp=indicator.getLayoutParams();
+            indicatorLp.width=indicatorLp.height=indicatorSize;indicator.setLayoutParams(indicatorLp);
+            int iconSize=Math.min(dp(r,20),Math.round(side/1.2f));
+            for(String key:new String[]{"iconViews","lottieViews"})
+                for(Object child:(java.util.List<?>)Reflect.getObjectField(soundSegments,key)) {
+                    View icon=(View)child;ViewGroup.LayoutParams iconLp=icon.getLayoutParams();
+                    iconLp.width=iconLp.height=iconSize;icon.setLayoutParams(iconLp);
+                }
+            // DND uses the same native selected-surface builder, without a hand-drawn border.
+            zenSelection.setLayoutParams(new FrameLayout.LayoutParams(indicatorSize,indicatorSize,android.view.Gravity.CENTER));
+            Object pool;
+            try {pool=Reflect.findClass("com.oplus.systemui.qs.base.res.SepQSResPool",d.getClass().getClassLoader()).getField("INSTANCE").get(null);}
+            catch(ReflectiveOperationException error){throw new IllegalStateException(error);}
+            Object builder=Reflect.callMethod(Reflect.callMethod(pool,"getHighLightIconBg"),"getValue");
+            try {
+                // Kotlin builders also declare a covariant build plus a synthetic bridge.
+                // Invoke the vendor interface directly so both return types cannot match.
+                Method build=Reflect.findClass("com.oplus.systemui.qs.base.res.model.QSDrawableBuilder",d.getClass().getClassLoader())
+                        .getMethod("build",View.class,boolean.class,Integer.class);
+                // Use the same native normal highlight on both hosts. The QS-only theme
+                // transition layer has no theme owner in this volume dialog.
+                indicator.setBackground((Drawable)build.invoke(builder,indicator,true,null));
+                zenSelection.setBackground((Drawable)build.invoke(builder,zenSelection,true,null));
+                Object oval=Reflect.findClass("com.oplusos.systemui.common.outline.OvalOutlineProvider",d.getClass().getClassLoader()).getField("INSTANCE").get(null);
+                Reflect.callMethod(indicator.getBackground(),"setPathProvider",oval);
+                Reflect.callMethod(zenSelection.getBackground(),"setPathProvider",oval);
+                Object flag=Reflect.findClass("com.oplus.systemui.qs.base.res.model.TileViewFlag",d.getClass().getClassLoader()).getField("Active").get(null);
+                Object toggle=Reflect.findClass("com.oplus.systemui.qs.base.res.model.TileViewFlag",d.getClass().getClassLoader()).getField("Toggleable").get(null);
+                int[] activeFlags=(int[])Reflect.callMethod(flag,"getFlag"),toggleFlags=(int[])Reflect.callMethod(toggle,"getFlag");
+                selectedFlags=java.util.Arrays.copyOf(activeFlags,activeFlags.length+toggleFlags.length);
+                System.arraycopy(toggleFlags,0,selectedFlags,activeFlags.length,toggleFlags.length);
+                // These highlights live outside a QS tile parent, which normally supplies
+                // state_active. Supply that native state to both selected surfaces equally.
+                indicator.setDuplicateParentStateEnabled(false);
+                indicator.getBackground().setState(selectedFlags);
+                zenSelection.getBackground().setState(selectedFlags);
+                indicator.addOnLayoutChangeListener(selectionLayout);
+                zenSelection.addOnLayoutChangeListener(selectionLayout);
+            } catch(ReflectiveOperationException error){throw new IllegalStateException("Native selected surface",error);}
             for(View group:new View[]{soundSegments,zenControl}) {
                 // SIDE_ACCESSORY has a brighter native mix and different light defaults,
                 // even when custom tint is off. Use the same surface kind as the tracks.
@@ -605,24 +761,11 @@ final class VolumeHook {
                 refreshMaterial(group);
             }
             applyShortcutMaterial(Float.isNaN(backgroundProgress)?0f:backgroundProgress,true);
-            for(int i=0;i<5;i++) {
-                ImageView button=i<3?soundButtons[i]:i==3?zenOff:zenOn;
-                FrameLayout.LayoutParams child=new FrameLayout.LayoutParams(side,side);
-                child.leftMargin=i<3?i*shortcutStep:0;button.setLayoutParams(child);
-                int padding=Math.max(0,(side-Math.min(side,dp(r,24)))/2);
-                button.setPadding(padding,padding,padding,padding);button.setScaleType(ImageView.ScaleType.FIT_CENTER);
-                button.setImageTintList(ColorStateList.valueOf(foreground));
-                if(i<3) {
-                    GradientDrawable mask=new GradientDrawable();mask.setColor(0xffffffff);mask.setCornerRadius(corner);
-                    button.setBackground(new RippleDrawable(ColorStateList.valueOf((foreground&0xffffff)|0x24000000),null,mask));
-                    button.setFocusable(true);
-                } else button.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-            }
+            zenIcon.setLayoutParams(new FrameLayout.LayoutParams(side,side));
+            int nativeIconSize=r.getResources().getIdentifier("std_1x1_switch_icon_size","dimen","com.android.systemui");
+            if(nativeIconSize!=0)Reflect.callMethod(zenIcon,"setIconScaleRatio",iconSize/(float)r.getResources().getDimensionPixelSize(nativeIconSize));
+            zenIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             zenControl.setFocusable(true);
-            icon(soundButtons[0],"status_bar_qs_mute_inactive");
-            icon(soundButtons[1],"status_bar_qs_vibrate_on");
-            icon(soundButtons[2],"status_bar_qs_mute_active");
-            icon(zenOff,"status_bar_qs_dnd_inactive");icon(zenOn,"status_bar_qs_dnd_active");
             shownRinger=shownZen=-1;lastProgress=-1;updateShortcutState();
             shortcuts.setAlpha(0f);
         }
@@ -656,7 +799,13 @@ final class VolumeHook {
             boolean ready=state!=null&&progress>=.95f;
             boolean soundReady=ready&&!alertSlider&&!Reflect.getBooleanField(state,"disallowRinger");
             for(int i=0;i<3;i++)soundButtons[i].setEnabled(soundReady&&(i!=1||hasVibrator));
+            Reflect.callMethod(soundSegments,"setEditMode",!soundReady);
+            soundSegments.setEnabled(soundReady);
             soundSegments.setAlpha(soundReady?1f:.38f);zenControl.setEnabled(ready);zenControl.setAlpha(ready?1f:.38f);
+            // Enabled/selected changes refresh View drawable state. This host has no QS tile
+            // parent to restore state_active, including at stationary pre-draws.
+            ((View)Reflect.getObjectField(soundSegments,"indicatorView")).getBackground().setState(selectedFlags);
+            zenSelection.getBackground().setState(selectedFlags);
             if(state==null)return;
             int ringer=Reflect.getIntField(state,"ringerModeInternal"),zen=Reflect.getIntField(state,"zenMode");
             if(zen!=0)lastZen=zen;
@@ -670,52 +819,112 @@ final class VolumeHook {
                         (alertSlider?"，由实体拨杆控制":i==1&&!hasVibrator?"，设备不支持振动":""));
             }
             zenControl.setSelected(zen!=0);zenControl.setContentDescription(zen==0?"开启免打扰":"关闭免打扰");
+            syncSoundSelection();
             animateShortcutPose(animate);
         }
         void cancelShortcutMotion() {
-            if(shortcutMotion==null)return;
-            shortcutMotion.removeAllUpdateListeners();shortcutMotion.cancel();shortcutMotion=null;
+            if(zenSpring!=null)Reflect.callMethod(zenSpring,"cancel");
+        }
+        int selectedIconColor(int nativeColor) {
+            if(zenSelection==null||zenSelection.getBackground()==null)return nativeColor;
+            Drawable background=zenSelection.getBackground();Integer fill=null;
+            if(background instanceof ColorDrawable color)fill=color.getColor();
+            else {
+                if(background.getClass().getName().endsWith("GradientTileDrawable"))
+                    fill=((ColorDrawable)Reflect.getObjectField(background,"colorDrawable")).getColor();
+                else if(background.getClass().getName().endsWith("MixColorTileDrawable")) {
+                    fill=Reflect.getIntField(background,"maskColor");
+                    if((fill>>>24)<192) {
+                        Object mix=Reflect.callMethod(Reflect.getObjectField(background,"currentConfig"),"getFirst");
+                        if(mix!=null&&mix.getClass().getName().endsWith("BlurMixMultiWithShader"))
+                            fill=Reflect.getIntField(Reflect.callMethod(mix,"getForegroundShaderParam"),"topLayerColor");
+                    }
+                }
+            }
+            // Some firmware palettes return white even for an opaque white normal highlight.
+            // Bind its contrasting foreground to the native state API, retaining native springs.
+            if(fill!=null&&(fill>>>24)>=192)return AdaptiveTextColor.foreground(fill);
+            // The captured firmware's normal highlight is white even when its opaque fill
+            // comes from a state-list resource rather than an exposed mask/shader color.
+            return (nativeColor&0xffffff)==0xffffff?AdaptiveTextColor.BLACK:nativeColor;
+        }
+        void refreshSelection(View v) {
+            if(v.getWidth()<=0||v.getHeight()<=0)return;
+            // MixColorTileDrawable delegates bounds to AutoBlurDrawable, so its own mask
+            // path needs the same explicit post-layout refresh supplied by a QS host.
+            Drawable background=v.getBackground();background.setBounds(0,0,v.getWidth(),v.getHeight());
+            Reflect.callMethod(background,"invalidatePath");background.setState(selectedFlags);
+        }
+        void syncSoundSelection() {
+            Object d=dialog.get();if(d==null)return;
+            Object state=Reflect.getObjectField(Reflect.getObjectField(d,"volumeInteractor"),"mState");
+            if(state==null)return;
+            int mode=Reflect.getIntField(state,"ringerModeInternal");
+            // The vendor API accepts ringer modes (2/1/0), not segment indices.
+            if(mode>=0&&mode<=2)Reflect.callMethod(soundSegments,"setSelectedIndex",mode,
+                    soundButtons[2-mode].getContentDescription());
         }
         void animateShortcutPose(boolean animate) {
-            cancelShortcutMotion();
-            float[] from=soundWeights.clone();float fromX=selectionX,fromAlpha=selectionAlpha,fromZen=zenWeight;
-            boolean valid=shownRinger>=0&&shownRinger<=2;
-            float toX=valid?(2-shownRinger)*shortcutStep:fromX,toAlpha=valid?1f:0f,toZen=shownZen==0?0f:1f;
-            if(!animate) {
-                selectionX=toX;selectionAlpha=toAlpha;zenWeight=toZen;
-                for(int i=0;i<3;i++)soundWeights[i]=shownRinger==2-i?1f:0f;
-                renderShortcutPose();return;
-            }
-            shortcutMotion=ValueAnimator.ofFloat(0f,1f);shortcutMotion.setDuration(200);
-            shortcutMotion.setInterpolator(new PathInterpolator(.2f,0f,0f,1f));
-            shortcutMotion.addUpdateListener(animation->{
-                float t=(Float)animation.getAnimatedValue();
-                selectionX=fromX+(toX-fromX)*t;selectionAlpha=fromAlpha+(toAlpha-fromAlpha)*t;zenWeight=fromZen+(toZen-fromZen)*t;
-                for(int i=0;i<3;i++)soundWeights[i]=from[i]+((shownRinger==2-i?1f:0f)-from[i])*t;
-                renderShortcutPose();
-            });
-            shortcutMotion.start();
+            Object d=dialog.get();if(d==null)return;ClassLoader loader=d.getClass().getClassLoader();
+            boolean active=shownZen!=0;
+            float target=active?1f:0f;
+            if(animate)Reflect.callMethod(zenSpring,"animateToFinalPosition",target);
+            else {cancelShortcutMotion();zenSelection.setAlpha(target);}
+            try {
+                // Match the three-stage highlight's native active drawable state and oval path.
+                zenSelection.getBackground().setState(selectedFlags);
+                Object state=Reflect.newInstance(Reflect.findClass("com.android.systemui.plugins.qs.QSTile$BooleanState",loader));
+                Reflect.setObjectField(state,"spec","dnd");Reflect.setObjectField(state,"lottiePrefix","qs_dnd_lottie");
+                Reflect.setIntField(state,"lottieSupport",17);Reflect.setIntField(state,"state",active?2:1);
+                Reflect.setObjectField(state,"value",active);Reflect.setObjectField(state,"toggleable",true);
+                int id=zenIcon.getResources().getIdentifier(active?"status_bar_qs_dnd_active":"status_bar_qs_dnd_inactive","drawable","com.android.systemui");
+                Method resource=Reflect.findClass("com.android.systemui.qs.tileimpl.QSTileImpl$ResourceIcon",loader).getMethod("get",int.class);
+                Reflect.setObjectField(state,"icon",resource.invoke(null,id));
+                int foreground=((Number)Reflect.callMethod(soundSegments,"getActiveIconColor",active)).intValue();
+                if(active)foreground=selectedIconColor(foreground);
+                Object proxy=Reflect.getObjectField(zenIcon,"iconViewProxy");
+                ColorStateList tint=ColorStateList.valueOf(foreground);
+                // Native Lottie captures tintList inside setIcon, before static icon tint updates.
+                Reflect.callMethod(proxy,"setTintList",tint);
+                Reflect.callMethod(zenIcon,"setIcon",state,animate);
+                Reflect.callMethod(proxy,"setTintList",tint);
+            } catch(ReflectiveOperationException error) {throw new IllegalStateException("Native DND state",error);}
         }
-        void renderShortcutPose() {
-            soundSelection.setTranslationX(selectionX);soundSelection.setAlpha(selectionAlpha);
-            for(int i=0;i<3;i++) {
-                soundButtons[i].setAlpha((.6f+.4f*soundWeights[i])*(i==1&&!hasVibrator?.38f:1f));
-                float scale=.92f+.08f*soundWeights[i];soundButtons[i].setScaleX(scale);soundButtons[i].setScaleY(scale);
+        void stopNativeSoundMotion() {
+            Reflect.callMethod(soundSegments,"clearRunnable");
+            // Lottie end callbacks can start icon-alpha springs; stop Lottie first.
+            for(Object lottie:(java.util.List<?>)Reflect.getObjectField(soundSegments,"lottieViews"))
+                Reflect.callMethod(lottie,"cancelAnimation");
+            for(String key:new String[]{"indicatorSpringTranslationX","springAnimationBounce"})
+                Reflect.callMethod(Reflect.getObjectField(soundSegments,key),"cancel");
+            for(Object animation:(java.util.List<?>)Reflect.getObjectField(soundSegments,"iconSpringAnimatorSets"))
+                Reflect.callMethod(animation,"cancel");
+            for(Object helper:(java.util.List<?>)Reflect.getObjectField(soundSegments,"scaleSyncAnimatorHelper"))
+                Reflect.callMethod(Reflect.callMethod(helper,"getSpringAnim"),"cancel");
+            for(Object helper:(java.util.List<?>)Reflect.getObjectField(soundSegments,"iconAlphaSpringAnimatorSets"))
+                for(String key:new String[]{"alphaSpringAnim","colorSpringAnim"})
+                    Reflect.callMethod(Reflect.getObjectField(helper,key),"cancel");
+            for(Object helper:(java.util.List<?>)Reflect.getObjectField(soundSegments,"pressScaleHelper")) {
+                Object spring=Reflect.callMethod(helper,"getSpringAnimation");
+                if(spring!=null)Reflect.callMethod(spring,"cancel");
             }
-            zenSelection.setAlpha(zenWeight);zenOff.setAlpha(1f-zenWeight);zenOn.setAlpha(zenWeight);
-            float offScale=1f-.08f*zenWeight,onScale=.92f+.08f*zenWeight;
-            zenOff.setScaleX(offScale);zenOff.setScaleY(offScale);zenOn.setScaleX(onScale);zenOn.setScaleY(onScale);
         }
-        void icon(ImageView button,String name) {
-            View r=root.get();if(r==null)return;
-            int id=r.getResources().getIdentifier(name,"drawable","com.android.systemui");
-            if(id!=0)button.setImageResource(id);
+        boolean isSource(View item) {
+            for(View v=sourceBar.get();v!=null;v=v.getParent() instanceof View?(View)v.getParent():null)
+                if(v==item)return true;
+            return item==anchorItem.get();
         }
         void follow(View item,float x) {
             // Prefer the original active holder, but allow the native adapter to replace it.
             if(driver!=null&&driver.get()==item)return;
-            if(driver!=null&&driver.get()!=null&&driver.get().getParent()==recycler.get()&&item!=anchorItem.get())return;
+            if(driver!=null&&driver.get()!=null&&driver.get().getParent()==recycler.get()&&!isSource(item))return;
             driver=new WeakReference<>(item);targetX=x;targetY=rowTop;
+        }
+        float rowX(Object holder,View item) {
+            int index=((Number)Reflect.callMethod(holder,"getAbsoluteAdapterPosition")).intValue();
+            if(index<0)index=((Number)Reflect.callMethod(holder,"getLayoutPosition")).intValue();
+            if(index<0)index=((Number)Reflect.callMethod(holder,"getOldPosition")).intValue();
+            return index<0?Float.NaN:VolumePanelGeometry.trackRowX(bounds,index,barWidth(),item.getWidth(),inset)+rowOffset;
         }
         float progress() {
             View item=driver==null?null:driver.get();
@@ -745,14 +954,41 @@ final class VolumeHook {
         void tick() {
             hideAccessories();
             float progress=progress();updateShortcutState(progress);
-            if(Math.abs(progress-lastProgress)<.0001f)return;lastProgress=progress;
-            if(surface!=null)surface.invalidateSelf();
             if(shortcuts!=null) {
                 VolumePanelGeometry.Bounds visible=visualBounds(progress);
                 int left=visible.x()-bounds.x(),right=left+visible.width()-2*inset;
                 shortcuts.setClipBounds(new Rect(Math.max(0,left),0,Math.max(0,right),barWidth()));
-                shortcuts.setAlpha(VolumePanelGeometry.clamp((progress-.25f)/.75f));
+                float reveal=VolumePanelGeometry.clamp((progress-.55f)/.45f);
+                float opacity=1f;
+                if(dismissing) {
+                    // The native remove animator fades the row, then resets its alpha to 1
+                    // before the dialog's terminal hide. Accessories must never flash back.
+                    View list=recycler.get();
+                    for(View v=sourceBar.get();v!=null&&v!=root.get();v=v.getParent() instanceof View?(View)v.getParent():null) {
+                        opacity*=v.getAlpha();if(v==list)break;
+                    }
+                    dismissOpacity=Math.min(dismissOpacity,VolumePanelGeometry.clamp(opacity));
+                    opacity=dismissOpacity;
+                }
+                shortcuts.setAlpha(reveal*opacity);
+                View bar=sourceBar.get();
+                float dx=bar!=null&&bar.isAttachedToWindow()?location(bar)[0]-sourceBarX:(targetX-anchorX)*progress;
+                for(Map.Entry<View,float[]> entry:sourceAccessories.entrySet()) {
+                    View v=entry.getKey();float[] pose=entry.getValue();
+                    if(v==sourceGroup) {
+                        // Native expansion also rebases this ConstraintLayout child. Follow
+                        // the painted source bar in screen space, compensating that re-layout.
+                        int[] xy=location(v);
+                        v.setTranslationX(v.getTranslationX()+pose[6]+dx-xy[0]);
+                        v.setTranslationY(v.getTranslationY()+pose[7]-xy[1]);
+                    } else {v.setTranslationX(pose[0]);v.setTranslationY(pose[1]);}
+                    v.setScaleX(pose[2]);v.setScaleY(pose[3]);
+                    v.setAlpha(pose[4]*(v==sourceGroup?(1f-reveal)*opacity:1f));
+                    v.setVisibility((int)pose[5]);
+                }
             }
+            if(Math.abs(progress-lastProgress)<.0001f)return;lastProgress=progress;
+            if(surface!=null)surface.invalidateSelf();
             // Native row translations already invalidate their display lists. Only a fitted
             // track width needs an extra draw for our temporary geometry interpolation.
             if(Math.abs(barWidth()-startBarWidth)>.01f)
@@ -791,8 +1027,15 @@ final class VolumeHook {
             View r=root.get(),list=recycler.get();
             if(shortcuts!=null) {
                 cancelShortcutMotion();
-                for(ImageView button:soundButtons) {button.setOnClickListener(null);button.setBackground(null);}
-                zenControl.setOnClickListener(null);zenControl.setBackground(null);soundSegments.setBackground(null);
+                ((View)Reflect.getObjectField(soundSegments,"indicatorView")).removeOnLayoutChangeListener(selectionLayout);
+                zenSelection.removeOnLayoutChangeListener(selectionLayout);
+                stopNativeSoundMotion();soundSegments.setOnClickListener(null);
+                if(zenIcon!=null)Reflect.callMethod(zenIcon,"onRecycle");
+                if(zenPress!=null) {
+                    Object spring=Reflect.callMethod(zenPress,"getSpringAnimation");if(spring!=null)Reflect.callMethod(spring,"cancel");
+                }
+                for(View button:soundButtons)if(button!=null)button.setOnClickListener(null);
+                zenControl.setOnClickListener(null);zenControl.setOnTouchListener(null);zenControl.setBackground(null);soundSegments.setBackground(null);
                 for(View group:new View[]{soundSegments,zenControl}) {
                     group.removeOnLayoutChangeListener(materialLayout);group.removeOnAttachStateChangeListener(materialAttach);
                     Reflect.removeAdditionalInstanceField(group,"volume.proxy");
@@ -802,7 +1045,12 @@ final class VolumeHook {
             }
             if(observer!=null&&observer.isAlive())observer.removeOnPreDrawListener(frame);
             else if(r!=null)r.getViewTreeObserver().removeOnPreDrawListener(frame);
-            if(r!=null&&r.getBackground()==surface)r.setBackground(surface.getDrawable());
+            if(surface!=null&&r!=null&&r.getBackground()==surface)r.setBackground(surface.getDrawable());
+            for(Map.Entry<View,float[]> entry:sourceAccessories.entrySet()) {
+                View v=entry.getKey();float[] pose=entry.getValue();
+                v.setTranslationX(pose[0]);v.setTranslationY(pose[1]);v.setScaleX(pose[2]);v.setScaleY(pose[3]);v.setAlpha(pose[4]);
+                // Native terminal hide owns visibility; only restore geometry for the next show.
+            }
             for(Map.Entry<View,Integer> entry:hidden.entrySet())entry.getKey().setVisibility(entry.getValue());
             if(list!=null)size(list,0,0,false,false,true);
         }
@@ -819,15 +1067,16 @@ final class VolumeHook {
             corner=Math.min(corner,Math.min(b.width(),b.height())/2f);
             // Set actual backend bounds; canvas clipping alone leaves hardware blur fullscreen.
             getDrawable().setBounds(x,y,x+b.width(),y+b.height());
-            clip.rewind();clip.addRoundRect(x,y,x+b.width(),y+b.height(),corner,corner,Path.Direction.CW);
+            panelClip(clip,getDrawable().getBounds(),corner);
             int save=canvas.save();try {canvas.clipPath(clip);getDrawable().draw(canvas);}finally {canvas.restoreToCount(save);}
         }
         @Override public void getOutline(Outline outline) {outline.setEmpty();}
     }
     /** Dynamic fallback retains the native drawable so disabling a setting restores it immediately. */
     private static final class FlatSurface extends DrawableWrapper {
-        final Context context;final String role;final WeakReference<View> host;final Path clip=new Path();final GradientDrawable fill=new GradientDrawable();
-        FlatSurface(Drawable nativeDrawable,Context ctx,String r,View v){super(nativeDrawable);context=ctx;role=r;host=new WeakReference<>(v);}
+        final Context context;final String role;final WeakReference<View> host;final Path clip=new Path();final GradientDrawable fill;
+        FlatSurface(Drawable nativeDrawable,Context ctx,String r,View v){super(nativeDrawable);context=ctx;role=r;host=new WeakReference<>(v);
+            fill=r.equals("volume-panel")?(GradientDrawable)Reflect.newInstance(panelFillType):new GradientDrawable();}
         HookConfig.Area area() {
             HookConfig c=ShadeHook.snapshot();return !c.enabled?null:role.equals("volume-panel")?c.volumePanel:c.volumeBar;
         }
@@ -856,12 +1105,18 @@ final class VolumeHook {
                 roundNative((Drawable)Reflect.callMethod(drawable,"getContent"),radius,saved);
         }
         @Override public void draw(Canvas canvas) {
-            HookConfig.Area a=area();if(a==null||(!a.tint&&!a.cornerEnabled)){super.draw(canvas);return;}
+            HookConfig.Area a=area();
+            boolean smoothPanel=role.equals("volume-panel")&&ShadeHook.snapshot().volumeCompact;
+            if(a==null||(!a.tint&&!a.cornerEnabled&&!smoothPanel)){super.draw(canvas);return;}
             Rect b=materialBounds();float radius=radius(a,b);
             if(a.tint) {
-                fill.setBounds(b);fill.setColor(a.color);fill.setCornerRadius(radius);fill.setAlpha(getAlpha());fill.draw(canvas);
+                fill.setBounds(b);fill.setColor(a.color);
+                if(role.equals("volume-panel"))Reflect.callMethod(fill,"setSmoothRound",radius,PANEL_SMOOTH_WEIGHT);
+                else fill.setCornerRadius(radius);
+                fill.setAlpha(getAlpha());fill.draw(canvas);
             } else {
-                clip.rewind();clip.addRoundRect(b.left,b.top,b.right,b.bottom,radius,radius,Path.Direction.CW);
+                if(role.equals("volume-panel"))panelClip(clip,b,radius);
+                else {clip.rewind();clip.addRoundRect(b.left,b.top,b.right,b.bottom,radius,radius,Path.Direction.CW);}
                 Drawable original=getDrawable();Rect old=original.getBounds();int l=old.left,t=old.top,r=old.right,bottom=old.bottom;
                 Drawable.Callback callback=original.getCallback();int save=canvas.save();
                 Map<GradientDrawable,Object> corners=new LinkedHashMap<>();
@@ -869,7 +1124,7 @@ final class VolumeHook {
                     original.setCallback(null);original.setBounds(b);
                     // Clipping can cut a larger corner but cannot fill a smaller one.
                     // Update solid native shapes during this draw, then restore them.
-                    if(a.cornerEnabled)roundNative(original,radius,corners);
+                    if(a.cornerEnabled||smoothPanel)roundNative(original,role.equals("volume-panel")?0f:radius,corners);
                     canvas.clipPath(clip);super.draw(canvas);
                 } finally {
                     for(Map.Entry<GradientDrawable,Object> entry:corners.entrySet()) {

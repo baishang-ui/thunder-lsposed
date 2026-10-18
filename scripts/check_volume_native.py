@@ -32,6 +32,24 @@ required['Lcom/android/systemui/plugins/VolumeDialogController$State;']=(set(),{
 required['Lcom/oplusos/systemui/common/feature/FeatureOption;']=({'isOplusAlertSlider'},set())
 required['Lcom/oplus/systemui/qs/tiles/OplusDndTile;']=({'handleUpdateState'},set())
 required['Lcom/oplus/systemui/qs/tiles/ThreeStageRingerModeTile;']=({'handleUpdateState'},set())
+required['Lcom/oplus/systemui/plugins/qs/customize/view/tile/OplusQSThreeStageLayout;']=(
+    {'<init>','setSelectedIndex','setEditMode','updateContainerLayoutParams','updateIconBgDrawable','onIconDrawableUpdate','tintColor','tintIconColor','getActiveIconColor','selectSegmentAt','setTranslationXAndScale','clearRunnable'},
+    {'frameLayoutViews','iconViews','lottieViews','indicatorView','indicatorSpringTranslationX','springAnimationBounce','iconSpringAnimatorSets','scaleSyncAnimatorHelper','iconAlphaSpringAnimatorSets','pressScaleHelper','disableTheme'})
+required['Lcom/oplus/systemui/plugins/qs/customize/view/animation/threestage/ThreeStageScaleSpringAnimationHelper;']=({'getSpringAnim'},set())
+required['Lcom/oplus/systemui/plugins/qs/customize/view/animation/threestage/ThreeStageIconAlphaSpringAnimator;']=(set(),{'alphaSpringAnim','colorSpringAnim'})
+required['Lcom/coui/appcompat/pressfeedback/COUIPressFeedbackHelper;']=({'getSpringAnimation','executeFeedbackAnimator'},set())
+required[base+'anim/PanelExpandPreludeAnimator;']=({'start','collapseForPanelDismiss','cancelRunningAnimationOnly'},set())
+required['Lcom/oplus/systemui/plugins/qs/customize/view/tile/OplusQSIconView;']=({'setIcon','setIconScaleRatio','disableTheme','onRecycle'},{'iconViewProxy'})
+required['Lcom/oplus/systemui/qs/base/res/widget/QSIconViewProxy;']=({'setDetailTile','setTintList'},set())
+required['Lcom/coui/appcompat/animation/dynamicanimation/COUISpringAnimation;']=({'animateToFinalPosition','setSpring'},set())
+required['Lcom/coui/appcompat/animation/dynamicanimation/COUISpringForce;']=({'setBounce','setResponse'},set())
+required['Lcom/coui/appcompat/animation/dynamicanimation/COUIDynamicAnimation;']=({'cancel'},{'ALPHA'})
+required['Lcom/oplusos/systemui/common/outline/OvalOutlineProvider;']=(set(),{'INSTANCE'})
+required['Lcom/oplus/systemui/qs/base/res/model/TileViewFlag;']=({'getFlag'},{'Active','Toggleable'})
+required['Lcom/oplus/systemui/qs/base/res/SepQSResPool;']=({'getHighLightIconBg'},{'INSTANCE'})
+required['Lcom/oplus/systemui/qs/base/res/model/QSDrawableBuilder;']=({'build'},set())
+required[base+'utils/material/OplusVolumeShapePathHelper;']=({'buildClipPath'},set())
+required['Lcom/oplusos/systemui/common/view/SmoothCornersGradientDrawable;']=({'<init>','setSmoothRound'},set())
 classes = {}
 with ZipFile(args.apk) as apk:
     resources = ARSCParser(apk.read('resources.arsc'))

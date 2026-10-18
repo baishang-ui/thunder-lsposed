@@ -22,12 +22,14 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -38,7 +40,6 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import androidx.compose.ui.layout.onSizeChanged
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
@@ -93,8 +94,12 @@ class MainActivity : ComponentActivity() {
             }
             val scope=rememberCoroutineScope()
             val dark=when(draft.theme) { 1->false; 2->true; else->isSystemInDarkTheme() }
-            val density = LocalDensity.current
-            var headerHeight by remember { mutableStateOf(88.dp) }
+            // Reserve the same font-aware header space on every route, before the first
+            // layout. Measuring the current title/subtitle and feeding it into padding
+            // moved both screens vertically one frame after navigation.
+            val headerHeight = with(LocalDensity.current) {
+                ((22 * 1.45f).sp.toDp() + (11 * 1.45f).sp.toDp() * 2 + 24.dp).coerceAtLeast(88.dp)
+            }
             val navigationHeight = floatingNavHeight()
             val wallpaper=rememberLayerBackdrop(); val content=rememberLayerBackdrop()
             val overlaySource=rememberCombinedBackdrop(wallpaper,content)
@@ -154,6 +159,7 @@ class MainActivity : ComponentActivity() {
                 LocalLiquidAppearance provides LiquidAppearance(dark, style.accent, draft.glassStrength / 60f, draft.refraction / 50f),
                 LocalControlHistory provides history,
                 LocalControlScope provides (detail?.name ?: "page-$page")) {
+                Box(Modifier.fillMaxSize()) {
                 PredictiveBackSurface(enabled = detail != null || page != 0, onBack = { navigateBack() }) {
                     Wallpaper(Modifier.matchParentSize().layerBackdrop(wallpaper),style)
                     Box(Modifier.fillMaxSize().layerBackdrop(content)) {
@@ -244,7 +250,9 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    Surface(Modifier.align(Alignment.TopCenter).fillMaxWidth(), color = style.background) {
+                    ProgressiveHeader(overlaySource, Modifier.align(Alignment.TopCenter).fillMaxWidth()
+                        .height(headerHeight + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()))
+                    Surface(Modifier.align(Alignment.TopCenter).fillMaxWidth(), color = Color.Transparent) {
                         Box(Modifier.statusBarsPadding()
                             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
                             contentAlignment = Alignment.TopCenter) {
@@ -255,23 +263,14 @@ class MainActivity : ComponentActivity() {
                                     dirty -> "正在保存…"
                                     else -> detail?.category.orEmpty()
                                 },
-                                modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth()
-                                    .onSizeChanged { headerHeight = with(density) { it.height.toDp() } },
-                                color = style.background,
+                                modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().height(headerHeight),
+                                color = Color.Transparent,
                                 defaultWindowInsetsPadding = false,
                                 navigationIcon = {
-                                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                                        if (detail != null || page != 0) {
-                                            LiquidAction("返回", Modifier.size(48.dp), icon = MiuixIcons.Regular.Back) { navigateBack() }
-                                        }
-                                    }
+                                    Spacer(Modifier.size(48.dp))
                                 },
                                 actions = {
-                                    LiquidAction("重启系统界面", Modifier.size(48.dp), enabled = !busy,
-                                        selected = restartState.running, icon = MiuixIcons.Regular.Refresh) {
-                                        if (!restartState.running) ScopeRestart.restart(this@MainActivity, draft)
-                                        restartFeedback = true
-                                    }
+                                    Spacer(Modifier.size(48.dp))
                                 }
                             )
                         }
@@ -326,6 +325,26 @@ class MainActivity : ComponentActivity() {
                         Summary("磁贴背景混色",if(imported.cardArea.tint) "${alphaPercent(imported.cardArea.color)}%" else "系统默认")
                         Summary("通知条背景混色",if(imported.notificationArea.tint) "${alphaPercent(imported.notificationArea.color)}%" else "系统默认")
                     }
+                }
+                // App chrome stays above the page, header backdrop and predictive-back
+                // transform. TopAppBar's subtitle measurement must not position these buttons.
+                Row(Modifier.align(Alignment.TopCenter).zIndex(1f)
+                    .widthIn(max = 640.dp).fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                    .statusBarsPadding().height(headerHeight).padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                        if (detail != null || page != 0) {
+                            LiquidAction("返回", Modifier.size(48.dp), icon = MiuixIcons.Regular.Back) { navigateBack() }
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    LiquidAction("重启系统界面", Modifier.size(48.dp), enabled = !busy,
+                        selected = restartState.running, icon = MiuixIcons.Regular.Refresh) {
+                        if (!restartState.running) ScopeRestart.restart(this@MainActivity, draft)
+                        restartFeedback = true
+                    }
+                }
                 }
             }
         }

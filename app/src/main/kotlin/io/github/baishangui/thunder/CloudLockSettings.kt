@@ -10,6 +10,10 @@ internal data class CloudLockSettings(
     val strengthEnabled: Boolean = false,
     val strength: Int = 100
 ) {
+    // Keep legacy flags readable while presenting one effective strength control.
+    val maskStrength: Int get() = if (!appColor) 0 else if (strengthEnabled) strength else 100
+    fun withMaskStrength(value: Int) = copy(appColor = true, strengthEnabled = true, strength = value.coerceIn(0, 200))
+
     fun write(b: Bundle) = with(b) {
         putInt("cloud_lock_style", style)
         putBoolean("cloud_lock_blur", area.blur); putInt("cloud_lock_radius", area.radius)
@@ -35,20 +39,15 @@ internal data class CloudLockSettings(
 @Composable internal fun CloudLockControls(value: CloudLockSettings, change: (CloudLockSettings) -> Unit) {
     SettingsGroup {
         UiText("锁屏流体云样式", 14, muted = true)
-        ChoiceTabs(listOf("跟随系统", "PUI 材质", "自定义"), value.style) { change(value.copy(style = it)) }
-        UiText("调整锁屏胶囊和展开卡片的背景材质。", 12, muted = true)
-        if (value.style == 1) UiText("参考 PUI ColorOS 17 的浅灰半透明混色。", 12, muted = true)
+        UiText("自定义锁屏胶囊和展开卡片的背景材质，关闭对应开关即跟随系统。", 12, muted = true)
     }
-    if (value.style == 2) AreaControls("锁屏材质", value.area, corner = false) { change(value.copy(area = it)) }
+    AreaControls("锁屏材质", value.area, corner = false) { change(value.copy(style = 2, area = it)) }
 }
 
 @Composable internal fun CloudAppColorControls(value: CloudLockSettings, change: (CloudLockSettings) -> Unit) {
     SettingsGroup {
-        LiquidSwitchRow("应用取色遮罩", "保留应用原生取色，控制流体云的单色或渐变遮罩", value.appColor) { change(value.copy(appColor = it)) }
-        if (value.appColor) {
-            LiquidSwitchRow("自定义遮罩强度", "100% 为系统强度，0% 为透明，200% 为两倍强度", value.strengthEnabled) { change(value.copy(strengthEnabled = it)) }
-            if (value.strengthEnabled) LiquidValueSlider("遮罩强度", value.strength, 0..200, "%") { change(value.copy(strength = it)) }
-        }
+        LiquidValueSlider("自定义遮罩强度", value.maskStrength, 0..200, "%") { change(value.withMaskStrength(it)) }
+        UiText("0% 关闭遮罩，100% 为系统强度，200% 为两倍强度。", 12, muted = true)
         UiText("作用于系统支持的流体云应用色背景，保留渐变方向和进出动画。", 12, muted = true)
     }
 }

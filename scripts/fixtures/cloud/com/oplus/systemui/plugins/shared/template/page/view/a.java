@@ -1,0 +1,1 @@
+package com.oplus.systemui.plugins.shared.template.page.view; public class a extends android.graphics.drawable.Drawable implements android.graphics.drawable.Drawable.Callback {public void invalidateDrawable(android.graphics.drawable.Drawable d){} public void draw(android.graphics.Canvas c){}}

@@ -70,6 +70,7 @@ final class CloudHook {
         Reflect.findClass(BASE+"capsule.ui.view.CapsuleContainer",loader);
         installed.put(loader,true);
         CloudSdkHook.watch(loader);
+        CloudTemplateHook.install(loader);
         bind(loader,"corner-config",() -> {
             final java.lang.reflect.Field companionField;
             try {companionField=Reflect.findClass(BASE+"plugin.ContextHandler",loader).getField("Companion");}

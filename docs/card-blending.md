@@ -28,7 +28,7 @@ a = 所选 ARGB 的 A / 255
 ## 原先造成差异的路径
 
 1. 共用卡片改成了 MIX，但面板仍使用原生亮度混色及第二层颜色，横幅仍继承原生模式。
-2. 平台 Shader 的单层配置会在 `ShaderBlendParamHelper.updateMixSingleShaderParams()` 中把颜色 alpha 乘以展开量，多层前景颜色不做这一步；随后 Drawable 还会设置自己的 alpha，造成部分卡片在动画中重复衰减。
+2. 平台 Shader 的单层配置会在 `ShaderBlendParamHelper.updateMixSingleShaderParams()` 中把颜色 alpha 乘以展开量，多层前景颜色不做这一步；随后 Drawable 在 `alphaWithBlurAmount=true` 时还会设置自己的 alpha，造成部分卡片在动画中重复衰减。面板开启背景缩小时原生使用 `false`，使背景在起始 5% 后保持不透明，仅让 Shader 颜色随展开量变化；强制改为 `true` 会让缩小背景与底下原尺寸背景叠显。
 3. 上一版把动态模糊改成 `BackgroundBlurDrawable.setColor()`，这个判断不完整。框架中的 `draw()` 先绘制该 Paint，再绘制 RenderNode；`setAlpha()` 更新合成器参数，不会同步乘到这支 Paint 的颜色上，因此不能当作材质混色的等价替代。
 4. 流体云使用原生材质模式 4，且资源替换会同时把所选颜色写入 blend、mix 和无模糊背景参数，存在多次叠色。纯色回退还会向多个填色子层分别写入相同 ARGB。
 5. 无模糊快捷卡片保留了原生颜色滤镜；单层与多层 Shader 的软件绘制占位颜色也不一致。
@@ -74,7 +74,7 @@ if (blendMode == 4) { col = colorDodgeBlend(blendColor, col); }
 | 路径 | 自定义混色处理 |
 | --- | --- |
 | 面板、卡片和横幅平台 Shader | 保留原生单层/多层类型与镜像几何；统一 MIX，清空其余颜色层 |
-| Shader 动画 | 仅对标记的自定义单层配置跳过 helper 的额外 alpha 相乘；自定义配置统一通过 Drawable 的 alpha 跟随展开量，保留原生 full-opacity 场景控制 |
+| Shader 动画 | 卡片、横幅自定义配置通过 Drawable alpha 跟随展开量，跳过 helper 的额外 alpha 相乘；整体面板保留原生 `alphaWithBlurAmount` 策略，为 `false` 时保留 helper 的颜色动画，使缩小的背景保持原生不透明度，避免原尺寸背景透出；保留原生 full-opacity 场景控制 |
 | Shader 软件绘制回退 | 单层和多层均设置相同的所选占位填色；原生 Drawable 将其 alpha 与绘制 alpha 相乘，作为硬件绘制的替代路径 |
 | 动态模糊 | 原生 COLORMIX + 单一 mixColor，额外 Paint 遮罩为 0；原配置为空也创建所需材质 |
 | 静态模糊 | `getBlurColor()` → `setBlurMaskColor()`，使用一层所选颜色遮罩 |
@@ -87,6 +87,10 @@ if (blendMode == 4) { col = colorDodgeBlend(blendColor, col); }
 | 自动文字对比度 | 使用同一 alpha 合成公式；横幅估算不再叠加可能未显示的面板颜色。壁纸主色和前台应用背景之间的差异仍是估算限制 |
 
 面板生产者替换保留原生来源，关闭自定义后 getter 与直接消费字段的后端都会读取原生配置。临时字段在异常后恢复。原生未标记的 Shader 保留其动画。快捷开关的开启、不可用及不可操作状态、滑条进度色、锁屏解锁输入框等不属于共用背景覆盖范围。
+
+背景缩小由 C17 的 `applyPanelMirrorScale()` 每帧通过 `getPlatformMixConfig().setMirrorScale()` 写入，开启时从 1 插值到 0.94。开启混色后该 getter 返回替换对象，因此必须将替换对象的缩放写入同步到保留的原生来源，否则下一次 getter 或后端重建会用来源中的旧值覆盖动画。`panel-mirror-scale` 仅对带原生来源的替换对象同步；同时对原生动画 helper 及 Scrim 调用入口去优化，避免编译内联绕过钩子。回归覆盖展开、收起、连续 getter、直接后端、换色和关闭混色后的缩放保留。
+
+缩放同步与背景透明度分别处理：`panelMix()` 每次创建或复用配置都保留来源的 `alphaWithBlurAmount`，不会把所选混色透明度用于淡化整张截图。单层 Shader 仅在 Drawable 已经按展开量淡入时跳过颜色 alpha 相乘。回归同时检查原生 `true`/`false` 两种策略、0%/半透明/100% 混色及下拉各阶段的背景不透明度，防止缩小恢复后出现双背景叠影。
 
 ## 验证与限制
 

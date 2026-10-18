@@ -49,6 +49,7 @@ final class NotificationCardHook {
         Object nativePath=Reflect.getObjectField(blur,"pathProvider");
         boolean qs="qs-card".equals(role)||"qs-progress".equals(role);
         Object shape=qs?QsCornerHook.blurProvider(blur,nativePath,radius):null;
+        boolean smoothPanel=VolumeHook.smoothPanel(blur);
         if(qs)radius=QsCornerHook.blurRadius(shape,radius);
         // All backends consume these fields, sometimes bypassing the public getters.
         float nativeRadius=((Number)Reflect.getObjectField(blur,"cornerRadius")).floatValue();
@@ -62,17 +63,20 @@ final class NotificationCardHook {
             temporary(p,blur,field,radius*roundness);
         }
         temporary(p,blur,"cornerRadius",radius);
-        float weight=qs?QsCornerHook.blurWeight(shape):0f;
+        float weight=smoothPanel?3f:qs?QsCornerHook.blurWeight(shape):0f;
         // Native volume geometry owns its deforming smooth shape and press outline.
         if(volumeRadius==null)temporary(p,blur,"pathProvider",shape);
-        if(qs) {
+        // Offset panel bounds require the backend's local smooth geometry. A view-space
+        // path provider would apply the panel origin twice inside its render node.
+        if(smoothPanel)temporary(p,blur,"pathProvider",null);
+        if(qs||smoothPanel) {
             temporary(p,blur,"radiusWeight",weight);
             temporary(p,blur,"enableMotionSmoothCorner",true);
         }
         Object corners=Reflect.getObjectField(blur,"gradientStrokeCornerParam");
         if(corners!=null)temporary(p,blur,"gradientStrokeCornerParam",Reflect.newInstance(corners.getClass(),
-            qs?QsCornerHook.smoothCornerType(Reflect.callMethod(corners,"getType"),shape):Reflect.callMethod(corners,"getType"),
-            radius,qs?weight:Reflect.callMethod(corners,"getWeight")));
+            qs||smoothPanel?QsCornerHook.smoothCornerType(Reflect.callMethod(corners,"getType"),smoothPanel?blur:shape):Reflect.callMethod(corners,"getType"),
+            radius,qs||smoothPanel?weight:Reflect.callMethod(corners,"getWeight")));
     }
     private static void temporary(HookCallback.Param p,Object target,String field,Object value) {
         p.setObjectExtra(field,new Object[]{Reflect.getObjectField(target,field)});

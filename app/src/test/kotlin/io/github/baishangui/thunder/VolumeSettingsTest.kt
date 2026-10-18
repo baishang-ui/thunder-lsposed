@@ -6,6 +6,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class VolumeSettingsTest {
+    @Test fun shortestVolumeBarRoundTripsAndRuntimeUsesTheSameLowerBound() {
+        for (height in listOf(80, 100, 120)) {
+            val settings = Settings(volume = VolumeSettings(size = true, height = height))
+            assertEquals(settings, Settings.parse(settings.json()))
+            assertEquals(height, HookConfig(settings.bundle()).volumeHeight)
+        }
+        assertEquals(80, HookConfig(Bundle().apply { putInt("volume_height", 79) }).volumeHeight)
+    }
     @Test fun sharedBarAndButtonsRoundTripWithIndependentPanel() {
         val volume=VolumeSettings(true,76,320,true,
             Area(true,150,true,0x40557799,true,18),
