@@ -20,14 +20,14 @@ args = parser.parse_args()
 
 ROOT = Path(__file__).resolve().parent.parent
 JAVA_SOURCE = args.java_source_root or ROOT / 'app/src/main/java'
-required = {'com.android.systemui', 'com.oplus.systemui.plugins'}
+required = {'com.android.systemui', 'com.oplus.systemui.plugins', 'com.android.settings'}
 manifest = ET.parse(ROOT / 'app/src/main/AndroidManifest.xml').getroot()
 visible = {p.attrib['{http://schemas.android.com/apk/res/android}name'] for p in manifest.findall('./queries/package')}
-assert required <= visible, 'SettingsProvider must be able to resolve both target package UIDs'
+assert required <= visible, 'SettingsProvider must be able to resolve all target package UIDs'
 provider = manifest.find('./application/provider')
 assert provider.attrib.get('{http://schemas.android.com/apk/res/android}grantUriPermissions') == 'true', 'SettingsProvider must allow explicit URI grants to the scope packages'
 scope = set((ROOT / 'app/src/main/resources/META-INF/xposed/scope.list').read_text().splitlines())
-assert scope == required, 'Only SystemUI and its plugin belong in the module scope'
+assert scope == required, 'SystemUI, its plugin and Settings must be the exact module scope'
 sources = json.loads((ROOT / 'scripts/fixtures/effect-runtime.json').read_text(encoding='utf-8'))
 java_home = os.environ.get('JAVA_HOME')
 java = str(Path(java_home) / 'bin/java') if java_home else shutil.which('java')
@@ -57,7 +57,7 @@ with tempfile.TemporaryDirectory(prefix='thunder-effects-') as folder:
     compile_args = folder / 'javac.args'
     compile_args.write_text('\n'.join('"' + p.as_posix() + '"' for p in src.rglob('*.java')), encoding='utf-8')
     subprocess.run([javac, '-encoding', 'UTF-8', '-d', str(classes), '@' + str(compile_args)], check=True)
-    checks = ['StatusBarLayoutCheck', 'StatusBarClockTransitionCheck', 'ReflectCheck', 'AdaptiveTextPerformanceCheck', 'RuntimeReportCheck', 'ProviderVisibilityCheck', 'VolumePanelCheck', 'VolumeLiquidEntranceCheck', 'GestureBarCheck', 'CardBlendCheck', 'PanelStartFrameCheck', 'HookCheck', 'ProviderCheck', 'CloudCheck', 'CloudLayerCheck', 'CloudLockCheck', 'CloudSdkCheck', 'CloudTemplateCheck', 'StatusBarIconCheck', 'IosStatusBarCheck', 'IosDrawSafetyCheck', 'IosRenderPathCheck', 'IosCoverageCheck', 'QsTintCheck', 'QsStateCheck', 'QsGeometryCheck', 'NotificationStyleCheck', 'NotificationExpansionCheck', 'AdaptiveTextCheck']
+    checks = ['StatusBarLayoutCheck', 'StatusBarClockTransitionCheck', 'ReflectCheck', 'AdaptiveTextPerformanceCheck', 'RuntimeReportCheck', 'ProviderVisibilityCheck', 'SettingsUiProviderCheck', 'VolumePanelCheck', 'VolumeLiquidEntranceCheck', 'GestureBarCheck', 'CardBlendCheck', 'PanelStartFrameCheck', 'HookCheck', 'ProviderCheck', 'CloudCheck', 'CloudLayerCheck', 'CloudLockCheck', 'CloudSdkCheck', 'CloudTemplateCheck', 'StatusBarIconCheck', 'IosStatusBarCheck', 'IosDrawSafetyCheck', 'IosRenderPathCheck', 'IosCoverageCheck', 'QsTintCheck', 'QsStateCheck', 'QsGeometryCheck', 'NotificationStyleCheck', 'NotificationExpansionCheck', 'AdaptiveTextCheck']
     checks.extend(['PanelSaturationCheck', 'PanelColorContinuityCheck', 'ShortcutPerformanceCheck', 'CloudGeometryCheck', 'CloudNotificationGeometryCheck'])
     if args.only:
         unknown = set(args.only) - set(checks)

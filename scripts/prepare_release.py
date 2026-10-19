@@ -21,7 +21,7 @@ apk = metadata_path.parent / element['outputFile']
 assert apk.is_file(), 'Built APK is missing'
 with zipfile.ZipFile(apk) as archive:
     scope = set(archive.read('META-INF/xposed/scope.list').decode().splitlines())
-    expected_scope = {'com.android.systemui', 'com.oplus.systemui.plugins'}
+    expected_scope = {'com.android.systemui', 'com.oplus.systemui.plugins', 'com.android.settings'}
     assert scope == expected_scope, (
         f'Unexpected APK scopes: missing={sorted(expected_scope - scope)}, '
         f'unexpected={sorted(scope - expected_scope)}'

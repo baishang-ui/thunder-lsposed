@@ -84,7 +84,9 @@ final class Reflect {
     private static Method resolveMethod(Class<?> type,String name,Object[] args) {
         for(Class<?> c=type;c!=null;c=c.getSuperclass()) {
             Method found=null;
-            for(Method candidate:c.getDeclaredMethods()) if(candidate.getName().equals(name)&&accepts(candidate.getParameterTypes(),args)) {
+            // Covariant vendor builders expose a compiler bridge with identical arguments.
+            // Resolve the implementation, while still rejecting genuinely ambiguous overloads.
+            for(Method candidate:c.getDeclaredMethods()) if(!candidate.isBridge()&&candidate.getName().equals(name)&&accepts(candidate.getParameterTypes(),args)) {
                 if(found!=null)throw new IllegalStateException("Ambiguous method: "+c.getName()+"."+name);
                 found=candidate;
             }

@@ -3,7 +3,8 @@ package io.github.baishangui.thunder
 internal object ModuleScope {
     private val names = linkedMapOf(
         "com.android.systemui" to "系统界面",
-        "com.oplus.systemui.plugins" to "系统界面插件"
+        "com.oplus.systemui.plugins" to "系统界面插件",
+        "com.android.settings" to "设置"
     )
 
     fun complete(actual: Set<String>): Boolean = names.keys.all { it in actual }

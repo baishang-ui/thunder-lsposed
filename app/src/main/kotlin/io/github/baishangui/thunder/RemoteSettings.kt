@@ -12,7 +12,7 @@ import io.github.libxposed.service.XposedServiceHelper
 /** App writes through the framework; SystemUI reads before Application.attach. */
 internal object RemoteSettings {
     enum class Activation(val label: String, val hint: String) {
-        Waiting("待激活 / 待连接", "请在 LSPosed 中启用 thunder，勾选系统界面和系统界面插件作用域，再重新打开应用。"),
+        Waiting("待激活 / 待连接", "请在 LSPosed 中启用 thunder，勾选系统界面、系统界面插件和设置作用域，再重新打开应用。"),
         Connected("已激活", "已连接 LSPosed 框架服务。首次激活或更改作用域后，请正常重启手机加载模块。"),
         Unsupported("框架版本不支持", "需要支持 API 102 的 LSPosed 框架，请更新框架后重新打开应用。"),
         Disconnected("连接已断开", "请在 LSPosed 中确认模块已启用，再重新打开应用检查。")
@@ -31,7 +31,7 @@ internal object RemoteSettings {
     private fun updateScope(framework: XposedService) {
         scopeStatus = runCatching {
             ModuleScope.describe(framework.scope.toSet())
-        }.getOrElse { "无法读取实际作用域：${it.message}。请在 LSPosed 手动确认系统界面、系统界面插件。" }
+        }.getOrElse { "无法读取实际作用域：${it.message}。请在 LSPosed 手动确认系统界面、系统界面插件、设置。" }
     }
     fun connect(context: Context) {
         val app = context.applicationContext

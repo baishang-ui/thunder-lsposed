@@ -11,7 +11,7 @@ import android.os.Binder;
 import android.os.Bundle;
 import android.os.Process;
 
-/** Small, device-protected IPC surface. Only this app, SystemUI and its plugin may call it. */
+/** Small, device-protected IPC surface. Only this app, SystemUI, Settings and the SystemUI plugin may call it. */
 public final class SettingsProvider extends ContentProvider {
     public static final String AUTHORITY = BuildConfig.APPLICATION_ID + ".settings";
     public static SharedPreferences preferences(Context context) {
@@ -22,7 +22,7 @@ public final class SettingsProvider extends ContentProvider {
         // makes this provider visible to those callers, whose manifests we do not own.
         // Providers initialize before Application.onCreate, including when the
         // framework starts the module's service provider before the UI is opened.
-        for (String target : new String[]{"com.android.systemui", "com.oplus.systemui.plugins"}) {
+        for (String target : new String[]{"com.android.systemui", "com.oplus.systemui.plugins", "com.android.settings"}) {
             try {
                 getContext().grantUriPermission(target, Uri.parse("content://" + AUTHORITY),
                     Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -43,6 +43,13 @@ public final class SettingsProvider extends ContentProvider {
         boolean plugin = false;
         try { plugin = uid == context.getPackageManager().getPackageUid("com.oplus.systemui.plugins", 0); }
         catch (Exception ignored) { }
+        boolean settingsHost = false;
+        try { settingsHost = uid == context.getPackageManager().getPackageUid("com.android.settings", 0); }
+        catch (Exception ignored) { }
+        if (method.startsWith("ui_")) {
+            if (!own && !settingsHost) throw new SecurityException("Module/Settings only");
+            return SystemSettingsBridge.call(context, method, extras);
+        }
         if (!own && !systemUi && !plugin)
             throw new SecurityException("Module/system interfaces only");
         SharedPreferences prefs = preferences(context);
