@@ -42,7 +42,8 @@ internal val LocalPreviewBackdrop = staticCompositionLocalOf<Backdrop> { error("
 
 /** The preview consumes the same draft as the controls; it never writes settings or calls SystemUI. */
 @Composable internal fun SettingsPreview(page: SettingsPage, settings: Settings) {
-    if (page in setOf(SettingsPage.Configuration, SettingsPage.Runtime, SettingsPage.About, SettingsPage.Cloud)) return
+    if (page in setOf(SettingsPage.Configuration, SettingsPage.Runtime, SettingsPage.About,
+            SettingsPage.Cloud, SettingsPage.StatusBar, SettingsPage.NotificationCenter)) return
     var comparison by rememberSaveable(page) { mutableIntStateOf(0) }
     var appSample by rememberSaveable(page) { mutableIntStateOf(0) }
     var volumeExpanded by rememberSaveable(page) { mutableIntStateOf(1) }

@@ -34,17 +34,17 @@ internal data class VolumeSettings(
 }
 
 @Composable internal fun VolumeSettingsControls(value: VolumeSettings, change: (VolumeSettings) -> Unit) {
-    SettingsGroup {
+    SettingsSection("动画与展开") {
         LiquidSwitchRow("iOS 液态入场", "按音量键弹出时，从屏幕边缘液态吸附、拉伸分离并弹性停稳", value.liquidEntrance) { change(value.copy(liquidEntrance = it)) }
         LiquidSwitchRow("跟随音量条展开", "沿当前音量条横向展开，下方显示声音三段式与免打扰", value.compact) { change(value.copy(compact = it)) }
     }
-    SettingsGroup {
+    SettingsSection("音量条尺寸") {
         LiquidSwitchRow("自定义尺寸", "按钮边长跟随音量条宽度", value.size) { change(value.copy(size = it)) }
         if (value.size) {
             LiquidValueSlider("音量条宽度", value.width, 32..96, " dp") { change(value.copy(width = it)) }
             LiquidValueSlider("音量条长度", value.height, 80..400, " dp") { change(value.copy(height = it)) }
         }
     }
-    AreaControls("音量条与按钮材质", value.bar, showTitle = true) { change(value.copy(bar = it)) }
-    AreaControls("展开面板材质", value.panel, showTitle = true) { change(value.copy(panel = it)) }
+    AreaControls("音量条与按钮材质", value.bar) { change(value.copy(bar = it)) }
+    AreaControls("展开面板材质", value.panel) { change(value.copy(panel = it)) }
 }

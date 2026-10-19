@@ -124,6 +124,18 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
     HorizontalDivider(color = LocalGlass.current.colors.dividerLine)
 }
 
+@Composable internal fun SettingsSectionTitle(title: String) {
+    UiText(title, 13, muted = true, bold = true,
+        modifier = Modifier.padding(horizontal = 8.dp).semantics { heading() })
+}
+
+@Composable internal fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SettingsSectionTitle(title)
+        SettingsGroup(content = content)
+    }
+}
+
 @Composable internal fun LiquidAction(text: String, modifier: Modifier = Modifier, enabled: Boolean = true,
     selected: Boolean = false, icon: ImageVector? = null, onClick: () -> Unit) {
     val s = LocalGlass.current
@@ -149,8 +161,8 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
 }
 
 @Composable internal fun SettingsMenuGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        UiText(title, 13, muted = true, modifier = Modifier.padding(start = 8.dp).semantics { heading() })
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SettingsSectionTitle(title)
         Card(Modifier.fillMaxWidth(), cornerRadius = LocalGlass.current.settings.roundness.dp, insideMargin = PaddingValues(0.dp)) {
             Column(content = content)
         }

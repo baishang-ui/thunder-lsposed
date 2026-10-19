@@ -38,7 +38,7 @@ internal data class GestureBarSettings(
 }
 
 @Composable internal fun GestureBarControls(value: GestureBarSettings, change: (GestureBarSettings) -> Unit) {
-    SettingsGroup {
+    SettingsSection("尺寸与位置") {
         LiquidSwitchRow("修改手势条外观", "尺寸、材质与亮暗颜色", value.enabled) { change(value.copy(enabled = it)) }
         if (value.enabled) {
             LiquidValueSlider("长度", value.length, 40..320, " dp") { change(value.copy(length = it)) }
@@ -48,9 +48,8 @@ internal data class GestureBarSettings(
         }
     }
     if (!value.enabled) return
-    UiText("手势条材质", 14, muted = true)
     CompositionLocalProvider(LocalControlScope provides "${LocalControlScope.current}:手势条材质") {
-        SettingsGroup {
+        SettingsSection("手势条材质") {
             val area = value.area
             LiquidSwitchRow("自定义模糊", "", area.blur) { change(value.copy(area = area.copy(blur = it))) }
             if (area.blur) LiquidValueSlider("模糊半径", area.radius, 0..200, " px") { change(value.copy(area = area.copy(radius = it))) }

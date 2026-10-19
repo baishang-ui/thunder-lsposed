@@ -96,11 +96,10 @@ final class CloudTemplateHook {
     private static Float radius(View view) {
         if(view==null)return null;
         geometryViews.put(view,true);
-        HookConfig.Area notification=NotificationCardHook.containingArea(view);
-        if(notification!=null)return notification.cornerEnabled?
-            notification.corner*view.getResources().getDisplayMetrics().density:null;
         HookConfig c=ShadeHook.snapshot();
-        return c.enabled&&c.cloud&&c.cloudCardArea.cornerEnabled&&CloudHook.inCard(view)?
+        HookConfig.Area notification=NotificationCardHook.containingArea(view);
+        // These are flow-template background layers even when hosted by a row.
+        return c.enabled&&c.cloud&&c.cloudCardArea.cornerEnabled&&(notification!=null||CloudHook.inCard(view))?
             c.cloudCardArea.corner*view.getResources().getDisplayMetrics().density:null;
     }
     private static HookCallback mediaGeometry(boolean outline) {

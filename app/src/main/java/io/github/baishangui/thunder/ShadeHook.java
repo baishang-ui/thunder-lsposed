@@ -427,6 +427,8 @@ public final class ShadeHook {
         if (!snapshot.enabled) return null;
         HookConfig.Area cloudLock=CloudLockHook.area(blur,snapshot);
         if(cloudLock!=null)return cloudLock;
+        HookConfig.Area stack=NotificationCardHook.stackArea(blur);
+        if(stack!=null)return stack;
         Object role = Reflect.getAdditionalInstanceField(blur, ROLE);
         if ("volume-bar".equals(role)) return snapshot.volumeBar;
         if ("volume-buttons".equals(role)) return snapshot.volumeBar;

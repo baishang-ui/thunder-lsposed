@@ -115,11 +115,8 @@ final class CloudSdkHook {
     }
     private static HookConfig.Area cornerArea(Object card) {
         HookConfig c=ShadeHook.snapshot();
-        if(!c.enabled)return null;
-        // Notification content is also used on the lock screen. Its outer row
-        // uses notification geometry, independently of cloud appearance settings.
-        if("Notification".equals(String.valueOf(Reflect.getObjectField(card,"d"))))return c.notificationCard;
-        return c.cloud?c.cloudCardArea:null;
+        // Entrance changes the host, not ownership of the card's geometry.
+        return c.enabled&&c.cloud?c.cloudCardArea:null;
     }
     private static Object style(Object card,Object nativeStyle) {
         HookConfig.Area area=cornerArea(card);

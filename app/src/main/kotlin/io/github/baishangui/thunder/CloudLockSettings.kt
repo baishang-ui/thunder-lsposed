@@ -48,8 +48,7 @@ internal data class CloudLockSettings(
 }
 
 @Composable internal fun CloudAppColorControls(value: CloudLockSettings, change: (CloudLockSettings) -> Unit) {
-    SettingsGroup {
-        UiText("应用提供的背景颜色", 15, bold = true)
+    SettingsSection("应用提供的背景颜色") {
         UiText("调节音乐、出行等应用为流体云提供的背景色强度，对支持此效果的卡片生效，锁屏时也适用。", 12, muted = true)
         LiquidValueSlider("应用色强度", value.maskStrength, 0..200, "%") { change(value.withMaskStrength(it)) }
         UiText("0% 隐藏应用色 · 100% 系统强度 · 200% 两倍强度", 12, muted = true)

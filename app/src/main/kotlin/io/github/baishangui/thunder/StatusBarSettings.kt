@@ -36,37 +36,38 @@ internal data class StatusBarSettings(
 }
 
 @Composable internal fun StatusBarLayoutControls(value: StatusBarSettings, change: (StatusBarSettings) -> Unit) {
-    SettingsGroup {
+    SettingsSection("两侧边距") {
         LiquidSwitchRow("自定义左右边距", "左右两侧分别调节", value.margins) { change(value.copy(margins = it)) }
         if (value.margins) {
             LiquidValueSlider("左边距", value.left, 0..64, " dp") { change(value.copy(left = it)) }
             LiquidValueSlider("右边距", value.right, 0..64, " dp") { change(value.copy(right = it)) }
         }
     }
-    SettingsGroup {
+    SettingsSection("中间留白") {
         LiquidSwitchRow("自定义中间间距", "在左右内容之间增加留白，保留系统挖孔避让", value.centerEnabled) { change(value.copy(centerEnabled = it)) }
         if (value.centerEnabled) LiquidValueSlider("中间额外留白", value.center, 0..80, " dp") { change(value.copy(center = it)) }
     }
-    SettingsGroup {
+    SettingsSection("空间适配") {
         LiquidSwitchRow("长时钟自动压缩", "空间不足时横向压缩完整文字，空间恢复后还原", value.compressClock) { change(value.copy(compressClock = it)) }
     }
     UiText("边距与中间留白作用于桌面和应用顶部状态栏；横屏、挖孔处仍保留系统安全区域。参数自动保存并实时应用。", 12, muted = true)
 }
 
 @Composable internal fun StatusBarClockControls(value: StatusBarSettings, change: (StatusBarSettings) -> Unit) {
-    SettingsGroup {
+    SettingsSection("时钟开关") {
         LiquidSwitchRow("自定义时钟", "修改顶部状态栏的时间显示", value.clock) { change(value.copy(clock = it)) }
     }
     if (value.clock) {
-        SettingsGroup {
+        SettingsSection("显示内容") {
             UiText("时间制式", 14, muted = true)
             ChoiceTabs(listOf("跟随系统", "24 小时", "12 小时"), value.hourFormat) { change(value.copy(hourFormat = it)) }
             LiquidSwitchRow("显示秒数", "跟随系统息屏暂停刷新", value.seconds) { change(value.copy(seconds = it)) }
+            SettingsDivider()
             UiText("日期", 14, muted = true)
             ChoiceTabs(listOf("不显示", "月/日", "年/月/日"), value.date) { change(value.copy(date = it)) }
             LiquidSwitchRow("显示星期", "", value.weekday) { change(value.copy(weekday = it)) }
         }
-        SettingsGroup {
+        SettingsSection("文字样式") {
             LiquidValueSlider("时钟字号", value.size, 8..24, " sp") { change(value.copy(size = it)) }
             LiquidSwitchRow("时钟加粗", "", value.bold) { change(value.copy(bold = it)) }
             LiquidSwitchRow("长时钟自动压缩", "与状态栏布局中的开关共用，避免较长日期被截断", value.compressClock) { change(value.copy(compressClock = it)) }

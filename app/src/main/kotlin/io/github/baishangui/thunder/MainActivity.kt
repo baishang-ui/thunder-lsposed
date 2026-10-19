@@ -171,15 +171,14 @@ class MainActivity : ComponentActivity() {
                                     .verticalScroll(if (destination.detail != null) detailScroll else when(destination.page) { 0->scroll0;1->scroll1;else->scroll2 })
                                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
                                     .statusBarsPadding().padding(start=16.dp,end=16.dp,top=headerHeight,bottom=if (destination.detail == null) navigationHeight + 48.dp else 28.dp).navigationBarsPadding(),
-                                    verticalArrangement=Arrangement.spacedBy(16.dp)) {
+                                    verticalArrangement=Arrangement.spacedBy(20.dp)) {
                                     val currentDetail = destination.detail
                                     if (currentDetail != null) {
                                         SettingsPreview(currentDetail, draft)
                                         when (currentDetail) {
                                             SettingsPage.Appearance -> AppearanceSettings(draft) { draft = it }
                                             SettingsPage.Configuration -> {
-                                                SettingsGroup {
-                                                    UiText("导入与导出", 18, bold = true)
+                                                SettingsSection("导入与导出") {
                                                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                                         LiquidAction("导入配置", Modifier.weight(1f), enabled = !busy) { importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
                                                         LiquidAction("导出配置", Modifier.weight(1f), enabled = !busy) {
@@ -188,8 +187,7 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     }
                                                 }
-                                                SettingsGroup {
-                                                    UiText("恢复默认", 18, bold = true)
+                                                SettingsSection("恢复默认") {
                                                     UiText("恢复界面外观和全部效果参数。", 13, muted = true)
                                                     LiquidAction("恢复全部默认设置", Modifier.fillMaxWidth(), enabled = !busy) { reset = true }
                                                 }
@@ -222,8 +220,7 @@ class MainActivity : ComponentActivity() {
                                             SettingsGroup {
                                                 LiquidSwitchRow("启用效果调整", "ColorOS 17", draft.enabled) { draft = draft.copy(enabled = it) }
                                             }
-                                            SettingsGroup {
-                                                UiText("模块状态", 14, muted = true)
+                                            SettingsSection("模块状态") {
                                                 ModuleStatusRow("LSPosed", activation.label,
                                                     if (activation != RemoteSettings.Activation.Connected) activation.hint else "",
                                                     activation == RemoteSettings.Activation.Connected)
@@ -232,7 +229,7 @@ class MainActivity : ComponentActivity() {
                                                     if (RemoteSettings.scopeStatus.startsWith("作用域已完整")) "" else RemoteSettings.scopeStatus,
                                                     RemoteSettings.scopeStatus.startsWith("作用域已完整"))
                                             }
-                                            SettingsGroup {
+                                            SettingsSection("权限检查") {
                                                 ModuleStatusRow("Root", rootState.label,
                                                     if (rootState !in setOf(RootAccessState.Unchecked, RootAccessState.Granted)) rootState.hint else "",
                                                     rootState == RootAccessState.Granted, rootState == RootAccessState.Checking)
@@ -243,7 +240,7 @@ class MainActivity : ComponentActivity() {
                                                 SettingsMenuItem("运行报告", status.first, MiuixIcons.Regular.Report) { detail = SettingsPage.Runtime }
                                             }
                                         }
-                                        1 -> AdjustmentMenu(draft) { detail = it }
+                                        1 -> AdjustmentMenu { detail = it }
                                         else -> PreferencesMenu(draft) { detail = it }
                                     }
                                 }
@@ -399,10 +396,9 @@ private fun alphaPercent(c: Int)=TintColor.percent(c)
 
 @Composable internal fun AreaControls(title: String,area: Area,blur: Boolean=true,corner: Boolean=true,
                                     cornerRange: IntRange=0..64,unifiedCorners: Boolean=false,
-                                    showTitle: Boolean=false,onRestore: (() -> Unit)?=null,onChange: (Area)->Unit) {
+                                    onRestore: (() -> Unit)?=null,onChange: (Area)->Unit) {
     CompositionLocalProvider(LocalControlScope provides "${LocalControlScope.current}:$title") {
-        if (showTitle) UiText(title,14,muted=true,modifier=Modifier.padding(start=8.dp,top=4.dp))
-        SettingsGroup {
+        SettingsSection(title) {
             if (blur) {
                 LiquidSwitchRow("自定义模糊", "", area.blur) { onChange(area.copy(blur=it)) }
                 if (area.blur) LiquidValueSlider("模糊半径",area.radius,0..200," px") { onChange(area.copy(radius=it)) }

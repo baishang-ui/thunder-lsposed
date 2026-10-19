@@ -9,7 +9,7 @@ import top.yukonga.miuix.kmp.icon.extended.*
 
 @Composable internal fun CloudOverview(settings: Settings, change: (Settings) -> Unit, open: (SettingsPage) -> Unit) {
     CompositionLocalProvider(LocalControlScope provides "cloud-master") {
-        SettingsGroup {
+        SettingsSection("外观开关") {
             LiquidSwitchRow("自定义流体云外观", "统一控制胶囊、展开卡片与背景效果", settings.cloud) {
                 change(settings.copy(cloud = it))
             }
@@ -38,7 +38,7 @@ import top.yukonga.miuix.kmp.icon.extended.*
             else -> "应用提供的背景颜色 · 强度 $strength%"
         }, MiuixIcons.Regular.Layers) { open(SettingsPage.CloudAppColor) }
     }
-    UiText("通知中心和锁屏通知列表中的卡片圆角，在「控制与通知 → 通知中心通知条」中调整。", 12, muted = true)
+    UiText("流体云在通知中心和锁屏中的卡片圆角，统一在「展开卡片」中调整。", 12, muted = true)
 }
 
 @Composable internal fun CloudDetails(page: SettingsPage, settings: Settings, change: (Settings) -> Unit,
@@ -50,8 +50,7 @@ import top.yukonga.miuix.kmp.icon.extended.*
     }
     when (page) {
         SettingsPage.CloudCapsule -> {
-            SettingsGroup {
-                UiText("尺寸与形状", 15, bold = true)
+            SettingsSection("尺寸与形状") {
                 LiquidSwitchRow("自定义高度", "状态栏中收起的胶囊高度", settings.cloudHeightEnabled) {
                     change(settings.copy(cloudHeightEnabled = it))
                 }
@@ -75,15 +74,14 @@ import top.yukonga.miuix.kmp.icon.extended.*
             CloudMaterialControls("胶囊背景", settings.cloudArea) { change(settings.copy(cloudArea = it)) }
         }
         SettingsPage.CloudCard -> {
-            SettingsGroup {
-                UiText("卡片形状", 15, bold = true)
-                LiquidSwitchRow("自定义圆角", "用于从胶囊展开的独立卡片", settings.cloudCardArea.cornerEnabled) {
+            SettingsSection("卡片形状") {
+                LiquidSwitchRow("自定义圆角", "用于展开卡片、通知中心和锁屏中的流体云卡片", settings.cloudCardArea.cornerEnabled) {
                     change(settings.copy(cloudCardArea = settings.cloudCardArea.copy(cornerEnabled = it)))
                 }
                 if (settings.cloudCardArea.cornerEnabled) LiquidValueSlider("圆角半径", settings.cloudCardArea.corner, 0..64, " dp") {
                     change(settings.copy(cloudCardArea = settings.cloudCardArea.copy(corner = it)))
                 }
-                UiText("通知中心与锁屏通知列表的圆角跟随通知条设置。", 12, muted = true)
+                UiText("流体云的背景、内容裁剪与边缘描边共用此圆角，独立于普通通知。", 12, muted = true)
             }
             CloudMaterialControls("展开卡片背景", settings.cloudCardArea) { change(settings.copy(cloudCardArea = it)) }
         }
@@ -95,7 +93,7 @@ import top.yukonga.miuix.kmp.icon.extended.*
 
 /** Keep the material reset independent of the separately presented shape controls. */
 @Composable internal fun CloudMaterialControls(title: String, area: Area, change: (Area) -> Unit) {
-    AreaControls(title, area.copy(cornerEnabled = false), corner = false, showTitle = true) {
+    AreaControls(title, area.copy(cornerEnabled = false), corner = false) {
         change(it.copy(cornerEnabled = area.cornerEnabled, corner = area.corner))
     }
 }

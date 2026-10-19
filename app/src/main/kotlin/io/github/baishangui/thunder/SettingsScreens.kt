@@ -3,28 +3,28 @@ package io.github.baishangui.thunder
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 
 internal enum class SettingsPage(val title: String, val category: String) {
-    Panel("整体背景", "控制与通知"),
+    Panel("下拉背景", "控制与通知 · 共用背景"),
     Cards("控制中心磁贴", "控制与通知"),
-    NotificationCards("通知中心通知条", "控制与通知"),
-    Layout("通知布局", "控制与通知"),
-    Banner("通知横幅", "控制与通知"),
-    Volume("音量面板", "音量"),
-    Cloud("流体云", "调节"),
+    NotificationCenter("通知中心", "控制与通知"),
+    NotificationCards("通知卡片", "通知中心 · 通知列表"),
+    Layout("列表布局", "通知中心 · 通知列表"),
+    Banner("通知横幅", "通知中心 · 悬浮通知"),
+    Volume("音量面板", "声音"),
+    Cloud("流体云", "状态与导航"),
     CloudCapsule("状态栏胶囊", "流体云 · 显示形态"),
     CloudCard("展开卡片", "流体云 · 显示形态"),
     CloudLock("锁屏背景", "流体云 · 背景效果"),
     CloudAppColor("应用色背景", "流体云 · 背景效果"),
-    StatusBar("状态栏修改", "状态栏"),
+    StatusBar("状态栏", "状态与导航"),
     StatusLayout("布局与间距", "状态栏"),
-    StatusClock("时钟修改", "状态栏"),
+    StatusClock("时钟", "状态栏"),
     StatusIcons("图标显示", "状态栏"),
     StatusStyle("图标样式", "状态栏"),
-    GestureBar("手势条", "手势导航"),
+    GestureBar("手势条", "状态与导航"),
     Appearance("界面外观", "设置"),
     Configuration("配置管理", "设置"),
     About("关于 thunder", "设置"),
@@ -32,6 +32,7 @@ internal enum class SettingsPage(val title: String, val category: String) {
 
     val parent: SettingsPage? get() = when (this) {
         StatusLayout, StatusClock, StatusIcons, StatusStyle -> StatusBar
+        NotificationCards, Layout, Banner -> NotificationCenter
         CloudCapsule, CloudCard, CloudLock, CloudAppColor -> Cloud
         else -> null
     }
@@ -43,23 +44,19 @@ internal fun Area.summary(corner: Boolean = true): String = buildList {
     if (corner && cornerEnabled) add("圆角 ${this@summary.corner} dp")
 }.joinToString(" · ").ifEmpty { "跟随系统" }
 
-@Composable internal fun AdjustmentMenu(settings: Settings, open: (SettingsPage) -> Unit) {
+@Composable internal fun AdjustmentMenu(open: (SettingsPage) -> Unit) {
     SettingsMenuGroup("控制与通知") {
-        SettingsMenuItem("整体背景", if (settings.panelSaturationEnabled) "背景饱和度 ${settings.panelSaturation}%" else settings.panel.summary(corner = false), MiuixIcons.Regular.Background) { open(SettingsPage.Panel) }
-        SettingsMenuItem("控制中心磁贴", settings.cardArea.summary(), MiuixIcons.Regular.Layers) { open(SettingsPage.Cards) }
-        SettingsMenuItem("通知中心通知条", settings.notificationArea.summary(), MiuixIcons.Regular.Messages) { open(SettingsPage.NotificationCards) }
-        SettingsMenuItem("通知布局", if (settings.margins) "${settings.margin} dp" else "跟随系统", MiuixIcons.Regular.ListView) { open(SettingsPage.Layout) }
-        SettingsMenuItem("通知横幅", settings.banner.summary(), MiuixIcons.Regular.Messages) { open(SettingsPage.Banner) }
+        SettingsMenuItem(SettingsPage.Panel.title, "共用背景 · 模糊、混色与饱和度", MiuixIcons.Regular.Background) { open(SettingsPage.Panel) }
+        SettingsMenuItem(SettingsPage.Cards.title, "磁贴的模糊、混色与圆角", MiuixIcons.Regular.Layers) { open(SettingsPage.Cards) }
+        SettingsMenuItem(SettingsPage.NotificationCenter.title, "通知卡片、列表布局与横幅", MiuixIcons.Regular.Messages) { open(SettingsPage.NotificationCenter) }
     }
-    SettingsMenuGroup("流体云") {
-        SettingsMenuItem("流体云外观", if (settings.cloud) "胶囊、展开卡片与背景效果" else "已关闭 · 查看与编辑已保存的外观", MiuixIcons.Regular.CloudFill) { open(SettingsPage.Cloud) }
+    SettingsMenuGroup("状态与导航") {
+        SettingsMenuItem(SettingsPage.StatusBar.title, "布局、时钟与图标", MiuixIcons.Regular.Theme) { open(SettingsPage.StatusBar) }
+        SettingsMenuItem(SettingsPage.Cloud.title, "胶囊、展开卡片与背景效果", MiuixIcons.Regular.CloudFill) { open(SettingsPage.Cloud) }
+        SettingsMenuItem(SettingsPage.GestureBar.title, "显示、尺寸、材质与底部占位", MiuixIcons.Regular.Hide) { open(SettingsPage.GestureBar) }
     }
-    SettingsMenuGroup("状态栏") {
-        SettingsMenuItem("状态栏修改", "左右边距、中间间距、时钟与图标", MiuixIcons.Regular.Theme) { open(SettingsPage.StatusBar) }
-    }
-    SettingsMenuGroup("更多") {
-        SettingsMenuItem("音量面板", if (settings.volume.compact) "紧凑展开" else "系统展开", MiuixIcons.Regular.Layers) { open(SettingsPage.Volume) }
-        SettingsMenuItem("手势条", listOfNotNull(if (settings.hideGestureBar) "横条已隐藏" else if (settings.gestureBar.enabled) "自定义外观" else null, if (settings.removeGestureBarInset) "已取消底部抬高" else null).joinToString(" · ").ifEmpty { "跟随系统" }, MiuixIcons.Regular.Hide) { open(SettingsPage.GestureBar) }
+    SettingsMenuGroup("声音") {
+        SettingsMenuItem(SettingsPage.Volume.title, "入场动画、展开方式、尺寸与材质", MiuixIcons.Regular.Layers) { open(SettingsPage.Volume) }
     }
 }
 
@@ -76,10 +73,19 @@ internal fun Area.summary(corner: Boolean = true): String = buildList {
 @Composable internal fun ColumnScope.AdjustmentDetails(page: SettingsPage, settings: Settings, change: (Settings) -> Unit,
                                                       testNotification: () -> Unit, open: (SettingsPage) -> Unit) {
     when (page) {
+        SettingsPage.NotificationCenter -> {
+            SettingsMenuGroup("通知列表") {
+                SettingsMenuItem(SettingsPage.NotificationCards.title, settings.notificationArea.summary(), MiuixIcons.Regular.Messages) { open(SettingsPage.NotificationCards) }
+                SettingsMenuItem(SettingsPage.Layout.title, if (settings.margins) "左右各留白 ${settings.margin} dp" else "通知列表的左右边距", MiuixIcons.Regular.ListView) { open(SettingsPage.Layout) }
+            }
+            SettingsMenuGroup("悬浮通知") {
+                SettingsMenuItem(SettingsPage.Banner.title, settings.banner.summary(), MiuixIcons.Regular.Messages) { open(SettingsPage.Banner) }
+            }
+        }
         SettingsPage.StatusBar -> {
             SettingsMenuGroup("布局与时钟") {
                 SettingsMenuItem("布局与间距", if (settings.statusBar.margins) "左 ${settings.statusBar.left} dp · 右 ${settings.statusBar.right} dp" else "左右边距、中间留白与长时钟压缩", MiuixIcons.Regular.ListView) { open(SettingsPage.StatusLayout) }
-                SettingsMenuItem("时钟修改", if (settings.statusBar.clock) "自定义时间、日期与字号" else "跟随系统", MiuixIcons.Regular.Theme) { open(SettingsPage.StatusClock) }
+                SettingsMenuItem(SettingsPage.StatusClock.title, if (settings.statusBar.clock) "自定义时间、日期与字号" else "时间、日期与文字样式", MiuixIcons.Regular.Theme) { open(SettingsPage.StatusClock) }
             }
             SettingsMenuGroup("状态栏图标") {
                 SettingsMenuItem("图标样式", if (settings.statusIconStyle == 1) "iOS 风格" else "系统默认", MiuixIcons.Regular.Theme) { open(SettingsPage.StatusStyle) }
@@ -95,7 +101,7 @@ internal fun Area.summary(corner: Boolean = true): String = buildList {
                     panel = settings.panel.copy(blur = false, tint = false, cornerEnabled = false))) }) else null) {
                 change(settings.copy(panel = it))
             }
-            SettingsGroup {
+            SettingsSection("背景色彩") {
                 LiquidSwitchRow("调整背景饱和度", "调整模糊背景的色彩浓淡", settings.panelSaturationEnabled) {
                     change(settings.copy(panelSaturationEnabled = it))
                 }
@@ -109,22 +115,24 @@ internal fun Area.summary(corner: Boolean = true): String = buildList {
             AreaControls("磁贴材质", settings.cardArea, unifiedCorners = true) { change(settings.copy(cardArea = it)) }
         }
         SettingsPage.NotificationCards -> {
-            AreaControls("通知条材质", settings.notificationArea) { change(settings.copy(notificationArea = it)) }
+            AreaControls("通知卡片材质", settings.notificationArea) { change(settings.copy(notificationArea = it)) }
         }
-        SettingsPage.Layout -> SettingsGroup {
+        SettingsPage.Layout -> SettingsSection("列表边距") {
             LiquidSwitchRow("自定义左右边距", "", settings.margins) { change(settings.copy(margins = it)) }
             if (settings.margins) LiquidValueSlider("左右各留白", settings.margin, 0..64, " dp") { change(settings.copy(margin = it)) }
         }
         SettingsPage.Banner -> {
             AreaControls("横幅材质", settings.banner) { change(settings.copy(banner = it)) }
-            LiquidAction("测试通知横幅", Modifier.fillMaxWidth(), onClick = testNotification)
-            UiText("返回桌面后发送测试通知，15 秒后自动移除。", 12, muted = true)
+            SettingsSection("效果测试") {
+                LiquidAction("测试通知横幅", Modifier.fillMaxWidth(), onClick = testNotification)
+                UiText("返回桌面后发送测试通知，15 秒后自动移除。", 12, muted = true)
+            }
         }
         SettingsPage.Cloud -> CloudOverview(settings, change, open)
         SettingsPage.CloudCapsule, SettingsPage.CloudCard, SettingsPage.CloudLock, SettingsPage.CloudAppColor ->
             CloudDetails(page, settings, change, open)
         SettingsPage.GestureBar -> {
-            SettingsGroup {
+            SettingsSection("显示与占位") {
                 LiquidSwitchRow("隐藏手势条", "", settings.hideGestureBar) { change(settings.copy(hideGestureBar = it)) }
                 LiquidSwitchRow("取消底部抬高", "让应用内容延伸到底边", settings.removeGestureBarInset) { change(settings.copy(removeGestureBarInset = it)) }
             }
@@ -138,20 +146,17 @@ internal fun Area.summary(corner: Boolean = true): String = buildList {
                 "系统图标" to listOf(StatusBarIcons.ALARM to "闹钟", StatusBarIcons.VOLUME to "静音 / 振动",
                     StatusBarIcons.ZEN to "勿扰模式", StatusBarIcons.ROTATE to "旋转锁定", StatusBarIcons.HIGH_PERFORMANCE to "高性能模式")
             )
-            SettingsGroup {
-                groups.forEachIndexed { index, (title, icons) ->
-                    if (index > 0) SettingsDivider()
-                    UiText(title, 14, muted = true)
+            groups.forEach { (title, icons) ->
+                SettingsSection(title) {
                     icons.forEach { (bit, label) ->
                         LiquidSwitchRow("隐藏$label", "", settings.hiddenStatusIcons and bit != 0) { hide ->
                             change(settings.copy(hiddenStatusIcons = if (hide) settings.hiddenStatusIcons or bit else settings.hiddenStatusIcons and bit.inv()))
                         }
                     }
                 }
-                if (settings.hiddenStatusIcons != 0) {
-                    SettingsDivider()
-                    LiquidAction("恢复系统显示", Modifier.fillMaxWidth()) { change(settings.copy(hiddenStatusIcons = 0)) }
-                }
+            }
+            if (settings.hiddenStatusIcons != 0) {
+                LiquidAction("恢复系统显示", Modifier.fillMaxWidth()) { change(settings.copy(hiddenStatusIcons = 0)) }
             }
         }
         else -> Unit
@@ -159,12 +164,10 @@ internal fun Area.summary(corner: Boolean = true): String = buildList {
 }
 
 @Composable internal fun AppearanceSettings(settings: Settings, change: (Settings) -> Unit) {
-    SettingsGroup {
-        UiText("明暗模式", 14, muted = true)
+    SettingsSection("明暗模式") {
         ChoiceTabs(listOf("跟随系统", "浅色", "深色"), settings.theme) { change(settings.copy(theme = it)) }
     }
-    SettingsGroup {
-        UiText("界面配色", 14, muted = true)
+    SettingsSection("界面配色") {
         ChoiceTabs(listOf("自定义", "壁纸取色", "自选取色"), settings.colorMode) { change(settings.copy(colorMode = it)) }
         when (settings.colorMode) {
             0 -> {
@@ -174,8 +177,7 @@ internal fun Area.summary(corner: Boolean = true): String = buildList {
             2 -> LiquidColorSetting("Monet 种子色", settings.accent, opaque = true) { change(settings.copy(accent = it)) }
         }
     }
-    SettingsGroup {
-        UiText("玻璃与形状", 14, muted = true)
+    SettingsSection("玻璃与形状") {
         LiquidValueSlider("玻璃雾度", settings.glassStrength, 0..100, "%") { change(settings.copy(glassStrength = it)) }
         LiquidValueSlider("玻璃折射", settings.refraction, 0..100, "%") { change(settings.copy(refraction = it)) }
         LiquidValueSlider("界面圆角", settings.roundness, 16..36, " dp") { change(settings.copy(roundness = it)) }

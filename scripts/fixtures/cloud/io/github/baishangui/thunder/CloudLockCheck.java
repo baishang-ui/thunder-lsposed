@@ -92,7 +92,7 @@ public class CloudLockCheck {
         Manager manager=new Manager();BlurConfig blur=new BlurConfig();View view=new View();
         CloudLockHook.track(view,new ViewBlurProxy(blur),"CUSTOM",manager);
         check(CloudLockHook.area(blur,ShadeHook.snapshot()).color==0x3c778899,"custom material applies to lock-screen flow card");
-        manager.keyguard=false;check(CloudLockHook.area(blur,ShadeHook.snapshot())==null,"shade cards keep existing independent material");
+        manager.keyguard=false;check(!CloudLockHook.area(blur,ShadeHook.snapshot()).tint,"shade cards keep existing independent material");
         CapsuleItemView item=new CapsuleItemView();item.entry=new CapsuleSeedingData();View background=new View();background.parent=item;
         BlurConfig capsule=new BlurConfig();CloudLockHook.track(background,new ViewBlurProxy(capsule),"CAPSULE",manager);
         check(CloudLockHook.area(capsule,ShadeHook.snapshot()).tint,"lock-screen flow capsule receives selected material");
@@ -153,7 +153,7 @@ public class CloudLockCheck {
         check(shared.applies==applies,"unchanged frames do not rebuild shared background material");
         item.entry=new Object();check(CloudLockHook.area(capsule,ShadeHook.snapshot())==null,"ordinary notification capsules are excluded");
         b.putInt("cloud_lock_style",0);CloudCheck.config(b);manager.keyguard=true;
-        check(CloudLockHook.area(blur,ShadeHook.snapshot())==null,"system style restores existing native or card material");
+        check(!CloudLockHook.area(blur,ShadeHook.snapshot()).tint,"system style restores existing native or card material");
         System.out.println("Verified "+checks+" lock-screen material and application-mask checks; phone rendering still needs validation.");
     }
 }

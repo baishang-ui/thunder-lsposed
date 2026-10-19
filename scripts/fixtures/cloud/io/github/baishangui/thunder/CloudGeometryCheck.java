@@ -54,7 +54,7 @@ public final class CloudGeometryCheck {
         p=CloudCheck.param(sdk,nativeStyle,true);styleHook.after(p);
         check(((f8.j5)p.getResult()).a()==0,"SDK expanded content uses card radius in dp");
         sdk.d="Notification";p=CloudCheck.param(sdk,nativeStyle,true);styleHook.after(p);
-        check(p.getResult()==nativeStyle,"SDK notification entrance keeps notification geometry");
+        check(((f8.j5)p.getResult()).a()==0,"SDK notification entrance uses cloud geometry");
         sdk.d="StatusBar";sdk.n=null;p=CloudCheck.param(sdk,nativeStyle,true);styleHook.after(p);
         check(p.getResult()==nativeStyle,"SDK unexpanded capsule does not inherit card radius");
         sdk.n=new com.oplus.ule.lite.components.s1();sdk.k.setBackground(new e7.sj());

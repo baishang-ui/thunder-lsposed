@@ -22,26 +22,23 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
 
 @Composable internal fun StatusIconStyleSettings(settings: Settings, change: (Settings) -> Unit) {
-    SettingsGroup {
-        UiText("图标样式", 15)
+    SettingsSection("图标样式") {
         ChoiceTabs(listOf("系统默认", "iOS 风格"), settings.statusIconStyle) {
             change(settings.copy(statusIconStyle = it))
         }
         UiText("修改图标样式后需重启系统界面，包括切回系统默认。配置同步后，点击右上角“重启系统界面”应用。", 13, muted = true)
     }
     if (!settings.enabled) UiText("启用模块后应用图标样式", 13, muted = true)
-    SettingsGroup {
-        UiText("PUI 图标资源示例", 15)
+    SettingsSection("电池图标示例") {
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             listOf(7, 75, 100).forEach { level ->
                 StatusGlyph(IosStatusIcons.Symbol(IosStatusIcons.Kind.BATTERY, level, 100), LocalGlass.current.ink,
                     "横向电池，电量百分之$level", cutout = LocalGlass.current.surface)
             }
         }
-        UiText("图标、Wi-Fi 和电池全部直接使用 PUI ColorOS 17 包内原始资源，Wi-Fi 与移动信号不显示角标、5G 文字和上下行箭头；状态栏加高 4dp，图标放大 12%，图标间距额外增加约 2dp，横向电池尺寸为 28 × 17dp；深色行展示 C17 主卡信号柱与副卡圆点。横向电池使用 PUI 外观，百分比按电池主体居中，一位、两位和三位数字均自动对齐；电量、充电状态与双卡排列跟随系统设置。", 12, muted = true)
+        UiText("iOS 风格会替换状态图标、Wi-Fi 与电池外观，并调整图标大小与间距。电量、充电状态和双卡排列跟随系统设置。", 12, muted = true)
     }
-    SettingsGroup {
-        UiText("状态图标", 15)
+    SettingsSection("状态图标示例") {
         val symbols = listOf(
             IosStatusIcons.Kind.BLUETOOTH to "蓝牙",
             IosStatusIcons.Kind.SILENT to "静音", IosStatusIcons.Kind.VIBRATE to "振动",

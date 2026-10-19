@@ -6,7 +6,7 @@
 
 “调节 → 流体云外观”进入流体云总览，总开关集中在总览。页面分为“显示形态”（状态栏胶囊、展开卡片）和“背景效果”（锁屏背景、应用色背景）。四个子页返回总览；关闭流体云外观后仍可编辑保存，预览标明“已保存样式”，开启后应用。胶囊的高度、圆角归入“尺寸与形状”，展开卡片圆角归入“卡片形状”，背景模糊与混色单独分组，恢复系统材质不清除形状设置。
 
-“锁屏背景”直接显示自定义模糊、混色开关与参数；关闭对应开关恢复系统值。“应用色背景”调整各场景共享的应用色强度，并提供恢复系统强度按钮。总览和展开卡片页说明：通知中心及锁屏通知列表的卡片圆角在“控制与通知 → 通知中心通知条”调整。此次编排沿用原配置字段及 Hook。
+“锁屏背景”直接显示自定义模糊、混色开关与参数；关闭对应开关恢复系统值。“应用色背景”调整各场景共享的应用色强度，并提供恢复系统强度按钮。通知中心和锁屏中的流体云卡片圆角统一在“流体云 → 展开卡片”调整，背景、内容裁剪和描边使用相同半径；普通通知仍使用通知卡片圆角。
 
 锁屏样式只匹配流体云胶囊数据和处于锁屏的自定义流体云卡片，普通通知胶囊不采用此样式。旧配置中的预设值 1 按自定义值 2 读取，采用已保存的自定义参数，不再生成固定材质。流体云外观总开关和模块总开关仍控制该功能。
 
@@ -16,7 +16,7 @@
 
 ## C17 接口与恢复
 
-- `ViewBlurManager.requireBlurProxyForView` 的 `CAPSULE`、`CUSTOM` 类型用于标记背景所属视图；CUSTOM 通过 `isKeyguardMaterialColorState()` 选择锁屏或原有通知条材质。CAPSULE 检查 `CapsuleItemView.getEntry()` 是否为 `CapsuleSeedingData`，共用背景通过 `NotificationCapsuleContainer.getBaseCard()` 判断。
+- `ViewBlurManager.requireBlurProxyForView` 的 `CAPSULE`、`CUSTOM` 类型用于标记背景所属视图；CUSTOM 通过 `isKeyguardMaterialColorState()` 选择锁屏或原有通知条材质，圆角始终使用流体云展开卡片参数。CAPSULE 检查 `CapsuleItemView.getEntry()` 是否为 `CapsuleSeedingData`，共用背景通过 `NotificationCapsuleContainer.getBaseCard()` 判断。
 - 模糊后端沿用 `ShadeHook` 的参数临时覆盖与恢复。`CapsuleBackgroundHelper.drawCapsuleBg/getBackgroundColor` 覆盖无模糊回退；保留原生裁剪、描边、形状动画和 AOD scrim。
 - `smoothSharedViewBlurProxy` 来自复用池，宿主是容器中的临时视图。绘制前将本地、共享代理绑定到当前胶囊，以当前胶囊的数据选择材质；配置与目标类型缓存放在代理上，避免另一胶囊复用代理后，原胶囊误以为配置仍已应用。目标不变的后续帧不重复重建材质。
 - 应用色背景由 `NotificationBackgroundCustomRowHandler.updateDrawableMetaColor` 从应用数据中读取原生颜色，再调用 `MetaBallBlurDrawable.setMetaColor` 或 `setGradientColors`。只在这个生产器的调用范围内调整 alpha，不把其他调用者的 AOD 和动画颜色识别为应用遮罩。

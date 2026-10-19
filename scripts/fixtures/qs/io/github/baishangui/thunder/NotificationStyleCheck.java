@@ -86,6 +86,7 @@ public final class NotificationStyleCheck {
             "native notification corners preserve grouped edges and partial roundness");
         QsTintCheck.after(B+"ViewBlurProxy#applyConfigToPlatformBlur",frame);
         c.leftTopCornerRadius=47f;c.leftBottomCornerRadius=47f;
+        b.putInt("cloud_card_color",0);b.putBoolean("cloud_card_corner_enabled",true);b.putInt("cloud_card_corner",33);CloudCheck.config(b);
         after(M+"requireBlurProxyForView",manager,proxy,view,CardType.CUSTOM,1f,null);
         check("notification-card".equals(Reflect.getAdditionalInstanceField(c,"thunder.role")),"custom notification rows join list styling");
         before(M+"blurForHeadsUp",manager,view,true);
@@ -93,13 +94,13 @@ public final class NotificationStyleCheck {
         check("banner".equals(Reflect.getAdditionalInstanceField(c,"thunder.role")),
             "requesting an existing notification proxy preserves its active heads-up role");
         frame=before(B+"ViewBlurProxy#applyConfigToMotionBlur",proxy);
-        check(c.cornerRadius==25*density,"heads-up reuses the view with independent banner corners");
+        check(c.cornerRadius==33*density,"flow heads-up retains cloud corners independently of banner material");
         check(((BlurMixConfig.BlurMixSingle)c.motionBlurMixConfig).mixColor.top==0x557799bb,
             "heads-up motion backend receives the independent banner tint");
         QsTintCheck.after(B+"ViewBlurProxy#applyConfigToMotionBlur",frame);
         before(M+"cancelBlurForHeadsUp",manager,view,true);
         check("notification-card".equals(Reflect.getAdditionalInstanceField(c,"thunder.role")),"canceling heads-up restores the original notification role");
-        check(NotificationCardHook.area(view).corner==13,"notification view switches its clipping configuration back after heads-up");
+        check(NotificationCardHook.area(view).corner==33,"flow view retains cloud corners after heads-up");
         after(M+"requireBlurProxyForView",manager,proxy,view,CardType.FULLSCREENBANNER,1f,null);
         frame=before(B+"ViewBlurProxy#applyConfigToPlatformBlur",proxy);
         check(c.cornerRadius==25*density,"full-screen banner receives the same independent banner corners");
