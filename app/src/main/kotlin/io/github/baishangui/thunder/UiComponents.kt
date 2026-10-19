@@ -48,6 +48,7 @@ import top.yukonga.miuix.kmp.basic.HsvHueSlider
 import top.yukonga.miuix.kmp.basic.HsvSaturationSlider
 import top.yukonga.miuix.kmp.basic.HsvValueSlider
 import top.yukonga.miuix.kmp.basic.HsvAlphaSlider
+import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.drawCheckerboard
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -201,7 +202,7 @@ internal class ControlHistory {
 }
 internal val LocalControlHistory = staticCompositionLocalOf { ControlHistory() }
 internal val LocalControlScope = staticCompositionLocalOf { "" }
-@Composable private fun UndoFooter(title: String, restore: (() -> Unit)?) {
+@Composable internal fun UndoFooter(title: String, restore: (() -> Unit)?) {
     if (restore != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         LiquidAction("回退", modifier = Modifier.semantics { contentDescription = "回退${title}的修改" },
             onClick = restore)
@@ -228,7 +229,8 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
             }
         ) {
             UiText(title)
-            UiText(if (opaque) "#%06X".format(color and 0xffffff) else hex(color), 12, muted = true)
+            UiText(if (opaque) "#%06X".format(color and 0xffffff)
+                else "${hex(color)} · 不透明度 ${TintColor.percent(color)}%", 12, muted = true)
         }
         UndoFooter(title, original?.let { { change(it) } })
     }
@@ -273,6 +275,7 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
 @Composable internal fun LiquidValueSlider(title: String, value: Int, range: IntRange, unit: String = "", change: (Int) -> Unit) {
     val s = LocalGlass.current
     var dragging by remember { mutableFloatStateOf(value.toFloat()) }
+    var editing by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(value) { dragging = value.toFloat() }
     val history = LocalControlHistory.current
     val id = LocalControlScope.current + ":slider:" + title
@@ -282,11 +285,7 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
         history.record(id, value, next); if (next != value) change(next)
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FlowRow(Modifier.fillMaxWidth().heightIn(min = 32.dp),
-            horizontalArrangement = Arrangement.SpaceBetween, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            UiText(title, 14)
-            UiText("${dragging.roundToInt()}$unit", 14, bold = true)
-        }
+        InputPreference(title, "${dragging.roundToInt()}$unit", inlineValue = true) { editing = true }
         key(range) {
             LiquidSlider(value = { dragging }, onValueChange = { dragging = it.coerceIn(range.first.toFloat(), range.last.toFloat()) },
                 onValueChangeFinished = { latestCommit.value(dragging.roundToInt().coerceIn(range)) },
@@ -299,6 +298,11 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
                 }.focusable())
         }
         UndoFooter(title, original?.let { { change(it) } })
+    }
+    if (editing) NumberInputDialog(title, dragging.roundToInt(), range, unit, dismiss = { editing = false }) {
+        dragging = it.toFloat()
+        latestCommit.value(it)
+        editing = false
     }
 }
 
@@ -396,10 +400,13 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
 internal fun hex(color: Int) = "#%08X".format(color)
 
 @Composable internal fun ColorDialog(initial: Int, opaque: Boolean = false, dismiss: () -> Unit, confirm: (Int) -> Unit) {
-    var selection by rememberSaveable(stateSaver = PickerColor.saver) { mutableStateOf(PickerColor.from(initial)) }
+    var selection by rememberSaveable(stateSaver = PickerColor.saver) {
+        mutableStateOf(PickerColor.from(if (opaque) initial or 0xff000000.toInt() else initial))
+    }
     fun formatted(color: Int) = if (opaque) "#%06X".format(color and 0xffffff) else hex(color)
     var input by rememberSaveable { mutableStateOf(formatted(initial)) }
     var invalid by rememberSaveable { mutableStateOf(false) }
+    var mode by rememberSaveable { mutableIntStateOf(if (opaque) 1 else 0) }
     fun update(next: PickerColor) { selection = next; input = formatted(next.argb); invalid = false }
     SettingsDialog("选择颜色", dismiss, footer = {
         val keyboard = LocalSoftwareKeyboardController.current
@@ -414,36 +421,52 @@ internal fun hex(color: Int) = "#%08X".format(color)
         val keyboard = LocalSoftwareKeyboardController.current
         Surface(Modifier.fillMaxWidth().height(40.dp).clip(miuixShape(12.dp)).drawCheckerboard(),
             shape = miuixShape(12.dp), color = Color(selection.argb)) {}
-        ColorChannel("色相", "${selection.hue.roundToInt()}°", selection.hue / 360f,
-            { update(selection.copy(hue = it * 360f)) }) {
-            HsvHueSlider(selection.hue, { update(selection.copy(hue = it * 360f)) })
+        // MIUIx 0.9.0 ColorPalette always includes alpha. Opaque colors use HSV/HEX instead.
+        ChoiceTabs(if (opaque) listOf("调色", "HEX") else listOf("色板", "调色", "HEX"),
+            if (opaque) mode - 1 else mode, undoable = false) {
+            keyboard?.hide()
+            update(selection)
+            mode = if (opaque) it + 1 else it
         }
-        ColorChannel("饱和度", "${(selection.saturation * 100).roundToInt()}%", selection.saturation,
-            { update(selection.copy(saturation = it)) }) {
-            HsvSaturationSlider(selection.hue, selection.saturation, { update(selection.copy(saturation = it)) })
+        if (mode == 0) ColorPalette(color = Color(selection.argb),
+            onColorChanged = { update(PickerColor.from(it.toArgb(), selection)) },
+            modifier = Modifier.fillMaxWidth(), showPreview = false)
+        if (mode == 1) {
+            ColorChannel("色相", "${selection.hue.roundToInt()}°", selection.hue / 360f,
+                { update(selection.copy(hue = it * 360f)) }) {
+                HsvHueSlider(selection.hue, { update(selection.copy(hue = it * 360f)) })
+            }
+            ColorChannel("饱和度", "${(selection.saturation * 100).roundToInt()}%", selection.saturation,
+                { update(selection.copy(saturation = it)) }) {
+                HsvSaturationSlider(selection.hue, selection.saturation, { update(selection.copy(saturation = it)) })
+            }
+            ColorChannel("亮度", "${(selection.brightness * 100).roundToInt()}%", selection.brightness,
+                { update(selection.copy(brightness = it)) }) {
+                HsvValueSlider(selection.hue, selection.saturation, selection.brightness, { update(selection.copy(brightness = it)) })
+            }
         }
-        ColorChannel("亮度", "${(selection.brightness * 100).roundToInt()}%", selection.brightness,
-            { update(selection.copy(brightness = it)) }) {
-            HsvValueSlider(selection.hue, selection.saturation, selection.brightness, { update(selection.copy(brightness = it)) })
-        }
-        if (!opaque) ColorChannel("不透明度", "${(selection.alpha * 100).roundToInt()}%", selection.alpha,
+        if (!opaque && mode == 1) ColorChannel("不透明度", "${(selection.alpha * 100).roundToInt()}%", selection.alpha,
             { update(selection.copy(alpha = it)) }) {
             HsvAlphaSlider(selection.hue, selection.saturation, selection.brightness, selection.alpha,
                 { update(selection.copy(alpha = it)) })
         }
-        val inputError = if (opaque) "请输入 6 位 RGB 或 FF 开头的 8 位 ARGB" else "请输入 6 位 RGB 或 8 位 ARGB"
-        TextField(value = input, onValueChange = { text ->
-            input = text
-            val parsed = parsePickerColor(text, opaque)
-            invalid = parsed == null
-            if (parsed != null) selection = PickerColor.from(parsed, selection)
-        }, modifier = Modifier.fillMaxWidth().semantics { if (invalid) error(inputError) },
-            label = if (opaque) "HEX · RRGGBB" else "HEX · AARRGGBB / RRGGBB",
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters,
-                keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { keyboard?.hide() }))
-        if (invalid) UiText(inputError, 12, color = MiuixTheme.colorScheme.error)
+        if (mode == 2) {
+            val inputError = if (opaque) "请输入 6 位 RGB 或 FF 开头的 8 位 ARGB" else "请输入 6 位 RGB 或 8 位 ARGB"
+            TextField(value = input, onValueChange = { text ->
+                input = text
+                val parsed = parsePickerColor(text, opaque)
+                invalid = parsed == null
+                if (parsed != null) selection = PickerColor.from(parsed, selection)
+            }, modifier = Modifier.fillMaxWidth().semantics { if (invalid) error(inputError) },
+                label = if (opaque) "HEX · RRGGBB" else "HEX · AARRGGBB / RRGGBB",
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters,
+                    keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { keyboard?.hide() }))
+            if (invalid) UiText(inputError, 12, color = MiuixTheme.colorScheme.error)
+            else UiText(if (opaque) "输入 RGB 颜色，例如 #3482FF。"
+                else "8 位格式为 AARRGGBB，前两位表示不透明度；6 位 RGB 使用完全不透明色。", 12, muted = true)
+        }
     }
 }
 

@@ -126,3 +126,31 @@ Release Lint 与 Release APK 构建，最终全部通过。Windows 测试环境�
 测试 APK 使用独立包名 `io.github.baishangui.thunder.previewqa`。本轮两次 ADB 安装
 均未返回完成结果，已取消等待；未完成真机页面截图、触控、大字体或 TalkBack 验收，
 不能用构建和单元测试结果代替这些视觉与交互检查。Release APK 为未签名构建产物。
+
+
+## 2026-10-19：按参数性质选择输入组件
+
+本轮沿用锁定的 MIUIx 0.9.0，核对发布源码中的 `SpinnerItemImpl`、
+`SpinnerEntry`、`NumberPicker`、`TextField`、`ColorPalette`，未新增组件依赖。
+
+| 参数 | 呈现与输入方式 | 提交方式 |
+| --- | --- | --- |
+| 主题、配色来源、时间制式、日期、图标方案 | BasicComponent 显示当前选项，WindowDialog 中使用带说明的 SpinnerItemImpl | 选中后提交，取消保持原值 |
+| 音量动画与展开、手势条换色依据 | 按互斥方案呈现选项，映射至原有布尔配置 | 选中后提交 |
+| 时钟字号、手势条粗细、界面圆角 | NumberPicker 数字滚轮 | 点击确定后提交，取消不保存 |
+| 模糊、边距、尺寸、百分比等连续参数 | LiquidSlider；点击数值行打开 TextField 精确输入 | 拖动松手或输入确认后提交；空值、非整数、溢出与越界输入不能提交 |
+| 颜色 | 材质颜色使用 ColorPalette 色板、HSV 调色、HEX；不透明主题色使用 HSV 与 HEX | 共用颜色草稿，确认后保存，取消保持原值 |
+| 功能启停、图标隐藏等独立布尔值 | 保留 LiquidToggle | 切换后提交 |
+
+数值入口在普通字体且宽度足够时左右排列标题与数值，窄屏或大字体改为上下排列。
+数字滚轮行高随字体增大，弹窗正文继续独立滚动，操作区保持固定。
+单选、数字滚轮和精确输入接入已有 ControlHistory；预览与取色模式切换不生成设置回退项。
+手势条详情拆分为外观开关、尺寸与位置、材质、亮暗颜色，材质与颜色分别恢复系统设置。
+
+新增 NumericInputTest 覆盖输入边界、空值、非整数、整数溢出和越界拒绝。
+Release 单元测试 89 项全部通过，Release Lint 与 APK 构建通过，LiquidButton 形状兼容检查通过。
+独立包名 `io.github.baishangui.thunder.inputqa` 的 Debug 测试包已构建。普通 ADB 安装未返回完成结果；用户明确允许安装后，使用设备已有的 Root 通过包管理器安装成功。
+测试包与正式应用使用独立配置；设备页面检查结果在下文记录。
+
+MIUIx 0.9.0 的 ColorPalette 内置不透明度滑条，未提供隐藏参数；因此只用于允许透明的材质颜色。
+不透明主题色组合已有 HSV 通道与 HEX 输入，避免出现无效的不透明度控件。

@@ -165,10 +165,18 @@ internal fun Area.summary(corner: Boolean = true): String = buildList {
 
 @Composable internal fun AppearanceSettings(settings: Settings, change: (Settings) -> Unit) {
     SettingsSection("明暗模式") {
-        ChoiceTabs(listOf("跟随系统", "浅色", "深色"), settings.theme) { change(settings.copy(theme = it)) }
+        SettingsChoice("主题模式", listOf(
+            SettingOption("跟随系统", "随设备的浅色与深色模式切换"),
+            SettingOption("浅色", "始终使用浅色界面"),
+            SettingOption("深色", "始终使用深色界面")
+        ), settings.theme) { change(settings.copy(theme = it)) }
     }
     SettingsSection("界面配色") {
-        ChoiceTabs(listOf("自定义", "壁纸取色", "自选取色"), settings.colorMode) { change(settings.copy(colorMode = it)) }
+        SettingsChoice("配色来源", listOf(
+            SettingOption("自定义", "分别设置强调色和背景底色"),
+            SettingOption("壁纸取色", "跟随系统壁纸的动态配色"),
+            SettingOption("自选取色", "根据种子色生成整套界面配色")
+        ), settings.colorMode) { change(settings.copy(colorMode = it)) }
         when (settings.colorMode) {
             0 -> {
                 LiquidColorSetting("强调色", settings.accent, opaque = true) { change(settings.copy(accent = it)) }
@@ -180,6 +188,6 @@ internal fun Area.summary(corner: Boolean = true): String = buildList {
     SettingsSection("玻璃与形状") {
         LiquidValueSlider("玻璃雾度", settings.glassStrength, 0..100, "%") { change(settings.copy(glassStrength = it)) }
         LiquidValueSlider("玻璃折射", settings.refraction, 0..100, "%") { change(settings.copy(refraction = it)) }
-        LiquidValueSlider("界面圆角", settings.roundness, 16..36, " dp") { change(settings.copy(roundness = it)) }
+        NumberSetting("界面圆角", settings.roundness, 16..36, " dp") { change(settings.copy(roundness = it)) }
     }
 }
