@@ -225,6 +225,10 @@ final class SystemSettingsHook {
         Reflect.callMethod(fragment, "setDividerHeight", 0);
         Object list = Reflect.callMethod(fragment, "getListView");
         if (list == null) return;
+        // Remove any ItemDecorations added by COUI's own fragment init that still draw
+        // full-width separator lines and overflow the card's rounded-corner boundaries.
+        int decorCount = (int)Reflect.callMethod(list, "getItemDecorationCount");
+        while (decorCount-- > 0) Reflect.callMethod(list, "removeItemDecorationAt", 0);
         // Initial loading and conditional rows should not animate vertically.
         Reflect.callMethod(list, "setItemAnimator", (Object)null);
         ((android.view.ViewGroup)list).setLayoutAnimation(null);
@@ -253,7 +257,7 @@ final class SystemSettingsHook {
             if (screen == null || Reflect.callMethod(fragment, "findPreference", ENTRY) != null) return;
             Context context = context(fragment);
             Object group = category(loader, context, screen, "thunder:entry_group", "");
-            Reflect.callMethod(group, "setOrder", 1000);
+            Reflect.callMethod(group, "setOrder", -1);
             Object pref = jump(loader, context, ENTRY, "thunder", true);
             int icon = resource(context, "settings_personalise_ic", "drawable");
             if (icon != 0) Reflect.callMethod(pref, "setIcon", icon);

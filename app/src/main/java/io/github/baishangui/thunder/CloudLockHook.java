@@ -161,6 +161,23 @@ final class CloudLockHook {
                     ShadeHook.resourceHit("cloud-lock-clip-corners");
                 }
             }));
+        // applyRoundnessAndInvalidate rebuilds the path-provider cache and stroke from
+        // CapsuleConfig.getDefaultRadius(), bypassing getActualRadius(). This happens when
+        // the capsule collapses back to pill on lock-screen, restoring the native corner.
+        // Repair the cache radius after the native rebuild, matching onClipInfoChange.
+        bind("capsule-apply-roundness",() -> Api102Runtime.findAndHookMethod(LOCK+"CapsuleItemView",loader,"applyRoundnessAndInvalidate",new HookCallback() {
+            @Override protected void afterHookedMethod(Param p) {
+                if(p.hasThrowable())return;
+                View view=(View)p.thisObject;capsuleGeometry.put(view,true);
+                HookConfig c=ShadeHook.snapshot();
+                if(!c.enabled||!c.cloud||!c.cloudCardArea.cornerEnabled||!flowCapsule(view))return;
+                Object location=Reflect.getObjectField(view,"location");
+                android.graphics.Rect clip=(android.graphics.Rect)Reflect.callMethod(location,"getClipRect");
+                float radius=Math.min(c.cloudCardArea.corner*view.getResources().getDisplayMetrics().density,Math.max(0f,clip.height()/2f));
+                Reflect.callMethod(Reflect.getObjectField(view,"pathProvider"),"updateMetaData",radius,null,null);
+                ShadeHook.resourceHit("cloud-lock-apply-roundness");
+            }
+        }));
         bind("capsule-corners-deopt",() -> Api102Runtime.deoptimizeCallers(Reflect.findClass(LOCK+"CapsuleItemView",loader),
             "applyRoundnessAndInvalidate","getActualRadius","getTopCornerRadius","getBottomCornerRadius"));
         bind("fallback-color",() -> Api102Runtime.findAndHookMethod(LOCK+"CapsuleBackgroundHelper",loader,"getBackgroundColor",new HookCallback() {
