@@ -81,17 +81,27 @@ final class Reflect {
         for(int i=0;i<types.length;i++) if(args[i]==null?types[i].isPrimitive():!boxed(types[i]).isInstance(args[i]))return false;
         return true;
     }
-    private static Method resolveMethod(Class<?> type,String name,Object[] args) {
-        for(Class<?> c=type;c!=null;c=c.getSuperclass()) {
+    private static Method matchingMethod(Method[] methods,String name,Object[] args) {
+        // ART exposes some Kotlin interface forwarders only as synthetic bridges.
+        // Prefer an implementation when present, but a bridge-only member is callable.
+        for(boolean bridge:new boolean[]{false,true}) {
             Method found=null;
-            // Covariant vendor builders expose a compiler bridge with identical arguments.
-            // Resolve the implementation, while still rejecting genuinely ambiguous overloads.
-            for(Method candidate:c.getDeclaredMethods()) if(!candidate.isBridge()&&candidate.getName().equals(name)&&accepts(candidate.getParameterTypes(),args)) {
-                if(found!=null)throw new IllegalStateException("Ambiguous method: "+c.getName()+"."+name);
+            for(Method candidate:methods)if(candidate.isBridge()==bridge&&candidate.getName().equals(name)&&accepts(candidate.getParameterTypes(),args)) {
+                if(found!=null)throw new IllegalStateException("Ambiguous method: "+candidate.getDeclaringClass().getName()+"."+name);
                 found=candidate;
             }
             if(found!=null){found.setAccessible(true);return found;}
         }
+        return null;
+    }
+    private static Method resolveMethod(Class<?> type,String name,Object[] args) {
+        for(Class<?> c=type;c!=null;c=c.getSuperclass()) {
+            Method found=matchingMethod(c.getDeclaredMethods(),name,args);
+            if(found!=null)return found;
+        }
+        // Default methods can be inherited entirely from vendor interfaces.
+        Method inherited=matchingMethod(type.getMethods(),name,args);
+        if(inherited!=null)return inherited;
         throw new IllegalStateException("Missing method: "+type.getName()+"."+name);
     }
     static Object callMethod(Object object,String name) {

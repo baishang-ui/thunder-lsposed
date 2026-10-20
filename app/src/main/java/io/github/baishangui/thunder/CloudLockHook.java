@@ -18,13 +18,8 @@ final class CloudLockHook {
     private static final ThreadLocal<Object> writingTarget=new ThreadLocal<>();
     private static final ThreadLocal<View> drawing=new ThreadLocal<>();
     private static final Map<View,Boolean> views=Collections.synchronizedMap(new WeakHashMap<>());
-    private static final Map<View,Boolean> capsuleGeometry=Collections.synchronizedMap(new WeakHashMap<>());
-    private static final Map<View,Boolean> strokeViews=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<Object,Mask> masks=Collections.synchronizedMap(new WeakHashMap<>());
     private record Mask(Object orientation,int[] colors) { }
-    private record StrokeRadius(Object layer,float radius) {
-        void restore(){Reflect.callMethod(layer,"setCornerRadius",radius);}
-    }
 
     static void track(View view,Object proxy,String type,Object manager) {
         Object blur=Reflect.callMethod(proxy,"getBlurConfig");
@@ -46,6 +41,16 @@ final class CloudLockHook {
     private static Object referent(Object owner,String key) {
         Object ref=Reflect.getAdditionalInstanceField(owner,key);
         return ref instanceof WeakReference<?>?((WeakReference<?>)ref).get():null;
+    }
+    static boolean inNativeCapsule(View view) {
+        for(int depth=0;view!=null&&depth<32;depth++) {
+            for(Class<?> type=view.getClass();type!=null;type=type.getSuperclass()) {
+                String name=type.getName();
+                if(name.equals(LOCK+"CapsuleItemView")||name.equals(LOCK+"NotificationCapsuleContainer"))return true;
+            }
+            Object parent=view.getParent();view=parent instanceof View?(View)parent:null;
+        }
+        return false;
     }
     static boolean flowCapsule(View view) {
         for(int i=0;view!=null&&i<8;i++) {
@@ -83,8 +88,10 @@ final class CloudLockHook {
             return cardCorners(material,c);
         } else if("CAPSULE".equals(type)) {
             Object view=referent(blur,"thunder.cloud-view");
-            if(c.cloud&&view instanceof View&&flowCapsule((View)view))
-                return cardCorners(c.cloudLockStyle!=0?c.cloudLockArea:new HookConfig.Area(false,0,false,0,false,0),c);
+            if(c.cloud&&view instanceof View&&flowCapsule((View)view)) {
+                HookConfig.Area material=c.cloudLockStyle!=0?c.cloudLockArea:new HookConfig.Area(false,0,false,0,false,0);
+                return new HookConfig.Area(material.blur,material.radius,material.tint,material.color,false,0);
+            }
         }
         return null;
     }
@@ -115,79 +122,9 @@ final class CloudLockHook {
         Reflect.setAdditionalInstanceField(proxy,"thunder.cloud-flow",flow);
     }
     static void install(ClassLoader loader) {
-        // This animated highlight is independent of the capsule background. C17's
-        // updateViewSize resets its layers to height / 2, even after roundness changed.
-        bind("capsule-animated-edge",() -> Api102Runtime.findAndHookMethod(LOCK+"stroke.StrokeView",loader,"onDraw",Canvas.class,new HookCallback() {
-            @Override protected void beforeHookedMethod(Param p) {
-                View view=(View)p.thisObject;strokeViews.put(view,true);
-                HookConfig c=ShadeHook.snapshot();
-                if(!c.enabled||!c.cloud||!c.cloudCardArea.cornerEnabled||!flowCapsule(view))return;
-                float height=((Number)Reflect.getObjectField(view,"desiredDrawHeight")).floatValue();
-                float radius=Math.min(c.cloudCardArea.corner*view.getResources().getDisplayMetrics().density,Math.max(0f,height/2f));
-                ArrayList<StrokeRadius> saved=new ArrayList<>();p.setObjectExtra("cloud-edge-radii",saved);
-                for(Object layer:(Iterable<?>)Reflect.getObjectField(view,"layers")) {
-                    saved.add(new StrokeRadius(layer,((Number)Reflect.callMethod(layer,"getCornerRadius")).floatValue()));
-                    Reflect.callMethod(layer,"setCornerRadius",radius);
-                }
-                ShadeHook.resourceHit("cloud-lock-animated-edge");
-            }
-            @Override protected void afterHookedMethod(Param p) {
-                Object saved=p.getObjectExtra("cloud-edge-radii");
-                if(saved instanceof Iterable<?>)for(Object radius:(Iterable<?>)saved)((StrokeRadius)radius).restore();
-            }
-        }));
-        // The lock capsule clips content and draws its stroke from getActualRadius,
-        // independently of BlurConfig. Update that native source as well.
-        for(String method:new String[]{"getActualRadius","getMaxRadius"})bind("capsule-"+method,() ->
-            Api102Runtime.findAndHookMethod(LOCK+"CapsuleItemView",loader,method,new HookCallback() {
-                @Override protected void afterHookedMethod(Param p) {
-                    if(p.hasThrowable())return;
-                    View view=(View)p.thisObject;capsuleGeometry.put(view,true);
-                    HookConfig c=ShadeHook.snapshot();
-                    if(!c.enabled||!c.cloud||!c.cloudCardArea.cornerEnabled||!flowCapsule(view))return;
-                    Object location=Reflect.getObjectField(view,"location");
-                    android.graphics.Rect clip=(android.graphics.Rect)Reflect.callMethod(location,"getClipRect");
-                    float radius=c.cloudCardArea.corner*view.getResources().getDisplayMetrics().density;
-                    p.setResult(Math.min(radius,Math.max(0f,clip.height()/2f)));
-                    ShadeHook.resourceHit("cloud-lock-corners");
-                }
-            }));
-        // onClipInfoChange bypasses getActualRadius and writes CapsuleConfig's
-        // default directly. Repair only the radius after native bounds, scaling
-        // and smoothing have been applied, using the provider's own cache updater.
-        bind("capsule-clip-corners",() -> Api102Runtime.findAndHookMethod(LOCK+"CapsuleItemView",loader,"onClipInfoChange",
-            LOCK+"CapsuleViewState$ScrollClipInfo",new HookCallback() {
-                @Override protected void afterHookedMethod(Param p) {
-                    if(p.hasThrowable())return;
-                    View view=(View)p.thisObject;capsuleGeometry.put(view,true);
-                    HookConfig c=ShadeHook.snapshot();
-                    if(!c.enabled||!c.cloud||!c.cloudCardArea.cornerEnabled||!flowCapsule(view))return;
-                    Object location=Reflect.getObjectField(view,"location");
-                    android.graphics.Rect clip=(android.graphics.Rect)Reflect.callMethod(location,"getClipRect");
-                    float radius=Math.min(c.cloudCardArea.corner*view.getResources().getDisplayMetrics().density,Math.max(0f,clip.height()/2f));
-                    Reflect.callMethod(Reflect.getObjectField(view,"pathProvider"),"updateMetaData",radius,null,null);
-                    ShadeHook.resourceHit("cloud-lock-clip-corners");
-                }
-            }));
-        // applyRoundnessAndInvalidate rebuilds the path-provider cache and stroke from
-        // CapsuleConfig.getDefaultRadius(), bypassing getActualRadius(). This happens when
-        // the capsule collapses back to pill on lock-screen, restoring the native corner.
-        // Repair the cache radius after the native rebuild, matching onClipInfoChange.
-        bind("capsule-apply-roundness",() -> Api102Runtime.findAndHookMethod(LOCK+"CapsuleItemView",loader,"applyRoundnessAndInvalidate",new HookCallback() {
-            @Override protected void afterHookedMethod(Param p) {
-                if(p.hasThrowable())return;
-                View view=(View)p.thisObject;capsuleGeometry.put(view,true);
-                HookConfig c=ShadeHook.snapshot();
-                if(!c.enabled||!c.cloud||!c.cloudCardArea.cornerEnabled||!flowCapsule(view))return;
-                Object location=Reflect.getObjectField(view,"location");
-                android.graphics.Rect clip=(android.graphics.Rect)Reflect.callMethod(location,"getClipRect");
-                float radius=Math.min(c.cloudCardArea.corner*view.getResources().getDisplayMetrics().density,Math.max(0f,clip.height()/2f));
-                Reflect.callMethod(Reflect.getObjectField(view,"pathProvider"),"updateMetaData",radius,null,null);
-                ShadeHook.resourceHit("cloud-lock-apply-roundness");
-            }
-        }));
-        bind("capsule-corners-deopt",() -> Api102Runtime.deoptimizeCallers(Reflect.findClass(LOCK+"CapsuleItemView",loader),
-            "applyRoundnessAndInvalidate","getActualRadius","getTopCornerRadius","getBottomCornerRadius"));
+        // CapsuleItemView owns the native mini-card and its collapse animation.
+        // Expanded-card corners belong to the CUSTOM notification row, never to
+        // this capsule's radius getters, content path or animated stroke layers.
         bind("fallback-color",() -> Api102Runtime.findAndHookMethod(LOCK+"CapsuleBackgroundHelper",loader,"getBackgroundColor",new HookCallback() {
             @Override protected void afterHookedMethod(Param p) {
                 HookConfig c=ShadeHook.snapshot();View view=drawing.get();
@@ -291,11 +228,7 @@ final class CloudLockHook {
         }
         ArrayList<View> backgrounds;synchronized(views){backgrounds=new ArrayList<>(views.keySet());}
         for(View view:backgrounds){view.invalidate();view.invalidateOutline();}
-        ArrayList<View> edges;synchronized(strokeViews){edges=new ArrayList<>(strokeViews.keySet());}
-        for(View view:edges)view.invalidate();
-        ArrayList<View> capsules;synchronized(capsuleGeometry){capsules=new ArrayList<>(capsuleGeometry.keySet());}
-        for(View view:capsules)try {Reflect.callMethod(view,"applyRoundnessAndInvalidate");}
-        catch(Throwable error){ShadeHook.frameworkFailure("cloud-lock-corners-refresh",error);}
+
     }
     private static void bind(String key,Runnable action) {
         try{action.run();ShadeHook.hookRegistered("cloud-lock-"+key);}

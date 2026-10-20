@@ -1,0 +1,61 @@
+package io.github.baishangui.thunder;
+import android.view.View;
+import android.os.Bundle;
+import com.oplusos.systemui.common.blurability.*;
+import com.oplus.posteffect.params.*;
+public final class CloudCurveCheck {
+ static int checks;static void check(boolean ok,String text){checks++;if(!ok)throw new AssertionError(text);}
+ public static void main(String[] args)throws Throwable {
+  ShadeHook.install("com.android.systemui","com.android.systemui",CloudCurveCheck.class.getClassLoader());
+  CloudHook.install(CloudCurveCheck.class.getClassLoader());CloudSdkHook.install(CloudCurveCheck.class.getClassLoader());
+  Bundle b=new Bundle();b.putBoolean("enabled",true);b.putBoolean("cloud_enabled",true);b.putInt("cloud_card_color",0);
+  b.putBoolean("cloud_card_corner_enabled",true);b.putInt("cloud_card_corner",13);CloudCheck.config(b);
+  var row=new NotificationExpansionCheck.Row();var background=new com.android.systemui.statusbar.notification.row.NotificationBackgroundView();
+  background.parent=row;row.mBackgroundNormal=background;
+  var blur=new BlurConfig();var proxy=new ViewBlurProxy(blur);CloudLockHook.track(background,proxy,"CUSTOM",new CloudLockCheck.Manager());NotificationCardHook.trackBlur(background,blur);
+  blur.radiusWeight=1.1f;blur.gradientStrokeCornerParam=new CornerParams(CornerType.ROUND,47,1.1f);
+  String backend="com.oplusos.systemui.common.blurability.ViewBlurProxy#applyConfigToPlatformBlur";
+  var p=QsTintCheck.before(backend,proxy);
+  check(blur.radiusWeight==3f&&blur.enableMotionSmoothCorner,"cloud blur uses G2 weight matching plugin content");
+  var corners=(CornerParams)blur.gradientStrokeCornerParam;
+  check(corners.getType()==CornerType.G2&&corners.getWeight()==3f,"cloud platform stroke uses same G2 curve as fill");QsTintCheck.after(backend,p);
+  check(blur.radiusWeight==1.1f&&!blur.enableMotionSmoothCorner,"native backend smoothing restores");
+  var stack=new NotificationExpansionCheck.StackHelper();stack.configMap.put(1,new BlurConfig());
+  CloudCheck.after(NotificationExpansionCheck.STACK,stack,null,background,null,null);
+  var stackBlur=stack.configMap.get(1);stackBlur.gradientStrokeCornerParam=new CornerParams(CornerType.ROUND,47,1.1f);
+  p=QsTintCheck.before(NotificationExpansionCheck.DRAW,new Object(),stackBlur,1f);
+  check(stackBlur.radiusWeight==3&&((CornerParams)stackBlur.gradientStrokeCornerParam).getType()==CornerType.G2,"stacked cloud backgrounds use the same G2 curve as the main row");QsTintCheck.after(NotificationExpansionCheck.DRAW,p);
+  p=QsTintCheck.before("com.android.systemui.statusbar.notification.row.NotificationBackgroundView#setRadius",background,47f,47f,true);
+  corners=(CornerParams)blur.gradientStrokeCornerParam;check(corners.getType()==CornerType.G2&&corners.getWeight()==3f,"direct notification edge writer gets matching curve before backend bypass");
+  QsTintCheck.after("com.android.systemui.statusbar.notification.row.NotificationBackgroundView#setRadius",p);
+  check(((CornerParams)blur.gradientStrokeCornerParam).getType()==CornerType.ROUND,"direct edge native config restores");
+  var nativeTriple=new kotlin.Triple(1,117f,1.1f);
+  var triple=(kotlin.Triple)CloudCheck.after("com.oplus.systemui.plugins.seedling.util.c#f",null,nativeTriple);
+  check(triple.d().equals(2)&&triple.f().equals(3f),"cloud content uses G2 even with native conic baseline");
+  var sdk=new g7.f2();sdk.d="Notification";sdk.n=new com.oplus.ule.lite.components.s1();
+  var style=(f8.j5)CloudCheck.after("g7.f2#s0",sdk,new f8.j5(1,20,1.1f),true);
+  check(style.b()==2&&style.c()==3,"SDK uses same G2 curve independent of entrance baseline");
+  var path=new android.graphics.Path();
+  QsTintCheck.before("com.android.systemui.statusbar.notification.row.ExpandableOutlineView#getRoundedRectPath",row,7,9,407,209,45.5f,22.75f,path);
+  check(path.smooth&&path.weight==3&&path.radius==45.5f&&path.bottomRadius==22.75f,"notification cloud clipping uses native G2 path and preserves grouped edges");
+  var item=new com.oplus.systemui.notification.lockscreen.capsule.CapsuleItemView();item.entry=new com.oplus.systemui.notification.lockscreen.seedling.CapsuleSeedingData();
+  var lock=new BlurConfig();CloudLockHook.track(item,new ViewBlurProxy(lock),"CAPSULE",null);
+  check(!CloudLockHook.area(lock,ShadeHook.snapshot()).cornerEnabled,"native lock capsule is excluded from expanded-card geometry");
+  var media=new com.oplus.systemui.plugins.shared.template.component.media.view.MediaBackGroundView();media.parent=row;media.v=1;media.u=1.1f;
+  String stroke="com.oplus.systemui.plugins.shared.template.component.view.CustomLottieView#i";
+  p=QsTintCheck.before(stroke,media,new android.graphics.Canvas());check(media.v==2&&media.u==3,"media template stroke uses G2 type and weight");QsTintCheck.after(stroke,p);check(media.v==1&&media.u==1.1f,"media template smoothing restores");
+  var light=new com.oplus.systemui.plugins.shared.template.component.light.f();light.setCallback(media);light.e.b=1;light.e.d[10]=1.1f;
+  String lightDraw=light.getClass().getName()+"#draw";p=QsTintCheck.before(lightDraw,light,new android.graphics.Canvas());
+  check(light.e.b==2&&light.e.d[10]==3,"template light uses matching G2 curve");QsTintCheck.after(lightDraw,p);
+  check(light.e.b==1&&light.e.d[10]==1.1f&&light.e.c,"template light restores native curve and dirties type uniform");
+  var root=new View();root.parent=row;
+  var foreground=new android.graphics.drawable.GradientDrawable();foreground.mGradientDrawableExt.setSmoothRoundStyle(true,1.1f,0);foreground.setCornerRadius(117);root.foreground=foreground;
+  CloudCheck.after("com.oplus.systemui.plugins.shared.template.page.entity.t#<init>",new com.oplus.systemui.plugins.shared.template.page.entity.t(root),null);
+  check(foreground.mGradientState.mSmoothType==1&&foreground.mGradientState.mSmoothWeight==3,"plain template foreground uses vendor G2 smoothing as well as radius");
+  b.putBoolean("cloud_card_corner_enabled",false);CloudCheck.config(b);
+  p=QsTintCheck.before(backend,proxy);check(blur.radiusWeight==1.1f,"disabled cloud corners retain native backend curve");QsTintCheck.after(backend,p);
+  CloudTemplateHook.refresh();
+  check(foreground.mGradientState.mSmoothType==0&&foreground.mGradientState.mSmoothWeight==1.1f&&foreground.getCornerRadius()==117,"disabled foreground restores original smoothing and radius");
+  System.out.println("Verified "+checks+" cross-host cloud curve checks.");
+ }
+}

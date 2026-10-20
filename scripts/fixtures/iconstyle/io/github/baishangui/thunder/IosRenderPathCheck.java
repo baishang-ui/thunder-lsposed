@@ -32,7 +32,10 @@ public final class IosRenderPathCheck {
         host.full="com.android.systemui:dimen/status_bar_battery_horizontal_progress_start";
         HookCallback dimension=Api102Runtime.callbacks.get(Resources.class.getName()+"#getDimension");
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
-        check(Math.abs(((Float)call.getResult())-3f*(28f/29f)*host.getDisplayMetrics().density)<.001f,"horizontal progress inset follows the 28dp battery width at host density");
+        check(Math.abs((Float)call.getResult())<.001f,"C16 body starts at the left edge of the normalized battery");
+        host=new Resources(); host.full="com.android.systemui:dimen/status_bar_battery_horizontal_progress_end";
+        call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
+        check(Math.abs((Float)call.getResult()-(28f*8f/93f)*host.getDisplayMetrics().density)<.001f,"progress excludes the C16 battery cap at host density");
         host=new Resources(); host.full="foreign:dimen/status_bar_battery_horizontal_progress_start";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
         check(call.getResult().equals(99f),"battery dimensions are isolated to SystemUI");
@@ -47,11 +50,11 @@ public final class IosRenderPathCheck {
         call=IosStatusBarCheck.param(host,1); call.setResult(30f); dimension.after(call);
         check(Math.abs((Float)call.getResult()-33.6f)<.001f,"native icon sizes enlarge by 12 percent at actual density");
         host=new Resources(); host.full="com.android.systemui:dimen/stat_bt_battery_inset_left";
-        call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
-        check(Math.abs((Float)call.getResult()+3f*1.12f*host.getDisplayMetrics().density)<.001f,"negative original Bluetooth insets retain direction when scaled");
+        call=IosStatusBarCheck.param(host,1); call.setResult(-2.5f); dimension.after(call);
+        check(call.getResult().equals(-2.5f),"unneeded Bluetooth inset overrides are removed with standardized icon spacing");
         host=new Resources(); host.full="com.android.systemui:dimen/stat_bt_battery_inset_left";
         HookCallback pixelSize=Api102Runtime.callbacks.get(Resources.class.getName()+"#getDimensionPixelSize");
-        call=IosStatusBarCheck.param(host,1); call.setResult(99); pixelSize.after(call);
+        call=IosStatusBarCheck.param(host,1); call.setResult(-2); pixelSize.after(call);
         check((Integer)call.getResult()<0,"negative pixel-size results must not be clamped to positive one");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_mobile_signal_size";
         value=new android.util.TypedValue(); value.type=android.util.TypedValue.TYPE_DIMENSION;
@@ -63,7 +66,7 @@ public final class IosRenderPathCheck {
         check(Math.abs((Float)call.getResult()-17f*host.getDisplayMetrics().density)<.001f,"horizontal battery preserves 17dp height with a compact 28dp width");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_battery_horizontal_progress_top";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
-        check(Math.abs((Float)call.getResult()-4.45f*host.getDisplayMetrics().density)<.001f,"progress inset returns to the 17dp battery height scale");
+        check(Math.abs((Float)call.getResult()-(17f*5f/55f)*host.getDisplayMetrics().density)<.001f,"progress is aligned to the C16 body's y=5 outline");
         host=new Resources(); host.full="com.android.systemui:dimen/battery_percent_in_text_size";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
         check(Math.abs((Float)call.getResult()-10f*host.getDisplayMetrics().density)<.001f,"internal percentage returns to the 17dp battery height scale");
@@ -80,8 +83,8 @@ public final class IosRenderPathCheck {
             battery.rect=content;
             var body=battery.getBodyRectForLayout(content);
             call=IosStatusBarCheck.param(battery,content);call.setResult(body);bodyLayout.after(call);
-            float cap=28f*density*(1f-1979f/2200f);
-            check(Math.abs(body.left-(content.left+(rtl?cap:0)))<.001f && Math.abs(body.right-(content.right-(rtl?0:cap)))<.001f,"text layout excludes the PUI cap in LTR and RTL");
+            float cap=28f*density*(1f-85f/93f);
+            check(Math.abs(body.left-(content.left+(rtl?cap:0)))<.001f && Math.abs(body.right-(content.right-(rtl?0:cap)))<.001f,"text layout excludes the C16 battery cap in LTR and RTL");
             check(body.top==content.top && body.bottom==content.bottom,"text centering preserves vertical layout");
             for (String digits : new String[]{"7","75","100"}) {
                 // C17 centers each freshly measured glyph's ink pixels inside this body.

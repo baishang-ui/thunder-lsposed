@@ -17,10 +17,10 @@ final class IosStatusBarHook {
     private static boolean enabled;
     static final float ICON_SCALE = 1.12f;
     static final float ICON_SIDE_GAP_DP = 1f;
-    static final float BATTERY_WIDTH_SCALE = 28f / 29f;
+    static final float BATTERY_WIDTH_SCALE = 1f;
     static final float BATTERY_HEIGHT_SCALE = 1f;
-    // The original C17 vector body ends at x=1979 in its 2200-wide canvas.
-    static final float BATTERY_BODY_FRACTION = 1979f / 2200f;
+    // C16's body ends at x=85 in its 93-wide canvas; exclude its cap from text.
+    static final float BATTERY_BODY_FRACTION = 85f / 93f;
     static final float EXTRA_HEIGHT_DP = 4f;
     private static final ThreadLocal<Integer> heightDepth = ThreadLocal.withInitial(() -> 0);
 
@@ -254,7 +254,7 @@ final class IosStatusBarHook {
     }
 
     static String state() {
-        return (enabled ? "style=ios;renderer=resources;signals=pui-c17;battery=pui-c17;state=system;icons=112%;height=+4dp;gap=+2dp;battery-width=28dp;battery-height=17dp;battery-text=body-centered;network-text=hidden" : "style=system")
+        return (enabled ? "style=ios;renderer=resources;signals=status-c16-c17-stacked;battery=status-c16;state=system;icons=112%;height=+4dp;gap=+2dp;battery-width=28dp;battery-height=17dp;battery-text=body-centered;network-text=hidden" : "style=system")
             + (enabled != IosStatusIcons.active(ShadeHook.snapshot()) ? ";restart-required=true" : "");
     }
     private IosStatusBarHook() { }

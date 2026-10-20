@@ -145,8 +145,22 @@ public final class NotificationExpansionCheck {
                     "direct "+(headsUp?"heads-up":"notification")+" edges use radius="+radius+" fraction="+fraction+" without getter hooks");
             }
         }
+        // A background nested in a host container still consumes the row's animation fractions.
+        View wrapper=new View();wrapper.parent=directRow;direct.parent=wrapper;
+        NotificationCardHook.track(direct,"notification-card");
+        b.putInt("notification_card_corner",64);CloudCheck.config(b);
+        directRow.top=.5f;directRow.bottom=.25f;
+        BlurConfig nested=config();NotificationCardHook.trackBlur(direct,nested);
+        Reflect.setAdditionalInstanceField(nested,"thunder.role","notification-card");
+        nested.leftTopCornerRadius=nested.rightTopCornerRadius=64*density*.5f;
+        nested.leftBottomCornerRadius=nested.rightBottomCornerRadius=64*density*.25f;
+        HookCallback.Param nestedDraw=before(B+"ViewBlurProxy#applyConfigToPlatformBlur",new ViewBlurProxy(nested));
+        check(nested.leftTopCornerRadius==64*density*.5f&&nested.leftBottomCornerRadius==64*density*.25f,
+            "nested notification background reads row fractions instead of scaling already customized pixels");
+        after(B+"ViewBlurProxy#applyConfigToPlatformBlur",nestedDraw);
         int directRefreshes=directRow.refreshed;NotificationCardHook.refresh();
         check(directRow.refreshed>directRefreshes,"direct radius receiver registers ordinary rows for live refresh");
+        NotificationCardHook.track(direct,"banner");
         b.putBoolean("banner_corner_enabled",false);CloudCheck.config(b);
         HookCallback.Param nativeRadius=before(receiver,direct,47f,31f,false);
         check(nativeRadius.args[0].equals(47f)&&nativeRadius.args[1].equals(31f)&&nativeRadius.args[2].equals(false),

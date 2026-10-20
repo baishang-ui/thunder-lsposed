@@ -225,11 +225,9 @@ final class IosStatusResources {
             case "com.android.systemui:drawable/stat_sys_data_fully_connected_tmo_4g_lte" -> R.drawable.thunder_ios_stat_sys_data_fully_connected_tmo_4g_lte;
             case "com.android.systemui:drawable/stat_sys_data_fully_connected_tmo_4g_plus_lte" -> R.drawable.thunder_ios_stat_sys_data_fully_connected_tmo_4g_plus_lte;
             case "com.android.systemui:drawable/stat_sys_data_fully_connected_tmo_5g" -> R.drawable.thunder_ios_stat_sys_data_fully_connected_tmo_5g;
-            case "com.android.systemui:drawable/stat_sys_data_saver" -> R.drawable.thunder_ios_stat_sys_data_saver;
             case "com.android.systemui:drawable/stat_sys_dnd" -> R.drawable.thunder_ios_stat_sys_dnd;
             case "com.android.systemui:drawable/stat_sys_flavor_one_ringer_vibrate" -> R.drawable.thunder_ios_stat_sys_flavor_one_ringer_vibrate;
             case "com.android.systemui:drawable/stat_sys_headset" -> R.drawable.thunder_ios_stat_sys_headset;
-            case "com.android.systemui:drawable/stat_sys_high_performance" -> R.drawable.thunder_ios_stat_sys_high_performance;
             case "com.android.systemui:drawable/stat_sys_location" -> R.drawable.thunder_ios_stat_sys_location;
             case "com.android.systemui:drawable/stat_sys_nfc" -> R.drawable.thunder_ios_stat_sys_nfc;
             case "com.android.systemui:drawable/stat_sys_ringer_silent" -> R.drawable.thunder_ios_stat_sys_ringer_silent;
@@ -292,9 +290,6 @@ final class IosStatusResources {
             case "com.android.systemui:drawable/stat_battery_horizontal_percent_out_no_padding_bg" -> R.drawable.thunder_ios_stat_battery_horizontal_percent_out_no_padding_bg;
             case "com.android.systemui:drawable/stat_battery_horizontal_percent_out_no_padding_progress_bg" -> R.drawable.thunder_ios_stat_battery_horizontal_percent_out_no_padding_progress_bg;
             case "com.android.systemui:drawable/stat_sys_headset_mic" -> R.drawable.thunder_ios_stat_sys_headset_mic;
-            case "com.android.systemui:drawable/stat_battery_pb" -> R.drawable.thunder_ios_stat_battery_pb;
-            case "com.android.systemui:drawable/stat_battery_vertical_bg" -> R.drawable.thunder_ios_stat_battery_vertical_bg;
-            case "com.android.systemui:drawable/stat_battery_vertical_frame" -> R.drawable.thunder_ios_stat_battery_vertical_frame;
             case "com.android.systemui:drawable/stat_bt_battery_black_0" -> R.drawable.thunder_ios_stat_bt_battery_black_0;
             case "com.android.systemui:drawable/stat_bt_battery_black_3" -> R.drawable.thunder_ios_stat_bt_battery_black_3;
             case "com.android.systemui:drawable/stat_bt_battery_black_4" -> R.drawable.thunder_ios_stat_bt_battery_black_4;
@@ -527,11 +522,9 @@ final class IosStatusResources {
             case "com.android.systemui:drawable/stat_sys_data_fully_connected_g" -> R.drawable.thunder_ios_stat_sys_data_fully_connected_g;
             case "com.android.systemui:drawable/stat_sys_data_fully_connected_h" -> R.drawable.thunder_ios_stat_sys_data_fully_connected_h;
             case "com.android.systemui:drawable/stat_sys_data_fully_connected_h_plus" -> R.drawable.thunder_ios_stat_sys_data_fully_connected_h_plus;
-            case "com.android.systemui:drawable/stat_sys_data_saver" -> R.drawable.thunder_ios_stat_sys_data_saver;
             case "com.android.systemui:drawable/stat_sys_dnd" -> R.drawable.thunder_ios_stat_sys_dnd;
             case "com.android.systemui:drawable/stat_sys_flavor_one_ringer_vibrate" -> R.drawable.thunder_ios_stat_sys_flavor_one_ringer_vibrate;
             case "com.android.systemui:drawable/stat_sys_headset" -> R.drawable.thunder_ios_stat_sys_headset;
-            case "com.android.systemui:drawable/stat_sys_high_performance" -> R.drawable.thunder_ios_stat_sys_high_performance;
             case "com.android.systemui:drawable/stat_sys_location" -> R.drawable.thunder_ios_stat_sys_location;
             case "com.android.systemui:drawable/stat_sys_nfc" -> R.drawable.thunder_ios_stat_sys_nfc;
             case "com.android.systemui:drawable/stat_sys_ringer_silent" -> R.drawable.thunder_ios_stat_sys_ringer_silent;
@@ -591,9 +584,6 @@ final class IosStatusResources {
             case "com.android.systemui:drawable/stat_battery_horizontal_percent_out_no_padding_bg" -> R.drawable.thunder_ios_stat_battery_horizontal_percent_out_no_padding_bg;
             case "com.android.systemui:drawable/stat_battery_horizontal_percent_out_no_padding_progress_bg" -> R.drawable.thunder_ios_stat_battery_horizontal_percent_out_no_padding_progress_bg;
             case "com.android.systemui:drawable/stat_sys_headset_mic" -> R.drawable.thunder_ios_stat_sys_headset_mic;
-            case "com.android.systemui:drawable/stat_battery_pb" -> R.drawable.thunder_ios_stat_battery_pb;
-            case "com.android.systemui:drawable/stat_battery_vertical_bg" -> R.drawable.thunder_ios_stat_battery_vertical_bg;
-            case "com.android.systemui:drawable/stat_battery_vertical_frame" -> R.drawable.thunder_ios_stat_battery_vertical_frame;
             case "com.android.systemui:drawable/stat_bt_battery_black_0" -> R.drawable.thunder_ios_stat_bt_battery_black_0;
             case "com.android.systemui:drawable/stat_bt_battery_black_3" -> R.drawable.thunder_ios_stat_bt_battery_black_3;
             case "com.android.systemui:drawable/stat_bt_battery_black_4" -> R.drawable.thunder_ios_stat_bt_battery_black_4;
@@ -609,25 +599,20 @@ final class IosStatusResources {
     }
     static Float dimension(String name) {
         return switch(name) {
-            case "com.android.systemui:dimen/battery_progress_corner_radius" -> 2.2f;
-            case "com.android.systemui:dimen/status_bar_battery_horizontal_progress_start" -> 3f;
-            case "com.android.systemui:dimen/status_bar_battery_horizontal_progress_end" -> 6.95f;
-            case "com.android.systemui:dimen/status_bar_battery_horizontal_progress_top" -> 4.45f;
-            case "com.android.systemui:dimen/status_bar_battery_horizontal_progress_bottom" -> 4.3f;
-            case "com.android.systemui:dimen/battery_percent_in_text_size" -> 10f;
-            case "com.android.systemui:dimen/status_bar_battery_horizontal_width" -> 29f;
-            case "com.android.systemui:dimen/status_bar_battery_horizontal_height" -> 17f;
-            case "com.android.systemui:dimen/battery_percent_in_text_margin_top" -> 0.14f;
-            case "com.android.systemui:dimen/battery_percent_in_text_offset_x" -> 1f;
-            case "com.android.systemui:dimen/battery_percent_in_text_offset_y" -> 0.25f;
-            case "com.android.systemui:dimen/status_bar_battery_icon_width_bar" -> 8.3f;
-            case "com.android.systemui:dimen/status_bar_battery_icon_height_bar" -> 12f;
-            case "com.android.systemui:dimen/signal_cluster_battery_padding" -> 1.2f;
             case "com.android.systemui:dimen/stat_bt_battery_height" -> 16f;
             case "com.android.systemui:dimen/stat_bt_battery_width" -> 16f;
-            case "com.android.systemui:dimen/stat_bt_battery_inset_left" -> -3f;
-            case "com.android.systemui:dimen/stat_bt_battery_inset_right" -> -1f;
-            case "com.android.systemui:dimen/status_bar_wifi_left_text_margin_end" -> 6f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_width" -> 28f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_height" -> 17f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_progress_start" -> 0f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_progress_end" -> 2.4086f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_progress_top" -> 1.54545f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_progress_bottom" -> 1.54545f;
+            case "com.android.systemui:dimen/battery_progress_corner_radius" -> 2.78182f;
+            case "com.android.systemui:dimen/battery_percent_in_text_size" -> 10f;
+            case "com.android.systemui:dimen/battery_percent_in_text_margin_top" -> 0.14f;
+            case "com.android.systemui:dimen/battery_percent_in_text_offset_x" -> 0f;
+            case "com.android.systemui:dimen/battery_percent_in_text_offset_y" -> 0.25f;
+            case "com.android.systemui:dimen/signal_cluster_battery_padding" -> 1.2f;
             default -> null;
         };
     }

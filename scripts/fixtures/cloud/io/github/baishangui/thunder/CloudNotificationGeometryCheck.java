@@ -92,14 +92,14 @@ public final class CloudNotificationGeometryCheck {
         String capsule="com.oplus.systemui.notification.lockscreen.capsule.CapsuleItemView#";
         for(int radius:new int[]{0,12,64}) {
             b.putInt("cloud_card_corner",radius);CloudCheck.config(b);
-            float expected=Math.min(radius*density,100);
-            check(((Number)CloudCheck.after(capsule+"getActualRadius",item,47f)).floatValue()==expected,
-                "lock clipping and stroke receive cloud radius, including zero");
-            check(((Number)CloudCheck.after(capsule+"getMaxRadius",item,47f)).floatValue()==expected,
-                "lock roundness uses the same bounded cloud radius");
+            float expected=47;
+            check(((Number)QsGeometryCheck.afterIfPresent(capsule+"getActualRadius",item,47f)).floatValue()==expected,
+                "native capsule clipping is independent of expanded-card radius");
+            check(((Number)QsGeometryCheck.afterIfPresent(capsule+"getMaxRadius",item,47f)).floatValue()==expected,
+                "native capsule roundness maximum is independent of expanded-card radius");
             edge.updateViewSize(400,200);
             p=CloudCheck.param(edge,null,new android.graphics.Canvas());edgeDraw.before(p);edge.onDraw((android.graphics.Canvas)p.args[0]);
-            check(edgeLayer.drawnRadius==expected,"independent animated edge follows cloud radius after native size reset");
+            check(edgeLayer.drawnRadius==100,"native capsule animated edge preserves its height-derived radius");
             p.failure=new RuntimeException();edgeDraw.after(p);
             check(edgeLayer.getCornerRadius()==100,"animated edge restores native cache even after draw failure");
         }
@@ -110,9 +110,20 @@ public final class CloudNotificationGeometryCheck {
             b.putInt("cloud_card_corner",radius);CloudCheck.config(b);
             var info=new com.oplus.systemui.notification.lockscreen.capsule.CapsuleViewState.ScrollClipInfo(height);
             p=CloudCheck.param(item,null,info);clipChanged.before(p);item.onClipInfoChange(info);clipChanged.after(p);
-            check(item.pathProvider.radius==Math.min(radius*density,height/2f),
-                "clip changes must not reset lock content to the native default radius");
+            check(item.pathProvider.radius==47,
+                "mini capsule clip changes preserve the native radius independently of card settings");
             check(!item.pathProvider.smooth,"clip repair preserves the native animation smoothing mode");
+        }
+        var roundness=Api102Runtime.callbacks.get(capsule+"applyRoundnessAndInvalidate");
+        if(roundness==null)roundness=new HookCallback(){};
+        for(int radius:new int[]{0,12,64}) {
+            b.putInt("cloud_card_corner",radius);CloudCheck.config(b);
+            item.location.clip=new android.graphics.Rect(0,0,400,200);
+            p=CloudCheck.param(item,null);roundness.before(p);item.applyRoundnessAndInvalidate();roundness.after(p);
+            float expected=47;
+            check(item.pathProvider.radius==expected&&item.bgView.strokeRadius==expected,
+                "native capsule rebuild retains its own content and stroke radius");
+            check(item.bgView.strokeSmooth==item.useSmoothRadius,"lock stroke keeps its native smoothing mode");
         }
         item.entry=new Object();
         p=CloudCheck.param(item,null,new Object());clipChanged.before(p);
@@ -127,11 +138,11 @@ public final class CloudNotificationGeometryCheck {
         edge.updateViewSize(400,40);p=CloudCheck.param(edge,null,new android.graphics.Canvas());edgeDraw.before(p);edge.onDraw((android.graphics.Canvas)p.args[0]);
         check(edgeLayer.drawnRadius==20,"animated edge clamps to its own current height during collapse");edgeDraw.after(p);
         int refreshes=item.roundnessRefreshes;CloudLockHook.refresh();
-        check(item.roundnessRefreshes>refreshes,"live cloud changes rebuild cached lock clipping and stroke");
+        check(item.roundnessRefreshes==refreshes,"live expanded-card changes do not rebuild the native mini-capsule geometry");
         item.entry=new Object();
         p=CloudCheck.param(edge,null,new android.graphics.Canvas());edgeDraw.before(p);edge.onDraw((android.graphics.Canvas)p.args[0]);edgeDraw.after(p);
         check(edgeLayer.drawnRadius==20,"reused ordinary lock capsule retains native animated edge");
-        check(((Number)CloudCheck.after(capsule+"getActualRadius",item,47f)).floatValue()==47,
+        check(((Number)QsGeometryCheck.afterIfPresent(capsule+"getActualRadius",item,47f)).floatValue()==47,
             "ordinary lock capsules retain native geometry");
         b.putBoolean("cloud_card_corner_enabled",false);CloudCheck.config(b);CloudSdkHook.refresh();
         p=CloudCheck.param(background,null,47f,31f,true);receive.before(p);
@@ -146,7 +157,7 @@ public final class CloudNotificationGeometryCheck {
         p=CloudCheck.param(edge,null,new android.graphics.Canvas());edgeDraw.before(p);edge.onDraw((android.graphics.Canvas)p.args[0]);edgeDraw.after(p);
         check(edgeLayer.drawnRadius==20,"disabling cloud corners leaves animated edge native");
         int edgeInvalidations=edge.invalidations;CloudLockHook.refresh();
-        check(edge.invalidations>edgeInvalidations,"live changes invalidate the separate animated edge view");
+        check(edge.invalidations==edgeInvalidations,"expanded-card changes leave the native animated capsule edge alone");
         check(sdk.outlineRadius==20&&((e7.sj)sdk.k.getBackground()).radius==20*density&&sdk.l.shaderRadius==20*density,"disabling cloud corners restores all SDK layers");
         check(!NotificationCardHook.area(row.mBackgroundNormal).cornerEnabled,"disabling cloud corners never falls back to notification override");
         p=CloudCheck.param(media,null,new android.graphics.Canvas());stroke.before(p);

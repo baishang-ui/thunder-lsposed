@@ -125,11 +125,11 @@ public final class CloudGeometryCheck {
         var lockOwner=new com.oplus.systemui.notification.lockscreen.capsule.CapsuleItemView();
         lockOwner.entry=new com.oplus.systemui.notification.lockscreen.seedling.CapsuleSeedingData();
         pageRoot.parent=lockOwner;media.parent=pageRoot;CloudTemplateHook.refresh();
-        check(replacementStroke.getCornerRadii()==null&&replacementStroke.getCornerRadius()==64*density,"lock-hosted page foreground follows cloud geometry");
+        check(java.util.Arrays.equals(replacementStroke.getCornerRadii(),new float[]{3,4,5,6,7,8,9,10}),"native capsule content retains its original foreground geometry");
         frame=CloudCheck.param(rootOutline,null,pageRoot,new Outline());draw.before(frame);
-        check(radius(rootOutline.b)==128*density,"lock-hosted page content follows cloud geometry and animation scale");draw.after(frame);
+        check(radius(rootOutline.b)==234,"native capsule content retains its original scaled clipping");draw.after(frame);
         frame=CloudCheck.param(light,null,new android.graphics.Canvas());lightHook.before(frame);
-        check(light.e.d[6]==64*density,"lock-hosted template lights follow the same cloud geometry");lightHook.after(frame);
+        check(light.e.d[6]==117,"native capsule template lights retain their original geometry");lightHook.after(frame);
         lockOwner.entry=new Object();CloudTemplateHook.refresh();
         check(java.util.Arrays.equals(replacementStroke.getCornerRadii(),new float[]{3,4,5,6,7,8,9,10}),"ordinary lock capsule reuse restores the template foreground");
         b.putInt("cloud_card_corner",32);CloudCheck.config(b);
@@ -142,6 +142,24 @@ public final class CloudGeometryCheck {
         p=CloudCheck.param(factory,null,fallback,null);background.before(p);factory.b(fallback,null);
         var nativeOutline=fallback.getOutlineProvider();boolean nativeClip=fallback.getClipToOutline();background.after(p);
         check(fallback.getOutlineProvider()!=original&&fallback.getClipToOutline(),"flat background installs custom clipping");
+        check(fallback.getOutlineProvider() instanceof com.oplus.systemui.plugins.common.util.j,
+            "flat cloud clipping uses the native smooth outline rather than ordinary round-rect clipping");
+        var flatOutline=(com.oplus.systemui.plugins.common.util.j)fallback.getOutlineProvider();
+        check(flatOutline.b.d().equals(nativeCorners.d())&&flatOutline.b.f().equals(nativeCorners.f()),
+            "flat cloud outline retains the same corner type and weight as its native background");
+        View scaledFallback=new View();factory.b(scaledFallback,null);
+        var bounds=new android.graphics.Rect(7,9,307,209);
+        var scaledNative=new com.oplus.systemui.plugins.common.util.j(bounds,new Triple(2,234f,3f));
+        scaledFallback.setOutlineProvider(scaledNative);
+        Reflect.setAdditionalInstanceField(scaledNative,"thunder.cloud-corner-scale",2f);
+        var scaledFrame=CloudCheck.param(factory,null,scaledFallback,null);background.after(scaledFrame);
+        var scaledOutline=(com.oplus.systemui.plugins.common.util.j)scaledFallback.getOutlineProvider();
+        check(scaledOutline.a==bounds&&radius(scaledOutline.b)==32*density*2,
+            "flat smooth clipping preserves the native animation bounds and inverse scale");
+        b.putBoolean("cloud_card_corner_enabled",false);CloudCheck.config(b);
+        frame=CloudCheck.param(scaledOutline,null,scaledFallback,new Outline());draw.before(frame);
+        check(radius(scaledOutline.b)==234f,"flat smooth clipping retains its original native scaled baseline");draw.after(frame);
+        b.putBoolean("cloud_card_corner_enabled",true);CloudCheck.config(b);
         b.putBoolean("cloud_enabled",false);CloudCheck.config(b);
         p=CloudCheck.param(factory,null,fallback,null);background.before(p);
         check(fallback.getOutlineProvider()==nativeOutline&&fallback.getClipToOutline()==nativeClip,"background reconstruction restores original outline and clip flag before native work");

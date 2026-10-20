@@ -1,0 +1,858 @@
+{
+  "artwork_archive": "双排信号状态栏模块C16.zip",
+  "layout_archive": "ColorOS 17 reference archive",
+  "sources": {
+    "stat_sys_airplane_mode": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable-xxhdpi/stat_sys_airplane_mode.xml",
+      "resource": "stat_sys_airplane_mode",
+      "sha256": "e9359e9ec4d4aa620b85112170e5e278dfaa242bdec73e9af6fdbc5c412353ef",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "e6135295feef99d3d616c867c4d0bcf9d91ac6087e1f8bee2502ed7ee214a1d4"
+      ]
+    },
+    "stat_sys_alarm": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable-xxhdpi/stat_sys_alarm.xml",
+      "resource": "stat_sys_alarm",
+      "sha256": "8a1947c5bbec59f529751cd6d1285928844205aad53beda40af9096eda43088f",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "9ae9704e8c3f524afdd679a65556ef7bd16d4b3d543dbd9c6687923096e20343",
+        "191e749b8d00855ca7e8cec54b21048ccdf69393f11e8db077c995b7988f62ff",
+        "9193114902c0cc327f7f2b0588787ba5246d3fbe90e7280af5a38c2870f04066",
+        "639335e89c9834370ed9989fadeb28586263bb66564f465519ce72563d94a477",
+        "9049f5206a495424d8310b1b232a2fb79c45670a5d62a90f40c9ae5a525e9ac7"
+      ]
+    },
+    "stat_sys_data_bluetooth": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable-xxhdpi/stat_sys_data_bluetooth.xml",
+      "resource": "stat_sys_data_bluetooth",
+      "sha256": "2cb87995981e0f388676528ed66b521f23f1aeec74a03e96e1aa79202b977cfd",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "ffaeb390bdf9e1d298a754a4660c8b0b2634dc51f4fa7fc004500ed55c150682"
+      ]
+    },
+    "stat_sys_data_bluetooth_connected_ing": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable-xxhdpi/stat_sys_data_bluetooth_connected_ing.xml",
+      "resource": "stat_sys_data_bluetooth_connected_ing",
+      "sha256": "8291eb25d92ce82921952a75ed8b0944512edf86355753849d17ce49c53e892b",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "0abb7136441e348eb2e4214d0dce6095c0119ab6d5a1bf4a3c3943020775795e"
+      ]
+    },
+    "stat_sys_data_bluetooth_connected_stop": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable-xxhdpi/stat_sys_data_bluetooth.xml",
+      "resource": "stat_sys_data_bluetooth_connected_stop",
+      "sha256": "2cb87995981e0f388676528ed66b521f23f1aeec74a03e96e1aa79202b977cfd",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "ffaeb390bdf9e1d298a754a4660c8b0b2634dc51f4fa7fc004500ed55c150682"
+      ]
+    },
+    "stat_sys_dnd": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable-xxhdpi/stat_sys_dnd.xml",
+      "resource": "stat_sys_dnd",
+      "sha256": "6e80c8f9cad567710a8c1e5a14c5e8a92711e8991e62a6252a81d9a6006b4d5b",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "86d1b443e5796b104164e3c422f637af2b035b2d797e1f14bbe5c9d218c832c0"
+      ]
+    },
+    "stat_sys_flavor_one_ringer_vibrate": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable-xxhdpi/stat_sys_ringer_vibrate.xml",
+      "resource": "stat_sys_flavor_one_ringer_vibrate",
+      "sha256": "34ae928b9ebb5702a2412b0b2f01a9ebc6b5cef9abfb696d828ef2c24687f742",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "af55ae5b76776722d8b67d08a46d753bdaf8fc71788655052b18c04014b89327"
+      ]
+    },
+    "stat_sys_headset": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable-xxhdpi/stat_sys_headset.xml",
+      "resource": "stat_sys_headset",
+      "sha256": "0ac52e1c023e5ac88e759b478a66997fdc63020bd390f9406e22ca1ef440da93",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "379e2fc7e5500af320033af32b3cac8705215262cb0fa1d13bfc7173f119ad52"
+      ]
+    },
+    "stat_sys_headset_mic": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable-xxhdpi/stat_sys_headset_mic.xml",
+      "resource": "stat_sys_headset_mic",
+      "sha256": "0ac52e1c023e5ac88e759b478a66997fdc63020bd390f9406e22ca1ef440da93",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "379e2fc7e5500af320033af32b3cac8705215262cb0fa1d13bfc7173f119ad52"
+      ]
+    },
+    "stat_sys_location": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable-xxhdpi/stat_sys_location.xml",
+      "resource": "stat_sys_location",
+      "sha256": "88f75626911fc23e235c150b02845a158d743f780abe3b9ed85d516d7a4309ed",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "6296bef33e350389efc1fe9026db034d641b0f404acb7929bde73fbf09318128"
+      ]
+    },
+    "stat_sys_nfc": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable-xxhdpi/stat_sys_nfc.xml",
+      "resource": "stat_sys_nfc",
+      "sha256": "7a183d57f6e160bb6687033134c9dc87f6aa7c00907446a398218cd46c09e71b",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "2417bb9060e212271e9412c694cba1a21634270a92353717f3c24387e1c5a29c"
+      ]
+    },
+    "stat_sys_ringer_silent": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable-xxhdpi/stat_sys_ringer_silent.xml",
+      "resource": "stat_sys_ringer_silent",
+      "sha256": "6b7cc89aae54c9af73029c8f79261e75f0565c7fb156908d11a78ad7049130e4",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "5aab089866ebedd1bfbf94a9f5f6019ab750074d2a203f4de167171d2849d8f6"
+      ]
+    },
+    "stat_sys_ringer_vibrate": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable-xxhdpi/stat_sys_ringer_vibrate.xml",
+      "resource": "stat_sys_ringer_vibrate",
+      "sha256": "34ae928b9ebb5702a2412b0b2f01a9ebc6b5cef9abfb696d828ef2c24687f742",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "af55ae5b76776722d8b67d08a46d753bdaf8fc71788655052b18c04014b89327"
+      ]
+    },
+    "stat_sys_vpn_ic": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable-xxhdpi/stat_sys_vpn_ic.xml",
+      "resource": "stat_sys_vpn_ic",
+      "sha256": "618fdb2b7a2175564e61745d8ffebb297ce7081683c1e35e209d5fc179ed8830",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "762c762580db887268cb4af72e832206695fe2a2bd611115f6daab92507f21c8"
+      ]
+    },
+    "stat_bt_battery_black_0": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeBluetoothBatteryIcon",
+      "entry": "res/drawable/stat_bt_battery_black_0.xml",
+      "resource": "stat_bt_battery_black_0",
+      "sha256": "c930c8641aedd29a8e9847a79ed3e6f9472228e16cb0b31d04c8027d31273773",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "54e2513770d40da6f5bc5a744c88322af311ef517157a10b15d3920232031f2d",
+        "aa94eabfadd4af39101cb17e2ecbc399aff3e234463e4df0d1d9d4aada3b10a1",
+        "319b95dc3e06379e857696c559fab33a2372f220b1def48936acd58231eefbb2",
+        "b40c860df687d17c7cdb5c70f78694ddd9da89200fca17a91927d7118dbf0473"
+      ]
+    },
+    "stat_bt_battery_black_3": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeBluetoothBatteryIcon",
+      "entry": "res/drawable/stat_bt_battery_black_3.xml",
+      "resource": "stat_bt_battery_black_3",
+      "sha256": "e79c7f1c3d851cfd74cfcad3ae1d84ec9daa2becd217a7078f3bd93e45067be7",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "54e2513770d40da6f5bc5a744c88322af311ef517157a10b15d3920232031f2d",
+        "06f16d9124e6b65c222c8451f87d20e39fd27673ec2a1f2345ae6f25896f710c",
+        "a2898551c3a1f3cd86421329c31024683528764715323c87c1805594cc5a3c12",
+        "41ea2a220621d4827f7630391f9aec91a2ba2171864b8000aa5abcd367ff220c",
+        "aa94eabfadd4af39101cb17e2ecbc399aff3e234463e4df0d1d9d4aada3b10a1",
+        "319b95dc3e06379e857696c559fab33a2372f220b1def48936acd58231eefbb2",
+        "b40c860df687d17c7cdb5c70f78694ddd9da89200fca17a91927d7118dbf0473"
+      ]
+    },
+    "stat_bt_battery_black_4": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeBluetoothBatteryIcon",
+      "entry": "res/drawable/stat_bt_battery_black_4.xml",
+      "resource": "stat_bt_battery_black_4",
+      "sha256": "ec154abaad3073a383f40a19cff668624e3cd563804ffb91a049d95130b2baf1",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "54e2513770d40da6f5bc5a744c88322af311ef517157a10b15d3920232031f2d",
+        "06f16d9124e6b65c222c8451f87d20e39fd27673ec2a1f2345ae6f25896f710c",
+        "a2898551c3a1f3cd86421329c31024683528764715323c87c1805594cc5a3c12",
+        "41ea2a220621d4827f7630391f9aec91a2ba2171864b8000aa5abcd367ff220c",
+        "0b5f67f9846d8e9589154a61affc0f4170ce63550c05ecc69442805ab710c713",
+        "aa94eabfadd4af39101cb17e2ecbc399aff3e234463e4df0d1d9d4aada3b10a1",
+        "319b95dc3e06379e857696c559fab33a2372f220b1def48936acd58231eefbb2",
+        "b40c860df687d17c7cdb5c70f78694ddd9da89200fca17a91927d7118dbf0473"
+      ]
+    },
+    "stat_bt_battery_black_5": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeBluetoothBatteryIcon",
+      "entry": "res/drawable/stat_bt_battery_black_5.xml",
+      "resource": "stat_bt_battery_black_5",
+      "sha256": "1fc049b51a508442d0e7f70374657ff2d9d5f4154af2bc8ad33d0988d410bc97",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "54e2513770d40da6f5bc5a744c88322af311ef517157a10b15d3920232031f2d",
+        "06f16d9124e6b65c222c8451f87d20e39fd27673ec2a1f2345ae6f25896f710c",
+        "a2898551c3a1f3cd86421329c31024683528764715323c87c1805594cc5a3c12",
+        "41ea2a220621d4827f7630391f9aec91a2ba2171864b8000aa5abcd367ff220c",
+        "0b5f67f9846d8e9589154a61affc0f4170ce63550c05ecc69442805ab710c713",
+        "360fb46c5f379da095b9fe08f9a88dcc595e89b48ea429559df0294d2581f6b5",
+        "aa94eabfadd4af39101cb17e2ecbc399aff3e234463e4df0d1d9d4aada3b10a1",
+        "319b95dc3e06379e857696c559fab33a2372f220b1def48936acd58231eefbb2",
+        "b40c860df687d17c7cdb5c70f78694ddd9da89200fca17a91927d7118dbf0473"
+      ]
+    },
+    "stat_bt_battery_black_6": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeBluetoothBatteryIcon",
+      "entry": "res/drawable/stat_bt_battery_black_6.xml",
+      "resource": "stat_bt_battery_black_6",
+      "sha256": "59584f8f025883f25dd7513987b89738f82716ec4a8429e9515d7352188f67b1",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "54e2513770d40da6f5bc5a744c88322af311ef517157a10b15d3920232031f2d",
+        "06f16d9124e6b65c222c8451f87d20e39fd27673ec2a1f2345ae6f25896f710c",
+        "a2898551c3a1f3cd86421329c31024683528764715323c87c1805594cc5a3c12",
+        "41ea2a220621d4827f7630391f9aec91a2ba2171864b8000aa5abcd367ff220c",
+        "0b5f67f9846d8e9589154a61affc0f4170ce63550c05ecc69442805ab710c713",
+        "360fb46c5f379da095b9fe08f9a88dcc595e89b48ea429559df0294d2581f6b5",
+        "0630da1dfd39a0e44b297f4f246de65dfc4099da50a56ff9d4238e049209c53d",
+        "fcdb7316e96e213687464d56e143fcb793ef075b2586d722bdcf749517f4763e",
+        "aa94eabfadd4af39101cb17e2ecbc399aff3e234463e4df0d1d9d4aada3b10a1",
+        "319b95dc3e06379e857696c559fab33a2372f220b1def48936acd58231eefbb2",
+        "b40c860df687d17c7cdb5c70f78694ddd9da89200fca17a91927d7118dbf0473"
+      ]
+    },
+    "stat_bt_battery_black_7": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeBluetoothBatteryIcon",
+      "entry": "res/drawable/stat_bt_battery_black_7.xml",
+      "resource": "stat_bt_battery_black_7",
+      "sha256": "12f0fbede13185d6e07fe6e5f2260cfe8117f45593e90c0c37632df51226286d",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "54e2513770d40da6f5bc5a744c88322af311ef517157a10b15d3920232031f2d",
+        "06f16d9124e6b65c222c8451f87d20e39fd27673ec2a1f2345ae6f25896f710c",
+        "a2898551c3a1f3cd86421329c31024683528764715323c87c1805594cc5a3c12",
+        "41ea2a220621d4827f7630391f9aec91a2ba2171864b8000aa5abcd367ff220c",
+        "0b5f67f9846d8e9589154a61affc0f4170ce63550c05ecc69442805ab710c713",
+        "360fb46c5f379da095b9fe08f9a88dcc595e89b48ea429559df0294d2581f6b5",
+        "0630da1dfd39a0e44b297f4f246de65dfc4099da50a56ff9d4238e049209c53d",
+        "fcdb7316e96e213687464d56e143fcb793ef075b2586d722bdcf749517f4763e",
+        "6b3059f7818fb4a61f8fc022a9dcfa4cdeefdda8cecfc34f8234335504c7852f",
+        "aa94eabfadd4af39101cb17e2ecbc399aff3e234463e4df0d1d9d4aada3b10a1",
+        "319b95dc3e06379e857696c559fab33a2372f220b1def48936acd58231eefbb2",
+        "b40c860df687d17c7cdb5c70f78694ddd9da89200fca17a91927d7118dbf0473"
+      ]
+    },
+    "stat_bt_battery_black_8": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeBluetoothBatteryIcon",
+      "entry": "res/drawable/stat_bt_battery_black_8.xml",
+      "resource": "stat_bt_battery_black_8",
+      "sha256": "6f9b449db9f86750f6370e67d94d6d99320bc6497a412cbc9b1dc9a904d9be19",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "54e2513770d40da6f5bc5a744c88322af311ef517157a10b15d3920232031f2d",
+        "06f16d9124e6b65c222c8451f87d20e39fd27673ec2a1f2345ae6f25896f710c",
+        "a2898551c3a1f3cd86421329c31024683528764715323c87c1805594cc5a3c12",
+        "41ea2a220621d4827f7630391f9aec91a2ba2171864b8000aa5abcd367ff220c",
+        "0b5f67f9846d8e9589154a61affc0f4170ce63550c05ecc69442805ab710c713",
+        "360fb46c5f379da095b9fe08f9a88dcc595e89b48ea429559df0294d2581f6b5",
+        "0630da1dfd39a0e44b297f4f246de65dfc4099da50a56ff9d4238e049209c53d",
+        "fcdb7316e96e213687464d56e143fcb793ef075b2586d722bdcf749517f4763e",
+        "6b3059f7818fb4a61f8fc022a9dcfa4cdeefdda8cecfc34f8234335504c7852f",
+        "39b78606e16c151b7a7792de431e80d26a33d25365177fdbbd07a3c08ab86c40",
+        "aa94eabfadd4af39101cb17e2ecbc399aff3e234463e4df0d1d9d4aada3b10a1",
+        "319b95dc3e06379e857696c559fab33a2372f220b1def48936acd58231eefbb2",
+        "b40c860df687d17c7cdb5c70f78694ddd9da89200fca17a91927d7118dbf0473"
+      ]
+    },
+    "stat_bt_battery_black_9": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeBluetoothBatteryIcon",
+      "entry": "res/drawable/stat_bt_battery_black_9.xml",
+      "resource": "stat_bt_battery_black_9",
+      "sha256": "9d7fbbd6c345e1c619c647eadde660d3c903b08cb6b43e4b178d93bd161a9e3d",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "54e2513770d40da6f5bc5a744c88322af311ef517157a10b15d3920232031f2d",
+        "aa94eabfadd4af39101cb17e2ecbc399aff3e234463e4df0d1d9d4aada3b10a1",
+        "319b95dc3e06379e857696c559fab33a2372f220b1def48936acd58231eefbb2",
+        "b40c860df687d17c7cdb5c70f78694ddd9da89200fca17a91927d7118dbf0473"
+      ]
+    },
+    "stat_bt_battery_low_1": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeBluetoothBatteryIcon",
+      "entry": "res/drawable/stat_bt_battery_low_1.xml",
+      "resource": "stat_bt_battery_low_1",
+      "sha256": "9631857cdcb90f595c07bddeef683a429ddfac7597ddc5c3fca236a26ed59714",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "54e2513770d40da6f5bc5a744c88322af311ef517157a10b15d3920232031f2d",
+        "06f16d9124e6b65c222c8451f87d20e39fd27673ec2a1f2345ae6f25896f710c",
+        "aa94eabfadd4af39101cb17e2ecbc399aff3e234463e4df0d1d9d4aada3b10a1",
+        "319b95dc3e06379e857696c559fab33a2372f220b1def48936acd58231eefbb2",
+        "b40c860df687d17c7cdb5c70f78694ddd9da89200fca17a91927d7118dbf0473"
+      ]
+    },
+    "stat_bt_battery_low_2": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeBluetoothBatteryIcon",
+      "entry": "res/drawable/stat_bt_battery_low_2.xml",
+      "resource": "stat_bt_battery_low_2",
+      "sha256": "f8308e406b9e0af3d76d195bcf41d569cbe796deb78470e521d342e68f6e5938",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "path_sha256": [
+        "54e2513770d40da6f5bc5a744c88322af311ef517157a10b15d3920232031f2d",
+        "06f16d9124e6b65c222c8451f87d20e39fd27673ec2a1f2345ae6f25896f710c",
+        "a2898551c3a1f3cd86421329c31024683528764715323c87c1805594cc5a3c12",
+        "aa94eabfadd4af39101cb17e2ecbc399aff3e234463e4df0d1d9d4aada3b10a1",
+        "319b95dc3e06379e857696c559fab33a2372f220b1def48936acd58231eefbb2",
+        "b40c860df687d17c7cdb5c70f78694ddd9da89200fca17a91927d7118dbf0473"
+      ]
+    },
+    "stat_signal_lte_signal_stacked_primary_0": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s0.xml",
+      "resource": "stat_signal_signal_lte_single_0",
+      "sha256": "ce8776fa99db04393a1d7f550fe7d8824163b420b5344e6a7c6095ec057f10a4",
+      "conversion": "C16 primary paths; C17 shared frame; independent native SIM strength",
+      "path_sha256": [
+        "7bd95d9593150839d7290455ad7b8548b23e8e44c164b382d512bdfe25d6c5e4",
+        "526c092e2c0fc4ad17ca2f7b336a0a1ac34991ba8050f3fc4594238b47c53067",
+        "375e20e5384d8d52b57fee7d05ffd5ff21fce92a464a1b501996440d9f245dcb",
+        "59e76dc581435064cc9c96e7d5a652230363c91764b61aacfa205beae4198b9a"
+      ]
+    },
+    "stat_signal_lte_signal_stacked_secondary_0": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s0.xml",
+      "resource": "stat_signal_signal_lte_single_0",
+      "sha256": "ce8776fa99db04393a1d7f550fe7d8824163b420b5344e6a7c6095ec057f10a4",
+      "conversion": "C16 secondary paths; C17 shared frame; independent native SIM strength",
+      "path_sha256": [
+        "14d13a942fe67b58ed3fd6dd93624fd3b548333047b953b1ba4f241f0b9c64ef",
+        "378b7f212d3c2b0de00d88616f0be4e6eb3993162b8a60862fd3857cbe355d18",
+        "2df5fe526c858df2ffecf2686dcfedf614eeca72edc419939a5a57b93fb0a99e",
+        "8820d6c4dac75ddfb71f70340e63ef21701ad159bc1ee0af4b40cc00669e367e"
+      ]
+    },
+    "stat_signal_signal_lte_single_0_os17": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s0.xml",
+      "resource": "stat_signal_signal_lte_single_0",
+      "sha256": "ce8776fa99db04393a1d7f550fe7d8824163b420b5344e6a7c6095ec057f10a4",
+      "conversion": "C16 single paths; C17 shared frame; independent native SIM strength",
+      "path_sha256": [
+        "7bd95d9593150839d7290455ad7b8548b23e8e44c164b382d512bdfe25d6c5e4",
+        "526c092e2c0fc4ad17ca2f7b336a0a1ac34991ba8050f3fc4594238b47c53067",
+        "375e20e5384d8d52b57fee7d05ffd5ff21fce92a464a1b501996440d9f245dcb",
+        "59e76dc581435064cc9c96e7d5a652230363c91764b61aacfa205beae4198b9a"
+      ]
+    },
+    "stat_signal_wifi_signal_0_os17": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/stat_signal_wifi_signal_0.xml",
+      "resource": "stat_signal_wifi_signal_0",
+      "sha256": "6f2a3b8616aa698fd9de422c9e166a13066f1141bfca362fc787f0a33a45eb2f",
+      "conversion": "C16 Wi-Fi paths and opacity; C17 resource alias; standardized spacing",
+      "path_sha256": [
+        "4ddbf31254db1e11c66d8dd97a5741bea2831ad83f15a3cbcf69cf648948ddbe",
+        "1b0b8222efe7db42c8aa4d4e0f83ce6814b05ba814d23610a900ef7a3d2cfcca",
+        "920bc650ef24a3e003bbc581fd2dd5de03797c3d8cf25acfb00cadcf1e7cc676"
+      ]
+    },
+    "stat_signal_lte_signal_stacked_primary_1": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s1.xml",
+      "resource": "stat_signal_signal_lte_single_1",
+      "sha256": "0de9761d951c9b9cb0d1c53a733f4170bac2a3ea9da86fa8fb463a3ee5574965",
+      "conversion": "C16 primary paths; C17 shared frame; independent native SIM strength",
+      "path_sha256": [
+        "7bd95d9593150839d7290455ad7b8548b23e8e44c164b382d512bdfe25d6c5e4",
+        "526c092e2c0fc4ad17ca2f7b336a0a1ac34991ba8050f3fc4594238b47c53067",
+        "375e20e5384d8d52b57fee7d05ffd5ff21fce92a464a1b501996440d9f245dcb",
+        "59e76dc581435064cc9c96e7d5a652230363c91764b61aacfa205beae4198b9a"
+      ]
+    },
+    "stat_signal_lte_signal_stacked_secondary_1": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s1.xml",
+      "resource": "stat_signal_signal_lte_single_1",
+      "sha256": "0de9761d951c9b9cb0d1c53a733f4170bac2a3ea9da86fa8fb463a3ee5574965",
+      "conversion": "C16 secondary paths; C17 shared frame; independent native SIM strength",
+      "path_sha256": [
+        "14d13a942fe67b58ed3fd6dd93624fd3b548333047b953b1ba4f241f0b9c64ef",
+        "378b7f212d3c2b0de00d88616f0be4e6eb3993162b8a60862fd3857cbe355d18",
+        "2df5fe526c858df2ffecf2686dcfedf614eeca72edc419939a5a57b93fb0a99e",
+        "8820d6c4dac75ddfb71f70340e63ef21701ad159bc1ee0af4b40cc00669e367e"
+      ]
+    },
+    "stat_signal_signal_lte_single_1_os17": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s1.xml",
+      "resource": "stat_signal_signal_lte_single_1",
+      "sha256": "0de9761d951c9b9cb0d1c53a733f4170bac2a3ea9da86fa8fb463a3ee5574965",
+      "conversion": "C16 single paths; C17 shared frame; independent native SIM strength",
+      "path_sha256": [
+        "7bd95d9593150839d7290455ad7b8548b23e8e44c164b382d512bdfe25d6c5e4",
+        "526c092e2c0fc4ad17ca2f7b336a0a1ac34991ba8050f3fc4594238b47c53067",
+        "375e20e5384d8d52b57fee7d05ffd5ff21fce92a464a1b501996440d9f245dcb",
+        "59e76dc581435064cc9c96e7d5a652230363c91764b61aacfa205beae4198b9a"
+      ]
+    },
+    "stat_signal_wifi_signal_1_os17": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/stat_signal_wifi_signal_1.xml",
+      "resource": "stat_signal_wifi_signal_1",
+      "sha256": "36053959213e6128b48f9bf3e7ccf7189c0b0371304f30231b6d366db8e543a1",
+      "conversion": "C16 Wi-Fi paths and opacity; C17 resource alias; standardized spacing",
+      "path_sha256": [
+        "4ddbf31254db1e11c66d8dd97a5741bea2831ad83f15a3cbcf69cf648948ddbe",
+        "1b0b8222efe7db42c8aa4d4e0f83ce6814b05ba814d23610a900ef7a3d2cfcca",
+        "920bc650ef24a3e003bbc581fd2dd5de03797c3d8cf25acfb00cadcf1e7cc676"
+      ]
+    },
+    "stat_signal_lte_signal_stacked_primary_2": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s2.xml",
+      "resource": "stat_signal_signal_lte_single_2",
+      "sha256": "ec606a19a017855ad0941ce9d9a66b45af60a1a217315b5f297900cd591e2e3a",
+      "conversion": "C16 primary paths; C17 shared frame; independent native SIM strength",
+      "path_sha256": [
+        "7bd95d9593150839d7290455ad7b8548b23e8e44c164b382d512bdfe25d6c5e4",
+        "526c092e2c0fc4ad17ca2f7b336a0a1ac34991ba8050f3fc4594238b47c53067",
+        "375e20e5384d8d52b57fee7d05ffd5ff21fce92a464a1b501996440d9f245dcb",
+        "59e76dc581435064cc9c96e7d5a652230363c91764b61aacfa205beae4198b9a"
+      ]
+    },
+    "stat_signal_lte_signal_stacked_secondary_2": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s2.xml",
+      "resource": "stat_signal_signal_lte_single_2",
+      "sha256": "ec606a19a017855ad0941ce9d9a66b45af60a1a217315b5f297900cd591e2e3a",
+      "conversion": "C16 secondary paths; C17 shared frame; independent native SIM strength",
+      "path_sha256": [
+        "14d13a942fe67b58ed3fd6dd93624fd3b548333047b953b1ba4f241f0b9c64ef",
+        "378b7f212d3c2b0de00d88616f0be4e6eb3993162b8a60862fd3857cbe355d18",
+        "2df5fe526c858df2ffecf2686dcfedf614eeca72edc419939a5a57b93fb0a99e",
+        "8820d6c4dac75ddfb71f70340e63ef21701ad159bc1ee0af4b40cc00669e367e"
+      ]
+    },
+    "stat_signal_signal_lte_single_2_os17": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s2.xml",
+      "resource": "stat_signal_signal_lte_single_2",
+      "sha256": "ec606a19a017855ad0941ce9d9a66b45af60a1a217315b5f297900cd591e2e3a",
+      "conversion": "C16 single paths; C17 shared frame; independent native SIM strength",
+      "path_sha256": [
+        "7bd95d9593150839d7290455ad7b8548b23e8e44c164b382d512bdfe25d6c5e4",
+        "526c092e2c0fc4ad17ca2f7b336a0a1ac34991ba8050f3fc4594238b47c53067",
+        "375e20e5384d8d52b57fee7d05ffd5ff21fce92a464a1b501996440d9f245dcb",
+        "59e76dc581435064cc9c96e7d5a652230363c91764b61aacfa205beae4198b9a"
+      ]
+    },
+    "stat_signal_wifi_signal_2_os17": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/stat_signal_wifi_signal_2.xml",
+      "resource": "stat_signal_wifi_signal_2",
+      "sha256": "8cebba2ec726f43a470d87e78e9a4c8722e41cdecf404aca3be9cf73be890622",
+      "conversion": "C16 Wi-Fi paths and opacity; C17 resource alias; standardized spacing",
+      "path_sha256": [
+        "4ddbf31254db1e11c66d8dd97a5741bea2831ad83f15a3cbcf69cf648948ddbe",
+        "1b0b8222efe7db42c8aa4d4e0f83ce6814b05ba814d23610a900ef7a3d2cfcca",
+        "920bc650ef24a3e003bbc581fd2dd5de03797c3d8cf25acfb00cadcf1e7cc676"
+      ]
+    },
+    "stat_signal_lte_signal_stacked_primary_3": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s3.xml",
+      "resource": "stat_signal_signal_lte_single_3",
+      "sha256": "ca35535445b9f295d105bac3c47368193996c8e1d28a6c830d29d822bb6391f2",
+      "conversion": "C16 primary paths; C17 shared frame; independent native SIM strength",
+      "path_sha256": [
+        "7bd95d9593150839d7290455ad7b8548b23e8e44c164b382d512bdfe25d6c5e4",
+        "526c092e2c0fc4ad17ca2f7b336a0a1ac34991ba8050f3fc4594238b47c53067",
+        "375e20e5384d8d52b57fee7d05ffd5ff21fce92a464a1b501996440d9f245dcb",
+        "59e76dc581435064cc9c96e7d5a652230363c91764b61aacfa205beae4198b9a"
+      ]
+    },
+    "stat_signal_lte_signal_stacked_secondary_3": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s3.xml",
+      "resource": "stat_signal_signal_lte_single_3",
+      "sha256": "ca35535445b9f295d105bac3c47368193996c8e1d28a6c830d29d822bb6391f2",
+      "conversion": "C16 secondary paths; C17 shared frame; independent native SIM strength",
+      "path_sha256": [
+        "14d13a942fe67b58ed3fd6dd93624fd3b548333047b953b1ba4f241f0b9c64ef",
+        "378b7f212d3c2b0de00d88616f0be4e6eb3993162b8a60862fd3857cbe355d18",
+        "2df5fe526c858df2ffecf2686dcfedf614eeca72edc419939a5a57b93fb0a99e",
+        "8820d6c4dac75ddfb71f70340e63ef21701ad159bc1ee0af4b40cc00669e367e"
+      ]
+    },
+    "stat_signal_signal_lte_single_3_os17": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s3.xml",
+      "resource": "stat_signal_signal_lte_single_3",
+      "sha256": "ca35535445b9f295d105bac3c47368193996c8e1d28a6c830d29d822bb6391f2",
+      "conversion": "C16 single paths; C17 shared frame; independent native SIM strength",
+      "path_sha256": [
+        "7bd95d9593150839d7290455ad7b8548b23e8e44c164b382d512bdfe25d6c5e4",
+        "526c092e2c0fc4ad17ca2f7b336a0a1ac34991ba8050f3fc4594238b47c53067",
+        "375e20e5384d8d52b57fee7d05ffd5ff21fce92a464a1b501996440d9f245dcb",
+        "59e76dc581435064cc9c96e7d5a652230363c91764b61aacfa205beae4198b9a"
+      ]
+    },
+    "stat_signal_wifi_signal_3_os17": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/stat_signal_wifi_signal_3.xml",
+      "resource": "stat_signal_wifi_signal_3",
+      "sha256": "6b5695ec927be7ca725727ce92b3bdba5954be991cd49fba0ebe110dddb863a2",
+      "conversion": "C16 Wi-Fi paths and opacity; C17 resource alias; standardized spacing",
+      "path_sha256": [
+        "4ddbf31254db1e11c66d8dd97a5741bea2831ad83f15a3cbcf69cf648948ddbe",
+        "1b0b8222efe7db42c8aa4d4e0f83ce6814b05ba814d23610a900ef7a3d2cfcca",
+        "920bc650ef24a3e003bbc581fd2dd5de03797c3d8cf25acfb00cadcf1e7cc676"
+      ]
+    },
+    "stat_signal_lte_signal_stacked_primary_4": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s4.xml",
+      "resource": "stat_signal_signal_lte_single_4",
+      "sha256": "8d4cac1dc1e0f8a82216b4b1bd37a9cce609a7fc39c284a059fa018adc28a57f",
+      "conversion": "C16 primary paths; C17 shared frame; independent native SIM strength",
+      "path_sha256": [
+        "7bd95d9593150839d7290455ad7b8548b23e8e44c164b382d512bdfe25d6c5e4",
+        "526c092e2c0fc4ad17ca2f7b336a0a1ac34991ba8050f3fc4594238b47c53067",
+        "375e20e5384d8d52b57fee7d05ffd5ff21fce92a464a1b501996440d9f245dcb",
+        "59e76dc581435064cc9c96e7d5a652230363c91764b61aacfa205beae4198b9a"
+      ]
+    },
+    "stat_signal_lte_signal_stacked_secondary_4": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s4.xml",
+      "resource": "stat_signal_signal_lte_single_4",
+      "sha256": "8d4cac1dc1e0f8a82216b4b1bd37a9cce609a7fc39c284a059fa018adc28a57f",
+      "conversion": "C16 secondary paths; C17 shared frame; independent native SIM strength",
+      "path_sha256": [
+        "14d13a942fe67b58ed3fd6dd93624fd3b548333047b953b1ba4f241f0b9c64ef",
+        "378b7f212d3c2b0de00d88616f0be4e6eb3993162b8a60862fd3857cbe355d18",
+        "2df5fe526c858df2ffecf2686dcfedf614eeca72edc419939a5a57b93fb0a99e",
+        "8820d6c4dac75ddfb71f70340e63ef21701ad159bc1ee0af4b40cc00669e367e"
+      ]
+    },
+    "stat_signal_signal_lte_single_4_os17": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s4.xml",
+      "resource": "stat_signal_signal_lte_single_4",
+      "sha256": "8d4cac1dc1e0f8a82216b4b1bd37a9cce609a7fc39c284a059fa018adc28a57f",
+      "conversion": "C16 single paths; C17 shared frame; independent native SIM strength",
+      "path_sha256": [
+        "7bd95d9593150839d7290455ad7b8548b23e8e44c164b382d512bdfe25d6c5e4",
+        "526c092e2c0fc4ad17ca2f7b336a0a1ac34991ba8050f3fc4594238b47c53067",
+        "375e20e5384d8d52b57fee7d05ffd5ff21fce92a464a1b501996440d9f245dcb",
+        "59e76dc581435064cc9c96e7d5a652230363c91764b61aacfa205beae4198b9a"
+      ]
+    },
+    "stat_signal_wifi_signal_4_os17": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/stat_signal_wifi_signal_4.xml",
+      "resource": "stat_signal_wifi_signal_4",
+      "sha256": "6b5695ec927be7ca725727ce92b3bdba5954be991cd49fba0ebe110dddb863a2",
+      "conversion": "C16 Wi-Fi paths and opacity; C17 resource alias; standardized spacing",
+      "path_sha256": [
+        "4ddbf31254db1e11c66d8dd97a5741bea2831ad83f15a3cbcf69cf648948ddbe",
+        "1b0b8222efe7db42c8aa4d4e0f83ce6814b05ba814d23610a900ef7a3d2cfcca",
+        "920bc650ef24a3e003bbc581fd2dd5de03797c3d8cf25acfb00cadcf1e7cc676"
+      ]
+    },
+    "stat_signal_lte_signal_stacked_primary_noservice": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s01.xml",
+      "resource": "stat_signal_noservice_lte",
+      "sha256": "f817f592d789c8aa0159956fcd633dabdba1a703f8f7ebe6adc7e0d5debd35e3",
+      "conversion": "C16 no-service short bars aligned to C17 SIM row",
+      "path_sha256": [
+        "cc2e2e001628ed2fcfdaa7fbcda6a1a2a31a8db936ef3c58e75388807431985d",
+        "3c4835ae199743121f73cab42e920d893f9afcbe677aa1790532b1eb716be54f",
+        "9ab7b7ea234f79829ce7c203139451683f452b22f3b76a5c7aced34b0d621813",
+        "79b75292e21dbab6492689b3cdc32a35ba5d64603f137445de90b4117c28c7d3"
+      ]
+    },
+    "stat_signal_lte_signal_stacked_secondary_noservice": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable/s01.xml",
+      "resource": "stat_signal_noservice_lte",
+      "sha256": "f817f592d789c8aa0159956fcd633dabdba1a703f8f7ebe6adc7e0d5debd35e3",
+      "conversion": "C16 no-service short bars aligned to C17 SIM row",
+      "path_sha256": [
+        "cc2e2e001628ed2fcfdaa7fbcda6a1a2a31a8db936ef3c58e75388807431985d",
+        "3c4835ae199743121f73cab42e920d893f9afcbe677aa1790532b1eb716be54f",
+        "9ab7b7ea234f79829ce7c203139451683f452b22f3b76a5c7aced34b0d621813",
+        "79b75292e21dbab6492689b3cdc32a35ba5d64603f137445de90b4117c28c7d3"
+      ]
+    },
+    "stat_signal_signal_null_lte": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeStatusIcon",
+      "entry": "res/drawable-xxhdpi/stat_signal_signal_null_lte.xml",
+      "resource": "stat_signal_signal_null_lte",
+      "sha256": "2f2cf895bd9c1e0030916043160b1b892e1f79bc53f40b4ba1c90824d074f0c1",
+      "conversion": "C16 no-service paths and opacity; standardized spacing",
+      "path_sha256": [
+        "2f0fa45a27f4e2df7d5bd5055985ea15cfc22553349b68cab4ac5770a6283e82",
+        "7ce1cca7480acd1c5cc4492ff5147b964192bb119a34bd632ac20bdc0af36fdc",
+        "7874a4d18c538fb77ec1aef525ca9f03e91b8fad919f46f6df18b4dcd25ad746",
+        "95dc7777b9e3a3e15859932171f33d9909a09aa0977883fab2034acdbf0e6150"
+      ]
+    },
+    "stat_battery_horizontal_bg": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeHorizontalBattery",
+      "entry": "res/drawable/stat_battery_horizontal_bg.xml",
+      "resource": "stat_battery_horizontal_bg",
+      "sha256": "b7cb2582d7b3ed1e825c5e71faa575c29e7112f37b293ddf5a3a8608fc8ae60e",
+      "conversion": "C16 battery paths; normalized C17 28x17dp frame",
+      "path_sha256": [
+        "4c65fa39875058236918b59451fa60f43b1d7eadbdca76f67aaf524fccdf1bc0",
+        "2f7e757afb233e30cf6dcf6643c09b4f8339458bcb3a3ac02a048f2609ee05c4"
+      ]
+    },
+    "stat_battery_horizontal_frame": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeHorizontalBattery",
+      "entry": "res/drawable/stat_battery_horizontal_frame.xml",
+      "resource": "stat_battery_horizontal_frame",
+      "sha256": "fa7dcad9e8a7a0557c98919ce26e6754756733685384aad0da30ec4fe8911987",
+      "conversion": "C16 battery paths; normalized C17 28x17dp frame",
+      "path_sha256": [
+        "4c65fa39875058236918b59451fa60f43b1d7eadbdca76f67aaf524fccdf1bc0",
+        "2f7e757afb233e30cf6dcf6643c09b4f8339458bcb3a3ac02a048f2609ee05c4"
+      ]
+    },
+    "stat_battery_horizontal_percent_out_bg": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeHorizontalBattery",
+      "entry": "res/drawable/stat_battery_horizontal_percent_out_bg.xml",
+      "resource": "stat_battery_horizontal_percent_out_bg",
+      "sha256": "b18e971fcb86ee1d21bb8d68efe9ad2302837682de8235950638efec4f812995",
+      "conversion": "C16 battery paths; normalized C17 28x17dp frame",
+      "path_sha256": [
+        "a37b928508a94e35e787da4741844871cce01a63bbc62f4c84d30bde850bedad",
+        "2f7e757afb233e30cf6dcf6643c09b4f8339458bcb3a3ac02a048f2609ee05c4"
+      ]
+    },
+    "stat_battery_horizontal_progress_bg": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeHorizontalBattery",
+      "entry": "res/drawable/stat_battery_horizontal_bg.xml",
+      "resource": "stat_battery_horizontal_bg",
+      "sha256": "b7cb2582d7b3ed1e825c5e71faa575c29e7112f37b293ddf5a3a8608fc8ae60e",
+      "conversion": "C16 body path cropped to x=0..85,y=5..50 for native C17 progress clipping",
+      "path_sha256": [
+        "4c65fa39875058236918b59451fa60f43b1d7eadbdca76f67aaf524fccdf1bc0"
+      ]
+    },
+    "stat_battery_horizontal_progress": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeHorizontalBattery",
+      "entry": "res/drawable/stat_battery_horizontal_progress.xml",
+      "resource": "stat_battery_horizontal_progress",
+      "sha256": "0677966300d7e1c679ac1561e29f48971a8aa3572350cac1d3540ccb05c8c33d",
+      "conversion": "C17 native progress ID and clip around C16 battery body",
+      "path_sha256": []
+    },
+    "stat_battery_horizontal_percent_out_progress": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeHorizontalBattery",
+      "entry": "res/drawable/stat_battery_horizontal_progress.xml",
+      "resource": "stat_battery_horizontal_progress",
+      "sha256": "0677966300d7e1c679ac1561e29f48971a8aa3572350cac1d3540ccb05c8c33d",
+      "conversion": "C17 native progress ID and clip around C16 battery body",
+      "path_sha256": []
+    },
+    "stat_battery_horizontal_percent_out_no_padding_progress": {
+      "archive": "双排信号状态栏模块C16.zip",
+      "overlay": "ThemeHorizontalBattery",
+      "entry": "res/drawable/stat_battery_horizontal_progress.xml",
+      "resource": "stat_battery_horizontal_progress",
+      "sha256": "0677966300d7e1c679ac1561e29f48971a8aa3572350cac1d3540ccb05c8c33d",
+      "conversion": "C17 native progress ID and clip around C16 battery body",
+      "path_sha256": []
+    }
+  },
+  "overrides": {
+    "stat_sys_airplane_mode": "stat_sys_airplane_mode",
+    "stat_sys_alarm": "stat_sys_alarm",
+    "stat_sys_data_bluetooth": "stat_sys_data_bluetooth",
+    "stat_sys_data_bluetooth_connected_ing": "stat_sys_data_bluetooth_connected_ing",
+    "stat_sys_data_bluetooth_connected_stop": "stat_sys_data_bluetooth_connected_stop",
+    "stat_sys_dnd": "stat_sys_dnd",
+    "stat_sys_flavor_one_ringer_vibrate": "stat_sys_flavor_one_ringer_vibrate",
+    "stat_sys_headset": "stat_sys_headset",
+    "stat_sys_headset_mic": "stat_sys_headset_mic",
+    "stat_sys_location": "stat_sys_location",
+    "stat_sys_nfc": "stat_sys_nfc",
+    "stat_sys_ringer_silent": "stat_sys_ringer_silent",
+    "stat_sys_ringer_vibrate": "stat_sys_ringer_vibrate",
+    "stat_sys_vpn_ic": "stat_sys_vpn_ic",
+    "stat_bt_battery_black_0": "stat_bt_battery_black_0",
+    "stat_bt_battery_black_3": "stat_bt_battery_black_3",
+    "stat_bt_battery_black_4": "stat_bt_battery_black_4",
+    "stat_bt_battery_black_5": "stat_bt_battery_black_5",
+    "stat_bt_battery_black_6": "stat_bt_battery_black_6",
+    "stat_bt_battery_black_7": "stat_bt_battery_black_7",
+    "stat_bt_battery_black_8": "stat_bt_battery_black_8",
+    "stat_bt_battery_black_9": "stat_bt_battery_black_9",
+    "stat_bt_battery_low_1": "stat_bt_battery_low_1",
+    "stat_bt_battery_low_2": "stat_bt_battery_low_2",
+    "stat_sys_data_bluetooth_connected": "stat_sys_data_bluetooth_connected_stop",
+    "stat_sys_branded_vpn": "stat_sys_vpn_ic",
+    "stat_signal_lte_signal_stacked_primary_0": "stat_signal_lte_signal_stacked_primary_0",
+    "stat_signal_lte_signal_stacked_secondary_0": "stat_signal_lte_signal_stacked_secondary_0",
+    "stat_signal_signal_lte_single_0_os17": "stat_signal_signal_lte_single_0_os17",
+    "stat_signal_signal_lte_single_0": "stat_signal_signal_lte_single_0_os17",
+    "stat_signal_soft_signal_0": "stat_signal_signal_lte_single_0_os17",
+    "stat_signal_soft_signal_0_os17": "stat_signal_signal_lte_single_0_os17",
+    "stat_signal_soft_signal_stacked_primary_0": "stat_signal_lte_signal_stacked_primary_0",
+    "stat_signal_soft_signal_stacked_secondary_0": "stat_signal_lte_signal_stacked_secondary_0",
+    "stat_signal_wifi_signal_0_os17": "stat_signal_wifi_signal_0_os17",
+    "stat_signal_wifi_signal_0": "stat_signal_wifi_signal_0_os17",
+    "stat_signal_lte_signal_stacked_primary_1": "stat_signal_lte_signal_stacked_primary_1",
+    "stat_signal_lte_signal_stacked_secondary_1": "stat_signal_lte_signal_stacked_secondary_1",
+    "stat_signal_signal_lte_single_1_os17": "stat_signal_signal_lte_single_1_os17",
+    "stat_signal_signal_lte_single_1": "stat_signal_signal_lte_single_1_os17",
+    "stat_signal_soft_signal_1": "stat_signal_signal_lte_single_1_os17",
+    "stat_signal_soft_signal_1_os17": "stat_signal_signal_lte_single_1_os17",
+    "stat_signal_soft_signal_stacked_primary_1": "stat_signal_lte_signal_stacked_primary_1",
+    "stat_signal_soft_signal_stacked_secondary_1": "stat_signal_lte_signal_stacked_secondary_1",
+    "stat_signal_wifi_signal_1_os17": "stat_signal_wifi_signal_1_os17",
+    "stat_signal_wifi_signal_1": "stat_signal_wifi_signal_1_os17",
+    "stat_signal_lte_signal_stacked_primary_2": "stat_signal_lte_signal_stacked_primary_2",
+    "stat_signal_lte_signal_stacked_secondary_2": "stat_signal_lte_signal_stacked_secondary_2",
+    "stat_signal_signal_lte_single_2_os17": "stat_signal_signal_lte_single_2_os17",
+    "stat_signal_signal_lte_single_2": "stat_signal_signal_lte_single_2_os17",
+    "stat_signal_soft_signal_2": "stat_signal_signal_lte_single_2_os17",
+    "stat_signal_soft_signal_2_os17": "stat_signal_signal_lte_single_2_os17",
+    "stat_signal_soft_signal_stacked_primary_2": "stat_signal_lte_signal_stacked_primary_2",
+    "stat_signal_soft_signal_stacked_secondary_2": "stat_signal_lte_signal_stacked_secondary_2",
+    "stat_signal_wifi_signal_2_os17": "stat_signal_wifi_signal_2_os17",
+    "stat_signal_wifi_signal_2": "stat_signal_wifi_signal_2_os17",
+    "stat_signal_lte_signal_stacked_primary_3": "stat_signal_lte_signal_stacked_primary_3",
+    "stat_signal_lte_signal_stacked_secondary_3": "stat_signal_lte_signal_stacked_secondary_3",
+    "stat_signal_signal_lte_single_3_os17": "stat_signal_signal_lte_single_3_os17",
+    "stat_signal_signal_lte_single_3": "stat_signal_signal_lte_single_3_os17",
+    "stat_signal_soft_signal_3": "stat_signal_signal_lte_single_3_os17",
+    "stat_signal_soft_signal_3_os17": "stat_signal_signal_lte_single_3_os17",
+    "stat_signal_soft_signal_stacked_primary_3": "stat_signal_lte_signal_stacked_primary_3",
+    "stat_signal_soft_signal_stacked_secondary_3": "stat_signal_lte_signal_stacked_secondary_3",
+    "stat_signal_wifi_signal_3_os17": "stat_signal_wifi_signal_3_os17",
+    "stat_signal_wifi_signal_3": "stat_signal_wifi_signal_3_os17",
+    "stat_signal_lte_signal_stacked_primary_4": "stat_signal_lte_signal_stacked_primary_4",
+    "stat_signal_lte_signal_stacked_secondary_4": "stat_signal_lte_signal_stacked_secondary_4",
+    "stat_signal_signal_lte_single_4_os17": "stat_signal_signal_lte_single_4_os17",
+    "stat_signal_signal_lte_single_4": "stat_signal_signal_lte_single_4_os17",
+    "stat_signal_soft_signal_4": "stat_signal_signal_lte_single_4_os17",
+    "stat_signal_soft_signal_4_os17": "stat_signal_signal_lte_single_4_os17",
+    "stat_signal_soft_signal_stacked_primary_4": "stat_signal_lte_signal_stacked_primary_4",
+    "stat_signal_soft_signal_stacked_secondary_4": "stat_signal_lte_signal_stacked_secondary_4",
+    "stat_signal_wifi_signal_4_os17": "stat_signal_wifi_signal_4_os17",
+    "stat_signal_wifi_signal_4": "stat_signal_wifi_signal_4_os17",
+    "stat_signal_lte_signal_stacked_primary_noservice": "stat_signal_lte_signal_stacked_primary_noservice",
+    "stat_signal_soft_signal_stacked_primary_noservice": "stat_signal_lte_signal_stacked_primary_noservice",
+    "stat_signal_lte_signal_stacked_secondary_noservice": "stat_signal_lte_signal_stacked_secondary_noservice",
+    "stat_signal_soft_signal_stacked_secondary_noservice": "stat_signal_lte_signal_stacked_secondary_noservice",
+    "stat_signal_signal_null_lte": "stat_signal_signal_null_lte",
+    "ic_wifi_0": "stat_signal_wifi_signal_0_os17",
+    "ic_wifi_0_error": "stat_signal_wifi_signal_0_os17",
+    "ic_wifi_1": "stat_signal_wifi_signal_1_os17",
+    "ic_wifi_1_error": "stat_signal_wifi_signal_1_os17",
+    "ic_wifi_2": "stat_signal_wifi_signal_2_os17",
+    "ic_wifi_2_error": "stat_signal_wifi_signal_2_os17",
+    "ic_wifi_3": "stat_signal_wifi_signal_4_os17",
+    "ic_wifi_3_error": "stat_signal_wifi_signal_4_os17",
+    "stat_battery_horizontal_bg": "stat_battery_horizontal_bg",
+    "stat_battery_horizontal_frame": "stat_battery_horizontal_frame",
+    "stat_battery_horizontal_percent_out_bg": "stat_battery_horizontal_percent_out_bg",
+    "stat_battery_horizontal_progress_bg": "stat_battery_horizontal_progress_bg",
+    "stat_battery_horizontal_percent_out_no_padding_bg": "stat_battery_horizontal_percent_out_bg",
+    "stat_battery_horizontal_percent_out_progress_bg": "stat_battery_horizontal_progress_bg",
+    "stat_battery_horizontal_percent_out_no_padding_progress_bg": "stat_battery_horizontal_progress_bg",
+    "stat_battery_horizontal_progress": "stat_battery_horizontal_progress",
+    "stat_battery_horizontal_percent_out_progress": "stat_battery_horizontal_percent_out_progress",
+    "stat_battery_horizontal_percent_out_no_padding_progress": "stat_battery_horizontal_percent_out_no_padding_progress"
+  },
+  "dimensions": {
+    "stat_bt_battery_height": 16.0,
+    "stat_bt_battery_width": 16.0,
+    "status_bar_battery_horizontal_width": 28.0,
+    "status_bar_battery_horizontal_height": 17.0,
+    "status_bar_battery_horizontal_progress_start": 0.0,
+    "status_bar_battery_horizontal_progress_end": 2.4086021505376345,
+    "status_bar_battery_horizontal_progress_top": 1.5454545454545454,
+    "status_bar_battery_horizontal_progress_bottom": 1.5454545454545454,
+    "battery_progress_corner_radius": 2.7818181818181817,
+    "battery_percent_in_text_size": 10.0,
+    "battery_percent_in_text_margin_top": 0.14,
+    "battery_percent_in_text_offset_x": 0.0,
+    "battery_percent_in_text_offset_y": 0.25,
+    "signal_cluster_battery_padding": 1.2
+  },
+  "signal_frame": {
+    "width": 19.0,
+    "height": 16.0,
+    "reference": "ThemeSignalIcon",
+    "resource": "stat_signal_lte_signal_stacked_primary_4",
+    "sha256": "22758a1176edbaf4ebaf7fe6b87b11e61f28a8ff7c0d109cf754f8379b08814c"
+  }
+}

@@ -22,22 +22,33 @@ final class CloudTemplateHook {
         float radius;
         float[] radii;
         Float applied;
+        boolean applying;
+        CloudCornerGeometry.Gradient smooth;
         void restore() {
             GradientDrawable drawable=stroke.get();if(drawable==null)return;
+            if(smooth!=null)smooth.restore();
             if(radii==null)drawable.setCornerRadius(radius);else drawable.setCornerRadii(radii.clone());
         }
         void apply(View view,Float corner) {
-            Drawable foreground=view.getForeground();
-            GradientDrawable current=foreground instanceof GradientDrawable?(GradientDrawable)foreground:null;
-            if(current!=stroke.get()) {
-                restore();stroke=new WeakReference<>(current);applied=null;
-                if(current!=null) {
-                    radius=current.getCornerRadius();radii=current.getCornerRadii();
-                    if(radii!=null)radii=radii.clone();
+            // Foreground invalidation synchronously calls View.rebuildOutline,
+            // whose hook comes back through pageRadius. Cover apply, restore and
+            // replacement as one transaction; release the guard on setter failure.
+            if(applying)return;
+            applying=true;
+            try {
+                Drawable foreground=view.getForeground();
+                GradientDrawable current=foreground instanceof GradientDrawable?(GradientDrawable)foreground:null;
+                if(current!=stroke.get()) {
+                    restore();stroke=new WeakReference<>(current);applied=null;
+                    if(current!=null) {
+                        radius=current.getCornerRadius();radii=current.getCornerRadii();
+                        smooth=new CloudCornerGeometry.Gradient(current);
+                        if(radii!=null)radii=radii.clone();
+                    }
                 }
-            }
-            if(corner==null) {if(applied!=null)restore();applied=null;}
-            else if(current!=null&&!corner.equals(applied)) {current.setCornerRadius(corner);applied=corner;}
+                if(corner==null) {if(applied!=null)restore();applied=null;}
+                else if(current!=null&&!corner.equals(applied)) {smooth.apply();current.setCornerRadius(corner);applied=corner;}
+            } finally {applying=false;}
         }
     }
     private record Alpha(float[] values,int index,float original) {
@@ -73,10 +84,13 @@ final class CloudTemplateHook {
                 Float radius=radius(owner);
                 if(radius!=null) {
                     float[] values=(float[])Reflect.getObjectField(params,"d");
-                    Alpha[] saved=new Alpha[4];
-                    for(int i=0;i<4;i++)saved[i]=new Alpha(values,6+i,values[6+i]);
+                    Alpha[] saved=new Alpha[5];
+                    for(int i=0;i<5;i++)saved[i]=new Alpha(values,6+i,values[6+i]);
                     p.setObjectExtra("geometry",saved);p.setObjectExtra("geometry-params",params);
                     for(int i=6;i<10;i++)values[i]=radius;
+                    values[10]=CloudCornerGeometry.WEIGHT;
+                    p.setObjectExtra("geometry-type",Reflect.getIntField(params,"b"));
+                    Reflect.setIntField(params,"b",2);Reflect.setBooleanField(params,"c",true);
                     Reflect.setObjectField(params,"e",true);
                     ShadeHook.resourceHit("cloud-template-corners");
                 }
@@ -96,7 +110,9 @@ final class CloudTemplateHook {
                 Object geometry=p.getObjectExtra("geometry");
                 if(geometry instanceof Alpha[]) {
                     for(Alpha value:(Alpha[])geometry)value.restore();
-                    Reflect.setObjectField(p.getObjectExtra("geometry-params"),"e",true);
+                    Object params=p.getObjectExtra("geometry-params");
+                    Reflect.setIntField(params,"b",(Integer)p.getObjectExtra("geometry-type"));
+                    Reflect.setBooleanField(params,"c",true);Reflect.setObjectField(params,"e",true);
                 }
                 Object saved=p.getObjectExtra("alpha");if(!(saved instanceof Alpha[]))return;
                 for(Alpha alpha:(Alpha[])saved)alpha.restore();
@@ -141,6 +157,7 @@ final class CloudTemplateHook {
     }
     private static Float radius(View view) {
         if(view==null)return null;
+        if(CloudLockHook.inNativeCapsule(view))return null;
         geometryViews.put(view,true);
         HookConfig c=ShadeHook.snapshot();
         HookConfig.Area notification=NotificationCardHook.containingArea(view);
@@ -156,11 +173,17 @@ final class CloudTemplateHook {
                 Float radius=radius((View)candidate);if(radius==null)return;
                 Object saved=Reflect.getObjectField(candidate,"t");
                 p.setObjectExtra("media",candidate);p.setObjectExtra("radius",saved);
+                p.setObjectExtra("weight",Reflect.getObjectField(candidate,"u"));
+                p.setObjectExtra("type",Reflect.getObjectField(candidate,"v"));
                 Reflect.setObjectField(candidate,"t",radius);
+                Reflect.setObjectField(candidate,"u",CloudCornerGeometry.WEIGHT);Reflect.setIntField(candidate,"v",2);
             }
             @Override protected void afterHookedMethod(Param p) {
                 Object media=p.getObjectExtra("media"),saved=p.getObjectExtra("radius");
-                if(media!=null&&saved!=null)Reflect.setObjectField(media,"t",saved);
+                if(media!=null&&saved!=null) {
+                    Reflect.setObjectField(media,"t",saved);Reflect.setObjectField(media,"u",p.getObjectExtra("weight"));
+                    Reflect.setObjectField(media,"v",p.getObjectExtra("type"));
+                }
             }
         };
     }

@@ -12,6 +12,7 @@ import java.util.WeakHashMap;
 /** Feed the same G2 geometry to the firmware's path, outline, blur and press renderers. */
 final class QsCornerHook {
     private static final String TILE="com.oplus.systemui.qs.base.res.drawable.";
+    private static final String MEDIA="com.oplus.systemui.qs.media.";
     private static final String PLUGIN="com.oplus.systemui.plugins.drawable.PluginDrawable";
     private static final String NATIVE="thunder.qs-native-corner-provider";
     private static final String COPY="thunder.qs-custom-corner-provider";
@@ -31,6 +32,7 @@ final class QsCornerHook {
     static final float SMOOTH_WEIGHT=3f;
     private static final Map<Drawable,Boolean> surfaces=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View,Boolean> pressViews=Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<View,Boolean> mediaViews=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View,Boolean> outlines=Collections.synchronizedMap(new WeakHashMap<>());
     private static final ArrayList<WeakReference<Object>> copies=new ArrayList<>();
     private static Class<?> roundRect;
@@ -110,6 +112,43 @@ final class QsCornerHook {
         for(String size:new String[]{"OneXOne","TwoXTwo"})
             bind("tile-card-rebuild-"+size,() -> Api102Runtime.findAndHookMethod(tileView+size,loader,
                 "onDrawableUpdate",java.util.List.class,boolean.class,cardOwner));
+        HookCallback mediaOwner=new HookCallback() {
+            @Override protected void afterHookedMethod(Param p) {if(!p.hasThrowable())trackMedia((View)p.thisObject);}
+        };
+        for(String method:new String[]{"onFinishInflate","onAttachedToWindow","onOutlineUpdate"})
+            bind("media-"+method,() -> Api102Runtime.findAndHookMethod(MEDIA+"OplusQsBaseMediaPanelView",loader,method,mediaOwner));
+        bind("media-rebuild",() -> Api102Runtime.findAndHookMethod(MEDIA+"OplusQsBaseMediaPanelView",loader,
+            "onDrawableUpdate",boolean.class,mediaOwner));
+        // The media light is an independent shader, outside TileLayerDrawable's path.
+        // Adjust its native uniforms only for this draw and restore even on failure.
+        bind("media-light",() -> Api102Runtime.findAndHookMethod(MEDIA+"multilight.OplusQsMediaBackgroundDrawable",loader,
+            "draw",android.graphics.Canvas.class,new HookCallback() {
+                @Override protected void beforeHookedMethod(Param p) {
+                    if(!enabled())return;
+                    Drawable background=(Drawable)p.thisObject;
+                    Object light=Reflect.getObjectField(background,"mediaLightDrawable");if(light==null)return;
+                    Object params=Reflect.getObjectField(light,"params");
+                    float[] values=(float[])Reflect.getObjectField(params,"uCommonArray");
+                    Object shape=provider(Reflect.callMethod(background,"getPathProvider"),true,background);
+                    if(shape==null||!roundRect.isInstance(shape))return;
+                    float radius=((Number)Reflect.callMethod(shape,"getCornerRadius")).floatValue();
+                    boolean full=fullCorners(shape);
+                    float[] saved=new float[5];System.arraycopy(values,6,saved,0,5);
+                    p.setObjectExtra("media-light",new Object[]{params,values,saved,Reflect.getIntField(params,"uCornerType")});
+                    for(int i=6;i<10;i++)values[i]=radius;
+                    values[10]=full?1f:SMOOTH_WEIGHT;
+                    Reflect.setIntField(params,"uCornerType",full?1:2);
+                    dirtyMedia(params);
+                    ShadeHook.resourceHit("qs-media-corners");
+                }
+                @Override protected void afterHookedMethod(Param p) {
+                    Object state=p.getObjectExtra("media-light");if(!(state instanceof Object[]))return;
+                    Object[] saved=(Object[])state;
+                    System.arraycopy((float[])saved[2],0,(float[])saved[1],6,5);
+                    Reflect.setIntField(saved[0],"uCornerType",(Integer)saved[3]);dirtyMedia(saved[0]);
+                }
+            }));
+        bind("media-deopt",() -> Api102Runtime.deoptimizeCallers(Reflect.findClass(MEDIA+"OplusQsBaseMediaPanelView",loader),"onOutlineUpdate"));
         // Theme/state pools replace the child without replacing the already marked wrapper.
         bind("card-child-replaced",() -> Api102Runtime.findAndHookMethod(
             TILE+"TileDrawableWrapper",loader,"setDrawable",Drawable.class,new HookCallback() {
@@ -184,19 +223,20 @@ final class QsCornerHook {
                         p.setResult(null);
                     }
                 }));
-        bind("tile-press",() -> Api102Runtime.findAndHookMethod(
-            "com.oplus.systemui.plugins.qs.customize.view.tile.OplusQSResizeableTileView",loader,
-            "updateSpotLightPath",android.graphics.Path.class,Object.class,new HookCallback() {
-                @Override protected void beforeHookedMethod(Param p) {
-                    if(!enabled())return;
-                    Drawable background=(Drawable)Reflect.getObjectField(p.thisObject,"transitionDrawable");
-                    Object shape=provider(Reflect.callMethod(background,"getPathProvider"),true,background);
-                    if(shape==null||!roundRect.isInstance(shape))return;
-                    pressViews.put((View)p.thisObject,true);
-                    Reflect.callMethod(shape,"updatePath",background,p.args[0],null,pressAdapter(p));
-                    p.setResult(null);
-                }
-            }));
+        for(String name:new String[]{"com.oplus.systemui.plugins.qs.customize.view.tile.OplusQSResizeableTileView",MEDIA+"OplusQsNormalMediaPanelView"}) {
+            bind("tile-press-"+name,() -> Api102Runtime.findAndHookMethod(name,loader,
+                "updateSpotLightPath",android.graphics.Path.class,Object.class,new HookCallback() {
+                    @Override protected void beforeHookedMethod(Param p) {
+                        if(!enabled())return;
+                        Drawable background=(Drawable)Reflect.getObjectField(p.thisObject,"transitionDrawable");
+                        Object shape=provider(Reflect.callMethod(background,"getPathProvider"),true,background);
+                        if(shape==null||!roundRect.isInstance(shape))return;
+                        pressViews.put((View)p.thisObject,true);
+                        Reflect.callMethod(shape,"updatePath",background,p.args[0],null,pressAdapter(p));
+                        p.setResult(null);
+                    }
+                }));
+        }
         // These callers otherwise inline the small getPathProvider/getBackgroundRadius getters.
         for(String name:new String[]{TILE+"MixColorTileDrawable",TILE+"GradientTileDrawable",TILE+"TileLayerDrawable",
                 "com.oplus.systemui.plugins.drawable.MixColorPluginDrawable"})
@@ -204,8 +244,20 @@ final class QsCornerHook {
         bind("deopt-smooth-adapter",() -> Api102Runtime.deoptimizeCallers(
             Reflect.findClass(TILE+"TileDrawableWrapper",loader),"ensureOplusPathAdapter"));
         for(String name:new String[]{"com.oplus.systemui.plugins.qs.customize.view.tile.OplusQSResizeableTileView",
-                "com.oplus.systemui.qs.base.seek.OplusQsVerticalSeekBar"})
+                "com.oplus.systemui.qs.base.seek.OplusQsVerticalSeekBar",MEDIA+"OplusQsNormalMediaPanelView"})
             bind("deopt-press-"+name,() -> Api102Runtime.deoptimizeCallers(Reflect.findClass(name,loader),"updateSpotLightPath"));
+    }
+    private static void dirtyMedia(Object params) {
+        Reflect.setBooleanField(params,"dirtyCommonArray",true);
+        Reflect.setBooleanField(params,"dirtyConerType",true);
+    }
+    private static void trackMedia(View view) {
+        mediaViews.put(view,true);
+        for(String field:new String[]{"bgDrawable","themeBgDrawable","transitionDrawable"})
+            trackCard((Drawable)Reflect.getObjectField(view,field));
+        View background=(View)Reflect.callMethod(view,"getBg");
+        if(background!=null){outlines.put(background,true);background.invalidateOutline();}
+        view.invalidate();view.invalidateOutline();
     }
     private static Object pressAdapter(HookCallback.Param p) {
         if(p.args[1]!=null)return p.args[1];
@@ -458,6 +510,10 @@ final class QsCornerHook {
         ArrayList<Drawable> current; synchronized(surfaces){current=new ArrayList<>(surfaces.keySet());}
         for(Drawable surface:current)try{Reflect.callMethod(surface,"invalidatePath");surface.invalidateSelf();}
         catch(Throwable error){ShadeHook.frameworkFailure("qs-corner-refresh-path",error);}
+        ArrayList<View> media; synchronized(mediaViews){media=new ArrayList<>(mediaViews.keySet());}
+        for(View view:media)try {
+            Reflect.callMethod(view,"onOutlineUpdate");trackMedia(view);
+        } catch(Throwable error){ShadeHook.frameworkFailure("qs-media-refresh",error);}
         ArrayList<View> currentViews; synchronized(outlines){currentViews=new ArrayList<>(outlines.keySet());}
         for(View view:currentViews){view.invalidateOutline();view.invalidate();}
         ArrayList<View> currentPressViews; synchronized(pressViews){currentPressViews=new ArrayList<>(pressViews.keySet());}

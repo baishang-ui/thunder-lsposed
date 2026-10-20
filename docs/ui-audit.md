@@ -15,7 +15,7 @@
   操作区固定在底部，正文滚动；弹窗中可以切换音乐 / 出行与收起 / 展开。
 - 音乐和音量进度展示改用 MIUIx `LinearProgressIndicator`；
   手绘关闭图标与音乐波形改为 Miuix Icons。
-- SystemUI / PUI 原始图标作为图片内容展示，时钟和电量文字使用 MIUIx `Text`；
+- 系统与主题原始图标作为图片内容展示，时钟和电量文字使用 MIUIx `Text`；
   应用 UI 目录不再使用 Compose Canvas、自定义 clickable 控件或 RuntimeShader。
 
 以下为此前的审查记录；本轮验证结果见文末。

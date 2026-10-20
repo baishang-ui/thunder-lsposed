@@ -1,0 +1,279 @@
+"""Import C16 artwork and adapt its resource contracts to ColorOS 17.
+
+Usage: python scripts/import_theme_icons.py C16.zip C17.zip [--aapt2 PATH]
+Only APK resources are read. Archive installers and mount scripts are never run.
+"""
+from pathlib import Path
+from zipfile import ZipFile
+import argparse
+import copy
+import hashlib
+import json
+import re
+import shutil
+import subprocess
+import tempfile
+import xml.etree.ElementTree as ET
+
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / 'app/src/main/assets/icons/theme-reference'
+NS = '{http://schemas.android.com/apk/res/android}'
+ET.register_namespace('android', NS[1:-1])
+ARCHIVE = '双排信号状态栏模块C16.zip'
+LAYOUT_ARCHIVE = 'ColorOS 17 reference archive'
+
+
+def find_aapt2(explicit=None):
+    candidates = [explicit, shutil.which('aapt2')]
+    sdk_roots = [ROOT/'.local/work/android-sdk', Path.home()/'Library/Android/sdk', Path.home()/'Android/Sdk']
+    import os
+    sdk_roots += [Path(os.environ[key]) for key in ('ANDROID_HOME', 'ANDROID_SDK_ROOT') if os.environ.get(key)]
+    properties = ROOT/'local.properties'
+    if properties.exists():
+        sdk_roots += [Path(line.split('=', 1)[1]) for line in properties.read_text().splitlines() if line.startswith('sdk.dir=')]
+    for sdk in sdk_roots:
+        candidates += sorted((sdk/'build-tools').glob('*/aapt2'), reverse=True)
+        candidates += sorted((sdk/'build-tools').glob('*/aapt2.exe'), reverse=True)
+    return next((str(p) for p in candidates if p and Path(p).is_file()), None)
+
+
+class Overlay:
+    """Decode audited resource names through aapt2, including shortened APK paths."""
+    def __init__(self, archive, module, directory, aapt2):
+        self.aapt2 = aapt2
+        self.module = module
+        with ZipFile(archive) as pack:
+            entries = [n for n in pack.namelist() if n.endswith('.apk') and Path(n).stem.endswith(module)]
+            if len(entries) != 1:
+                raise ValueError(f'Expected one {module} overlay, found {len(entries)}')
+            self.entry = entries[0]
+            self.path = directory / (module+'.apk')
+            self.path.write_bytes(pack.read(self.entry))
+        self.table = subprocess.check_output([aapt2, 'dump', 'resources', str(self.path)], text=True)
+        self.ids = {m[1]: m[2] for m in re.finditer(r'resource (0x[0-9a-f]+) (\S+)', self.table)}
+        self.files, self.dimensions = {}, {}
+        for match in re.finditer(r'resource 0x[0-9a-f]+ (\S+)\n(.*?)(?=    resource|  type|\Z)', self.table, re.S):
+            name, body = match[1], match[2]
+            files = re.findall(r'\(([^)]*)\) \(file\) (\S+) type=XML', body)
+            if files:
+                self.files[name.split('/')[-1]] = next((p for c, p in files if 'night' not in c), files[0][1])
+            dimen = re.search(r'\(\) (-?[0-9.]+)dp', body)
+            if name.startswith('dimen/') and dimen:
+                self.dimensions[name.split('/')[-1]] = float(dimen[1])
+
+    def xml(self, name):
+        entry = self.files[name]
+        output = subprocess.check_output([self.aapt2, 'dump', 'xmltree', '--file', entry, str(self.path)], text=True)
+        stack, root = [], None
+        for line in output.splitlines():
+            element = re.match(r'( *)E: (\S+)', line)
+            if element:
+                indent = len(element[1])
+                node = ET.Element(element[2])
+                while stack and stack[-1][0] >= indent:
+                    stack.pop()
+                if stack:
+                    stack[-1][1].append(node)
+                else:
+                    root = node
+                stack.append((indent, node))
+            attr = re.match(r' *A: (?:http://schemas.android.com/apk/res/android:)?(\w+)\(0x[0-9a-f]+\)=(.*)', line)
+            if not attr:
+                continue
+            key, value = attr[1], attr[2].split(' (Raw: ', 1)[0]
+            if value.startswith('"'):
+                value = value[1:-1]
+            elif value.startswith('@0x'):
+                value = '@'+self.ids.get(value[1:], value[1:])
+            enums = {'fillType': {'0': 'nonZero', '1': 'evenOdd'},
+                     'strokeLineCap': {'0': 'butt', '1': 'round', '2': 'square'},
+                     'strokeLineJoin': {'0': 'miter', '1': 'round', '2': 'bevel'}}
+            value = enums.get(key, {}).get(value, value)
+            stack[-1][1].set(NS+key, value)
+        if root is None:
+            raise ValueError(f'Unable to decode {self.entry}/{entry}')
+        return root
+
+    def provenance(self, name):
+        entry = self.files[name]
+        with ZipFile(self.path) as apk:
+            digest = hashlib.sha256(apk.read(entry)).hexdigest()
+        return {'archive': ARCHIVE, 'overlay': self.module, 'entry': entry, 'resource': name, 'sha256': digest}
+
+
+def main(c16, c17, aapt2):
+    inventory = json.loads((ROOT/'docs/status-icons-resource-inventory.json').read_text())
+    manifest = {'artwork_archive': ARCHIVE, 'layout_archive': LAYOUT_ARCHIVE,
+                'sources': {}, 'overrides': {}, 'dimensions': {}}
+    OUT.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='status-c16-') as folder:
+        directory = Path(folder)
+        status = Overlay(c16, 'ThemeStatusIcon', directory, aapt2)
+        battery = Overlay(c16, 'ThemeHorizontalBattery', directory, aapt2)
+        bluetooth = Overlay(c16, 'ThemeBluetoothBatteryIcon', directory, aapt2)
+        layout = Overlay(c17, 'ThemeSignalIcon', directory, aapt2)
+        # C17 supplies only the shared frame / resource naming contract, never ink.
+        frame = layout.xml('stat_signal_lte_signal_stacked_primary_4')
+        frame_width = float(frame.get(NS+'width')[:-2])
+        frame_height = float(frame.get(NS+'height')[:-2])
+        manifest['signal_frame'] = {'width': frame_width, 'height': frame_height,
+                                    'reference': layout.module, 'resource': 'stat_signal_lte_signal_stacked_primary_4',
+                                    'sha256': layout.provenance('stat_signal_lte_signal_stacked_primary_4')['sha256']}
+
+        def tint(tree, dimensions):
+            for node in tree.iter():
+                for key, value in list(node.attrib.items()):
+                    if value.startswith('@dimen/'):
+                        value = f'{dimensions[value.split("/")[-1]]:g}dp'
+                    if key in (NS+'fillColor', NS+'strokeColor') and value.startswith('#'):
+                        value = '#'+(value[1:3] if len(value)==9 else 'ff')+'ffffff'
+                    if key in (NS+'width', NS+'height') and value.endswith('px'):
+                        value = value[:-2]+'dp'
+                    node.set(key, value)
+            return tree
+
+        def vector(tree):
+            # Pack insets are legacy inter-icon spacing (usually +5dp). Normalize
+            # that spacing centrally in the generator; preserve the actual paths.
+            if tree.tag == 'inset':
+                child = tree.find('vector')
+                if child is None:
+                    raise ValueError('Expected an inline source vector')
+                tree = copy.deepcopy(child)
+            return tree
+
+        def save(name, tree, overlay, original, conversion):
+            tree = tint(copy.deepcopy(tree), overlay.dimensions)
+            for node in tree.iter():
+                for key, value in list(node.attrib.items()):
+                    if value.startswith('@drawable/'):
+                        node.set(key, '@drawable/thunder_ios_'+value.split('/')[-1])
+            (OUT/(name+'.xml')).write_text(ET.tostring(tree, encoding='unicode')+'\n', encoding='utf-8')
+            manifest['sources'][name] = dict(overlay.provenance(original), conversion=conversion,
+                path_sha256=[hashlib.sha256(p.get(NS+'pathData').encode()).hexdigest() for p in tree.iter('path')])
+            manifest['overrides'][name] = name
+
+        # Keep only artwork present in the first pack and applicable to the
+        # existing status-icon feature. Badge hiding is handled separately.
+        for overlay in (status, bluetooth):
+            for name in sorted(overlay.files):
+                if name not in inventory or name.startswith('stat_signal_') or 'fully_connected' in name:
+                    continue
+                tree = vector(overlay.xml(name))
+                if tree.tag != 'vector':
+                    continue
+                save(name, tree, overlay, name, 'C16 paths and opacity; native tint; standardized external spacing')
+        for target, source in {'stat_sys_data_bluetooth_connected': 'stat_sys_data_bluetooth_connected_stop',
+                               'stat_sys_branded_vpn': 'stat_sys_vpn_ic'}.items():
+            manifest['overrides'][target] = source
+
+        # Top bars and lower short bars are extracted verbatim from C16 s0..s4.
+        # C16 lower rows had hard-coded levels; C17 selects each SIM independently.
+        for level in range(5):
+            original = f'stat_signal_signal_lte_single_{level}'
+            source = vector(status.xml(original))
+            paths = list(source.iter('path'))
+            top = [p for p in paths if float(re.match(r'M([0-9.]+),([0-9.]+)', p.get(NS+'pathData'))[2]) < 9]
+            bottom = [p for p in paths if p not in top]
+            assert len(top) == len(bottom) == 4
+            bottom.sort(key=lambda p: float(re.match(r'M([0-9.]+)', p.get(NS+'pathData'))[1]))
+            # Center the original 19x13 artwork inside C17's shared 19x16 frame.
+            for row, selected in [('primary', top), ('secondary', bottom), ('single', top)]:
+                tree = ET.Element('vector', {NS+'width': f'{frame_width:g}dp', NS+'height': f'{frame_height:g}dp',
+                    NS+'viewportWidth': '19', NS+'viewportHeight': '16'})
+                offset = (frame_height-13)/2 if row != 'single' else (frame_height-7.56)/2
+                group = ET.SubElement(tree, 'group', {NS+'translateY': f'{offset:g}'})
+                for index, path in enumerate(selected):
+                    path = copy.deepcopy(path)
+                    if row == 'secondary':
+                        path.set(NS+'fillColor', '#ff000000' if index < level else '#35000000')
+                    group.append(path)
+                name = f'stat_signal_signal_lte_single_{level}_os17' if row == 'single' else f'stat_signal_lte_signal_stacked_{row}_{level}'
+                save(name, tree, status, original, f'C16 {row} paths; C17 shared frame; independent native SIM strength')
+            for prefix in ('stat_signal_signal_lte_single_', 'stat_signal_soft_signal_'):
+                for suffix in ('', '_os17'):
+                    manifest['overrides'][prefix+str(level)+suffix] = f'stat_signal_signal_lte_single_{level}_os17'
+            for prefix in ('stat_signal_soft_signal_stacked_primary_', 'stat_signal_soft_signal_stacked_secondary_'):
+                manifest['overrides'][prefix+str(level)] = f'stat_signal_lte_signal_stacked_{"primary" if "primary" in prefix else "secondary"}_{level}'
+            wifi = f'stat_signal_wifi_signal_{level}'
+            save(wifi+'_os17', vector(status.xml(wifi)), status, wifi, 'C16 Wi-Fi paths and opacity; C17 resource alias; standardized spacing')
+            manifest['overrides'][wifi] = wifi+'_os17'
+        for row in ('primary', 'secondary'):
+            original = 'stat_signal_noservice_lte'
+            source = vector(status.xml(original))
+            tree = ET.Element('vector', {NS+'width': '19dp', NS+'height': '16dp',
+                NS+'viewportWidth': '19', NS+'viewportHeight': '16'})
+            # Align the source short bars to the regular row's baseline.
+            selected = source.find('group')
+            group = ET.SubElement(tree, 'group', {NS+'translateY': '5.46' if row == 'primary' else '10.5'})
+            for path in selected:
+                group.append(copy.deepcopy(path))
+            name = f'stat_signal_lte_signal_stacked_{row}_noservice'
+            save(name, tree, status, original, 'C16 no-service short bars aligned to C17 SIM row')
+            for prefix in ('stat_signal_lte_signal_stacked_', 'stat_signal_soft_signal_stacked_'):
+                manifest['overrides'][prefix+row+'_noservice'] = name
+        # Keep the actual C16 no-service short bars for a single unavailable SIM.
+        save('stat_signal_signal_null_lte', vector(status.xml('stat_signal_signal_null_lte')), status,
+             'stat_signal_signal_null_lte', 'C16 no-service paths and opacity; standardized spacing')
+        for level, source_level in enumerate((0, 1, 2, 4)):
+            for suffix in ('', '_error'):
+                manifest['overrides'][f'ic_wifi_{level}{suffix}'] = f'stat_signal_wifi_signal_{source_level}_os17'
+
+        # Adapt C16 battery art to C17's native fill API. The fill is the exact
+        # source body path, cropped to its bounds, with the system owning clipping.
+        for name in ('stat_battery_horizontal_bg', 'stat_battery_horizontal_frame', 'stat_battery_horizontal_percent_out_bg'):
+            tree = vector(battery.xml(name))
+            tree.set(NS+'width', '28dp'); tree.set(NS+'height', '17dp')
+            save(name, tree, battery, name, 'C16 battery paths; normalized C17 28x17dp frame')
+        tree = ET.Element('vector', {NS+'width': f'{28*85/93:g}dp', NS+'height': f'{17*45/55:g}dp',
+            NS+'viewportWidth': '85', NS+'viewportHeight': '45'})
+        group = ET.SubElement(tree, 'group', {NS+'translateY': '-5'})
+        group.append(copy.deepcopy(next(battery.xml('stat_battery_horizontal_bg').iter('path'))))
+        save('stat_battery_horizontal_progress_bg', tree, battery, 'stat_battery_horizontal_bg',
+             'C16 body path cropped to x=0..85,y=5..50 for native C17 progress clipping')
+        aliases = {'stat_battery_horizontal_percent_out_no_padding_bg': 'stat_battery_horizontal_percent_out_bg',
+                   'stat_battery_horizontal_percent_out_progress_bg': 'stat_battery_horizontal_progress_bg',
+                   'stat_battery_horizontal_percent_out_no_padding_progress_bg': 'stat_battery_horizontal_progress_bg'}
+        manifest['overrides'].update(aliases)
+        for suffix in ('', 'percent_out_', 'percent_out_no_padding_'):
+            name = 'stat_battery_horizontal_'+suffix+'progress'
+            tree = ET.Element('layer-list')
+            item = ET.SubElement(tree, 'item', {NS+'id': '@android:id/progress'})
+            ET.SubElement(item, 'clip', {NS+'drawable': '@drawable/stat_battery_horizontal_progress_bg',
+                NS+'clipOrientation': 'horizontal', NS+'gravity': 'left'})
+            save(name, tree, battery, 'stat_battery_horizontal_progress', 'C17 native progress ID and clip around C16 battery body')
+        # These are C16 body bounds expressed in the normalized C17 frame.
+        # No vertical-battery or ADB dimensions from the second pack are retained.
+        manifest['dimensions'].update({name: bluetooth.dimensions[name]
+            for name in ('stat_bt_battery_height', 'stat_bt_battery_width')})
+        manifest['dimensions'].update({
+            'status_bar_battery_horizontal_width': 28.0, 'status_bar_battery_horizontal_height': 17.0,
+            'status_bar_battery_horizontal_progress_start': 0.0,
+            'status_bar_battery_horizontal_progress_end': 28*8/93,
+            'status_bar_battery_horizontal_progress_top': 17*5/55,
+            'status_bar_battery_horizontal_progress_bottom': 17*5/55,
+            'battery_progress_corner_radius': 17*9/55,
+            'battery_percent_in_text_size': 10.0, 'battery_percent_in_text_margin_top': 0.14,
+            'battery_percent_in_text_offset_x': 0.0, 'battery_percent_in_text_offset_y': 0.25,
+            'signal_cluster_battery_padding': 1.2,
+        })
+        # C17 dimensions are consulted above for the frame only; assert provenance
+        # before pruning old assets so an accidental source swap cannot go unnoticed.
+        assert all(s['archive'] == ARCHIVE for s in manifest['sources'].values())
+        for path in OUT.glob('*.xml'):
+            if path.stem not in manifest['sources']:
+                path.unlink()
+        (OUT/'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
+        print(f'Imported {len(manifest["sources"])} C16 artwork/adaptation assets; {len(manifest["overrides"])} mappings.')
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('c16', type=Path)
+    parser.add_argument('c17', type=Path)
+    parser.add_argument('--aapt2', type=Path)
+    args = parser.parse_args()
+    executable = find_aapt2(args.aapt2)
+    if not executable:
+        parser.error('Provide Android SDK aapt2 with --aapt2 or PATH.')
+    main(args.c16, args.c17, executable)

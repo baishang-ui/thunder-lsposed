@@ -16,13 +16,22 @@ final class NotificationCardHook {
     private static Class<?> rowClass;
     static void trackBlur(View view,Object blur) {
         Reflect.setAdditionalInstanceField(blur,"thunder.notification-view",new WeakReference<>(view));
+        if(!Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(blur,"thunder.notification-stack")))
+            Reflect.setAdditionalInstanceField(view,"thunder.notification-config",new WeakReference<>(blur));
     }
     private static Float rowRoundness(Object blur,boolean top) {
         Object owner=Reflect.getAdditionalInstanceField(blur,"thunder.notification-view");
         Object view=owner instanceof WeakReference<?>?((WeakReference<?>)owner).get():null;
-        Object row=view instanceof View?((View)view).getParent():null;
-        if(rowClass==null||!rowClass.isInstance(row))return null;
+        View row=view instanceof View?rowForView((View)view):null;
+        if(row==null)return null;
         return Math.max(0f,Math.min(1f,((Number)Reflect.callMethod(row,top?"getTopRoundness":"getBottomRoundness")).floatValue()));
+    }
+    private static View rowForView(View view) {
+        for(int depth=0;view!=null&&depth<32;depth++) {
+            if(rowClass!=null&&rowClass.isInstance(view))return view;
+            Object parent=view.getParent();view=parent instanceof View?(View)parent:null;
+        }
+        return null;
     }
     static void track(View view,String role) {
         Object previousRole=Reflect.getAdditionalInstanceField(view,"thunder.role");
@@ -63,6 +72,14 @@ final class NotificationCardHook {
         Object view=owner instanceof WeakReference<?>?((WeakReference<?>)owner).get():null;
         return view instanceof View?area((View)view):null;
     }
+    private static boolean cloudGeometry(Object blur) {
+        HookConfig c=ShadeHook.snapshot();
+        if(CloudLockHook.area(blur,c)!=null)return true;
+        if(!Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(blur,"thunder.notification-stack")))return false;
+        Object ref=Reflect.getAdditionalInstanceField(blur,"thunder.notification-view");
+        Object view=ref instanceof WeakReference<?>?((WeakReference<?>)ref).get():null;
+        return view instanceof View&&CloudLockHook.areaForView((View)view,c)!=null;
+    }
     static void overrideCorners(HookCallback.Param p,Object blur,HookConfig.Area area) {
         Float volumeRadius=VolumeHook.cornerRadius(blur,area);
         if(!area.cornerEnabled&&volumeRadius==null)return;
@@ -73,6 +90,7 @@ final class NotificationCardHook {
         boolean qs="qs-card".equals(role)||"qs-progress".equals(role);
         Object shape=qs?QsCornerHook.blurProvider(blur,nativePath,radius):null;
         boolean smoothPanel=VolumeHook.smoothPanel(blur);
+        boolean cloud=cloudGeometry(blur)&&CloudCornerGeometry.enabled();
         if(qs)radius=QsCornerHook.blurRadius(shape,radius);
         // All backends consume these fields, sometimes bypassing the public getters.
         float nativeRadius=((Number)Reflect.getObjectField(blur,"cornerRadius")).floatValue();
@@ -86,20 +104,20 @@ final class NotificationCardHook {
             temporary(p,blur,field,radius*roundness);
         }
         temporary(p,blur,"cornerRadius",radius);
-        float weight=smoothPanel?3f:qs?QsCornerHook.blurWeight(shape):0f;
+        float weight=cloud?CloudCornerGeometry.WEIGHT:smoothPanel?3f:qs?QsCornerHook.blurWeight(shape):0f;
         // Native volume geometry owns its deforming smooth shape and press outline.
         if(volumeRadius==null)temporary(p,blur,"pathProvider",shape);
         // Offset panel bounds require the backend's local smooth geometry. A view-space
         // path provider would apply the panel origin twice inside its render node.
         if(smoothPanel)temporary(p,blur,"pathProvider",null);
-        if(qs||smoothPanel) {
+        if(qs||smoothPanel||cloud) {
             temporary(p,blur,"radiusWeight",weight);
             temporary(p,blur,"enableMotionSmoothCorner",true);
         }
         Object corners=Reflect.getObjectField(blur,"gradientStrokeCornerParam");
         if(corners!=null)temporary(p,blur,"gradientStrokeCornerParam",Reflect.newInstance(corners.getClass(),
-            qs||smoothPanel?QsCornerHook.smoothCornerType(Reflect.callMethod(corners,"getType"),smoothPanel?blur:shape):Reflect.callMethod(corners,"getType"),
-            radius,qs||smoothPanel?weight:Reflect.callMethod(corners,"getWeight")));
+            qs||smoothPanel||cloud?QsCornerHook.smoothCornerType(Reflect.callMethod(corners,"getType"),smoothPanel?blur:shape):Reflect.callMethod(corners,"getType"),
+            radius,qs||smoothPanel||cloud?weight:Reflect.callMethod(corners,"getWeight")));
     }
     private static void temporary(HookCallback.Param p,Object target,String field,Object value) {
         p.setObjectExtra(field,new Object[]{Reflect.getObjectField(target,field)});
@@ -116,9 +134,9 @@ final class NotificationCardHook {
             float.class,float.class,boolean.class,new HookCallback() {
                 @Override protected void beforeHookedMethod(Param p) {
                     View background=(View)p.thisObject;
-                    Object parent=background.getParent();
-                    if(rowClass==null||!rowClass.isInstance(parent))return;
-                    View row=(View)parent;views.put(row,true);
+                    View row=rowForView(background);
+                    if(row==null)return;
+                    views.put(row,true);
                     HookConfig.Area area=area(background);
                     if(area==null||!area.cornerEnabled)return;
                     float radius=area.corner*background.getResources().getDisplayMetrics().density;
@@ -126,11 +144,36 @@ final class NotificationCardHook {
                         float roundness=((Number)Reflect.callMethod(row,i==0?"getTopRoundness":"getBottomRoundness")).floatValue();
                         p.args[i]=radius*Math.max(0f,Math.min(1f,roundness));
                     }
+                    if(CloudLockHook.areaForView(background,ShadeHook.snapshot())!=null) {
+                        Object ref=Reflect.getAdditionalInstanceField(background,"thunder.notification-config");
+                        Object blur=ref instanceof WeakReference<?>?((WeakReference<?>)ref).get():null;
+                        if(blur!=null) {
+                            Object nativeCorners=Reflect.getObjectField(blur,"gradientStrokeCornerParam");
+                            p.setObjectExtra("cloud-direct-stroke",new Object[]{blur,nativeCorners});
+                            if(nativeCorners!=null)Reflect.setObjectField(blur,"gradientStrokeCornerParam",CloudCornerGeometry.stroke(nativeCorners,(Float)p.args[0]));
+                        }
+                    }
                     ShadeHook.resourceHit("notification-edge-radius");
                     if(CloudLockHook.areaForView(background,ShadeHook.snapshot())!=null)
                         ShadeHook.resourceHit("cloud-notification-edge-radius");
                 }
+                @Override protected void afterHookedMethod(Param p) {
+                    Object state=p.getObjectExtra("cloud-direct-stroke");
+                    if(state instanceof Object[])Reflect.setObjectField(((Object[])state)[0],"gradientStrokeCornerParam",((Object[])state)[1]);
+                }
             }));
+        bind("cloud-clip",() -> Api102Runtime.findAndHookMethod(ROW+"ExpandableOutlineView",loader,"getRoundedRectPath",
+            int.class,int.class,int.class,int.class,float.class,float.class,android.graphics.Path.class,new HookCallback() {
+                @Override protected void beforeHookedMethod(Param p) {
+                    if(!CloudCornerGeometry.enabled()||rowClass==null||!rowClass.isInstance(p.thisObject))return;
+                    Object background=Reflect.getObjectField(p.thisObject,"mBackgroundNormal");
+                    if(!(background instanceof View)||CloudLockHook.areaForView((View)background,ShadeHook.snapshot())==null)return;
+                    android.graphics.RectF bounds=new android.graphics.RectF((Integer)p.args[0],(Integer)p.args[1],(Integer)p.args[2],(Integer)p.args[3]);
+                    CloudCornerGeometry.path((android.graphics.Path)p.args[6],bounds,(Float)p.args[4],(Float)p.args[5],loader);
+                    p.setResult(null);
+                }
+            }));
+        bind("cloud-clip-deopt",() -> Api102Runtime.deoptimizeCallers(Reflect.findClass(ROW+"ExpandableOutlineView",loader),"getClipPath"));
         bind("edge-deopt",() -> Api102Runtime.deoptimizeCallers(Reflect.findClass(ROW+"ActivatableNotificationView",loader),
             "applyRoundnessAndInvalidate"));
         // Stacked notifications have separate configs and call PlatformBlurDrawable directly,

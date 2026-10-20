@@ -1485,61 +1485,61 @@
     "type": "vector",
     "width": 25,
     "height": 12,
-    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+    "source": "ColorOS 17 SystemUI; theme-derived replacement"
   },
   "stat_battery_horizontal_frame": {
     "type": "vector",
     "width": 25,
     "height": 12,
-    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+    "source": "ColorOS 17 SystemUI; theme-derived replacement"
   },
   "stat_battery_horizontal_progress_bg": {
     "type": "vector",
     "width": 25,
     "height": 12,
-    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+    "source": "ColorOS 17 SystemUI; theme-derived replacement"
   },
   "stat_battery_horizontal_progress": {
     "type": "layer-list",
     "width": 25,
     "height": 12,
-    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+    "source": "ColorOS 17 SystemUI; theme-derived replacement"
   },
   "stat_battery_horizontal_percent_out_progress": {
     "type": "layer-list",
     "width": 25,
     "height": 12,
-    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+    "source": "ColorOS 17 SystemUI; theme-derived replacement"
   },
   "stat_battery_horizontal_percent_out_no_padding_progress": {
     "type": "layer-list",
     "width": 25,
     "height": 12,
-    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+    "source": "ColorOS 17 SystemUI; theme-derived replacement"
   },
   "stat_battery_horizontal_percent_out_bg": {
     "type": "vector",
     "width": 25,
     "height": 12,
-    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+    "source": "ColorOS 17 SystemUI; theme-derived replacement"
   },
   "stat_battery_horizontal_percent_out_no_padding_bg": {
     "type": "vector",
     "width": 25,
     "height": 12,
-    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+    "source": "ColorOS 17 SystemUI; theme-derived replacement"
   },
   "stat_battery_horizontal_percent_out_no_padding_progress_bg": {
     "type": "vector",
     "width": 25,
     "height": 12,
-    "source": "ColorOS 17 SystemUI; PUI-derived replacement"
+    "source": "ColorOS 17 SystemUI; theme-derived replacement"
   },
   "stat_sys_headset_mic": {
     "type": "vector",
     "width": 22.67,
     "height": 16,
-    "source": "PUI legacy alias"
+    "source": "legacy resource alias"
   },
   "stat_battery_pb": {
     "type": "vector"

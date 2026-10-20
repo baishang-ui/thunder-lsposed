@@ -85,7 +85,7 @@ final class CloudHook {
                 @Override protected void beforeHookedMethod(Param p) {beginNativeCorners();}
                 @Override protected void afterHookedMethod(Param p) throws Throwable {
                     endNativeCorners();
-                    if(p.hasThrowable()||p.getResult()==null)return;
+                    if(p.hasThrowable()||p.getResult()==null||readingNativeCorners())return;
                     HookConfig c=ShadeHook.snapshot();if(!c.enabled||!c.cloud||!c.cloudCardArea.cornerEnabled)return;
                     Object context=Reflect.callMethod(Reflect.callMethod(companionField.get(null),"getInstance"),"getPluginCtx");
                     if(!(context instanceof Context))return;
@@ -100,6 +100,10 @@ final class CloudHook {
                 if(!(p.args[0] instanceof View))return;
                 View view=(View)p.args[0];
                 boolean page=CloudTemplateHook.pageSurface(view);
+                if(CloudLockHook.inNativeCapsule(view)) {
+                    if(page)CloudTemplateHook.pageRadius(view); // Restore a reused expanded foreground on its first mini-card outline.
+                    return;
+                }
                 if(!cardSurface(view)&&!page)return;
                 outlines.put(view,true);
                 Object saved=Reflect.getObjectField(p.thisObject,"b");
@@ -155,9 +159,13 @@ final class CloudHook {
         bind(loader,"shared-background",() -> Api102Runtime.findAndHookMethod("com.heytap.log.nx.obus.a",loader,"b",
             View.class,"com.oplus.view.ViewRootManager",new HookCallback() {
                 @Override protected void beforeHookedMethod(Param p) {
-                    if(p.args[0] instanceof View)restoreFallbackOutline((View)p.args[0]);
+                    if(p.args[0] instanceof View) {
+                        View view=(View)p.args[0];restoreFallbackOutline(view);
+                        if(CloudLockHook.inNativeCapsule(view)){beginNativeCorners();p.setObjectExtra("native-capsule",true);}
+                    }
                 }
                 @Override protected void afterHookedMethod(Param p) {
+                    if(Boolean.TRUE.equals(p.getObjectExtra("native-capsule")))endNativeCorners();
                     if(p.hasThrowable()||!(p.args[0] instanceof View))return;
                     View view=(View)p.args[0];Object manager=p.args[1];
                     shared.put(view,new SharedBackground(p.thisObject,manager));
@@ -271,10 +279,13 @@ final class CloudHook {
         applyCorners(view,area,!nativeBlur);
     }
     private static HookConfig.Area cardArea(View view,HookConfig c) {
-        if(!CloudLockHook.pluginLock(view,c))return c.cloudCardArea;
-        HookConfig.Area lock=c.cloudLockArea,card=c.cloudCardArea;
+        HookConfig.Area card=c.cloudCardArea;
+        boolean capsule=CloudLockHook.inNativeCapsule(view);
+        if(!CloudLockHook.pluginLock(view,c))return capsule?
+            new HookConfig.Area(card.blur,card.radius,card.tint,card.color,false,card.corner):card;
+        HookConfig.Area lock=c.cloudLockArea;
         ShadeHook.resourceHit("cloud-plugin-lock-material");
-        return new HookConfig.Area(lock.blur,lock.radius,lock.tint,lock.color,card.cornerEnabled,card.corner);
+        return new HookConfig.Area(lock.blur,lock.radius,lock.tint,lock.color,!capsule&&card.cornerEnabled,card.corner);
     }
     private static void trackGradients(Drawable drawable,View view) {
         if(drawable==null)return;
@@ -352,6 +363,8 @@ final class CloudHook {
             restore.add(() -> ((ColorDrawable)drawable).setColor(color));
         } else if(drawable instanceof GradientDrawable) {
             GradientDrawable gradient=(GradientDrawable)drawable;
+            CloudCornerGeometry.Gradient nativeSmooth=new CloudCornerGeometry.Gradient(gradient);
+            restore.add(nativeSmooth::restore);
             float radius=gradient.getCornerRadius();float[] radii=gradient.getCornerRadii();
             if(radii!=null)radii=radii.clone();final float[] corners=radii;
             android.content.res.ColorStateList color=gradient.getColor();int[] colors=gradient.getColors();
@@ -405,12 +418,25 @@ final class CloudHook {
         round(view.getBackground(),radius);round(view.getForeground(),radius);
         if(fallbackOutline) {
             fallbackOutlines.putIfAbsent(view,new NativeOutline(view.getOutlineProvider(),view.getClipToOutline()));
-            // The non-blur path installs an outline with its own cached system radius.
-            view.setOutlineProvider(new ViewOutlineProvider() {
-                @Override public void getOutline(View target,Outline outline) {
-                    outline.setRoundRect(0,0,target.getWidth(),target.getHeight(),radius);
-                }
-            });
+            // Use the plugin's own smooth outline. A plain setRoundRect clips a
+            // different curve from its G2 gradient, template and press layers.
+            ViewOutlineProvider original=view.getOutlineProvider();
+            boolean nativeProvider=original!=null&&original.getClass().getName().equals("com.oplus.systemui.plugins.common.util.j");
+            ClassLoader loader=nativeProvider?original.getClass().getClassLoader():view.getContext().getClassLoader();
+            Object corners;
+            Object rect=null;float scale=1f;
+            if(nativeProvider) {
+                rect=Reflect.getObjectField(original,"a");
+                corners=nativeCorners(Reflect.getObjectField(original,"b"));
+                Object savedScale=Reflect.getAdditionalInstanceField(original,"thunder.cloud-corner-scale");
+                if(savedScale instanceof Number)scale=((Number)savedScale).floatValue();
+            } else try {
+                corners=nativeCorners(Reflect.findClass(BASE+"util.c",loader).getDeclaredMethod("f").invoke(null));
+            } catch(ReflectiveOperationException error){throw new IllegalStateException("Cloud outline geometry unavailable",error);}
+            ViewOutlineProvider outline=(ViewOutlineProvider)Reflect.newInstance(
+                Reflect.findClass("com.oplus.systemui.plugins.common.util.j",loader),rect,cornerConfig(corners,radius*scale));
+            Reflect.setAdditionalInstanceField(outline,"thunder.cloud-corner-scale",scale);
+            view.setOutlineProvider(outline);
             view.setClipToOutline(true);
             view.invalidateOutline();
         }
@@ -419,7 +445,10 @@ final class CloudHook {
     private static void round(Drawable drawable,float radius) {
         if(drawable==null)return;
         drawable=drawable.mutate();
-        if(drawable instanceof GradientDrawable)((GradientDrawable)drawable).setCornerRadius(radius);
+        if(drawable instanceof GradientDrawable) {
+            new CloudCornerGeometry.Gradient((GradientDrawable)drawable).apply();
+            ((GradientDrawable)drawable).setCornerRadius(radius);
+        }
         else if(drawable instanceof LayerDrawable) {
             LayerDrawable layers=(LayerDrawable)drawable;
             for(int i=0;i<layers.getNumberOfLayers();i++)round(layers.getDrawable(i),radius);
@@ -433,7 +462,7 @@ final class CloudHook {
         }
     }
     private static Object cornerConfig(Object corners,float radius) {
-        Object replacement=Reflect.newInstance(corners.getClass(),Reflect.callMethod(corners,"d"),radius,Reflect.callMethod(corners,"f"));
+        Object replacement=Reflect.newInstance(corners.getClass(),2,radius,CloudCornerGeometry.WEIGHT);
         Object nativeCorners=Reflect.getAdditionalInstanceField(corners,"thunder.native-corners");
         Reflect.setAdditionalInstanceField(replacement,"thunder.native-corners",nativeCorners==null?corners:nativeCorners);
         return replacement;

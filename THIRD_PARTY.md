@@ -67,7 +67,7 @@ the bottom navigation. These remain library shapes rather than app-drawn paths.
 Preview selection uses Miuix `TabRowWithContour` / `RadioButton`, preview cards
 use Miuix `Card` / `Surface`, and enlarged previews use Miuix `WindowDialog`.
 Read-only progress illustrations use Miuix `LinearProgressIndicator`; the close
-and music glyphs use Miuix Icons. Installed SystemUI/PUI assets remain preview
+and music glyphs use Miuix Icons. Installed system and theme assets remain preview
 content; they do not implement application interaction controls. Material samples
 use Miuix `Surface` with Kyant Backdrop's blur API, without a custom glass shader.
 
@@ -87,7 +87,8 @@ Implementation references inspected (ideas only, no source copied):
 These references alone do not establish compatibility. Method descriptors and fields
 were checked against the user's ColorOS 17.0.0.104 SystemUI.
 
-Status bar vectors use symmetric curves and consistent strokes at proportions studied from
+Historical vector studies (not used by current status-bar replacements) use
+symmetric curves and consistent strokes at proportions studied from
 [Apple's iPhone User Guide status-icon illustrations](https://support.apple.com/zh-cn/guide/iphone/iphef7bb57dc/ios).
 Reference image URLs, measurements and provenance are recorded in
 `docs/status-icons-sources.md` and `docs/status-icons-reference.json`.
@@ -95,8 +96,8 @@ The original reference illustrations are Apple material; they are not described
 as MIT assets or an Apple-supplied Android icon pack. No Apple fonts are bundled.
 `app/src/main/assets/icons/ios-reference` contains editable vector studies;
 `scripts/refine_status_icons.py` constructs the regular geometry;
-`scripts/render_status_icons.py` generates app preview paths;
-`scripts/generate_status_drawables.py` generates native Android XML resources.
+`scripts/render_status_icons.py` generates the historical preview paths.
+The current Android resource generator uses the C16 sources described below.
 Bluetooth, silent, vibrate, NFC and performance indicators are project companion
 artwork, including Android-specific states.
 The solid battery study follows iOS 16 percentage-mode proportions. The current
@@ -108,14 +109,19 @@ licensed under the SIL Open Font License 1.1. The glyph subset is stored in
 bundled as `app/src/main/assets/licenses/status-labels.txt`. No runtime font is added.
 
 
-PUI artwork is copied from the user-supplied
-`PUI Theme For ColorOS 17_v17.0.0.137.zip`: status icons, Wi-Fi/cellular,
-horizontal/vertical battery, Bluetooth battery and ADB status resources.
-The original XML paths, transforms, sizes and opacity are retained. Adaptations
-are limited to native tint masks, reference names, inset type compatibility,
-progress wrappers and aliases. No raster tracing or redrawn fallback is used.
-Source entries and SHA-256 hashes are recorded in
-`app/src/main/assets/icons/pui-reference/manifest.json`. The first `pui.zip`
-is no longer an implementation input. These resources remain attributed to PUI;
-the project's license does not relicense the artwork. Archive installers and
-mount scripts are not run or bundled. Apple research files are historical only.
+Status-bar artwork is copied from the user-supplied
+`双排信号状态栏模块C16.zip`: status icons, Wi-Fi/cellular, horizontal battery
+and Bluetooth battery resources. The second user-supplied pack,
+the ColorOS 17 reference archive, supplies only the C17 shared signal
+frame and resource organization reference. C16 top bars and bottom short bars
+are separated into independent native C17 SIM resources; lower-row opacity is
+selected for each signal level. Single-SIM resources use the original top row.
+Legacy external insets are normalized to the project's spacing. Battery fill
+uses the original C16 body path with native C17 progress wrappers and dimensions.
+Icons absent from C16 are removed from the replacement set; transparent network
+badge suppressors remain enabled. Every visible path is retained from C16.
+Source entries, binary XML SHA-256 hashes, path hashes and adaptations are recorded
+in `app/src/main/assets/icons/theme-reference/manifest.json`. These resources remain
+owned by the original theme authors; the project's license does not relicense the artwork. Archive
+installers and mount scripts are not run or bundled. Apple research files and
+legacy vector studies are historical only and do not supply current replacements.

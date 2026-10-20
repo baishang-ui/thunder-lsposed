@@ -25,7 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
     SettingsSection("图标样式") {
         SettingsChoice("图标方案", listOf(
             SettingOption("系统默认", "保留系统原有图标与电池样式"),
-            SettingOption("iOS 风格", "使用 PUI 状态图标、Wi-Fi 与电池样式")
+            SettingOption("iOS 风格", "替换状态图标、Wi-Fi 与电池外观")
         ), settings.statusIconStyle) {
             change(settings.copy(statusIconStyle = it))
         }
@@ -45,13 +45,12 @@ import androidx.compose.ui.text.style.TextAlign
         val symbols = listOf(
             IosStatusIcons.Kind.BLUETOOTH to "蓝牙",
             IosStatusIcons.Kind.SILENT to "静音", IosStatusIcons.Kind.VIBRATE to "振动",
-            IosStatusIcons.Kind.NFC to "NFC", IosStatusIcons.Kind.PERFORMANCE to "高性能",
+            IosStatusIcons.Kind.NFC to "NFC",
             IosStatusIcons.Kind.ALARM to "闹钟",
             IosStatusIcons.Kind.MOON to "勿扰", IosStatusIcons.Kind.VPN to "VPN",
             IosStatusIcons.Kind.HEADPHONES to "耳机",
             IosStatusIcons.Kind.AIRPLANE to "飞行模式",
-            IosStatusIcons.Kind.LOCATION to "定位",
-            IosStatusIcons.Kind.DATA_SAVER to "流量节省"
+            IosStatusIcons.Kind.LOCATION to "定位"
         )
         val minCellWidth = with(LocalDensity.current) { 44.sp.toDp() } + 16.dp
         BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -80,7 +79,7 @@ import androidx.compose.ui.text.style.TextAlign
     val battery = symbol.kind() == IosStatusIcons.Kind.BATTERY
     val name = previewResource(symbol)
     val id = IosStatusResources.replacement("com.android.systemui:drawable/$name")
-    // PUI intentionally leaves some icons (including rotation lock and hotspot) native.
+    // The theme leaves some icons (including rotation lock and hotspot) native.
     val native = if (id == 0) rememberNativePreviewResources() else null
     val drawable = remember(name, id, resources, native) {
         if (id == 0) native?.drawable(listOf(name))

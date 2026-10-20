@@ -5,6 +5,7 @@ from pathlib import Path
 import json
 import re
 import argparse
+import struct
 import os
 import shutil
 import subprocess
@@ -47,7 +48,7 @@ with tempfile.TemporaryDirectory(prefix='thunder-effects-') as folder:
             target = src / path.relative_to(ROOT / 'scripts/fixtures' / fixture)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(path.read_text(encoding='utf-8'), encoding='utf-8')
-    for name in ['StatusBarLayoutHook', 'StatusBarClockHook', 'StatusBarClockTransitionHook', 'VolumeHook', 'VolumeShortcutFeedback', 'VolumeLiquidEntrance', 'VolumePanelGeometry', 'GestureBarHook', 'PanelSaturationHook', 'ShadeHook', 'QsCardHook', 'QsCornerHook', 'NotificationCardHook', 'AdaptiveTextColor', 'AdaptiveTextHook', 'LiveSettings', 'HookConfig', 'SettingsProvider', 'ResourceOverrides', 'Reflect', 'CloudHook', 'CloudLockHook', 'CloudSdkHook', 'CloudTemplateHook', 'HookEntry', 'StatusBarIcons', 'StatusBarIconHook', 'IosStatusIcons', 'IosStatusBarHook', 'IosStatusResources', 'IosBatteryResources']:
+    for name in ['StatusBarLayoutHook', 'StatusBarClockHook', 'StatusBarClockTransitionHook', 'VolumeHook', 'VolumeShortcutFeedback', 'VolumeLiquidEntrance', 'VolumePanelGeometry', 'GestureBarHook', 'PanelSaturationHook', 'ShadeHook', 'QsCardHook', 'QsCornerHook', 'NotificationCardHook', 'AdaptiveTextColor', 'AdaptiveTextHook', 'LiveSettings', 'HookConfig', 'SettingsProvider', 'ResourceOverrides', 'Reflect', 'CloudHook', 'CloudCornerGeometry', 'CloudLockHook', 'CloudSdkHook', 'CloudTemplateHook', 'HookEntry', 'StatusBarIcons', 'StatusBarIconHook', 'IosStatusIcons', 'IosStatusBarHook', 'IosStatusResources', 'IosBatteryResources']:
         path = Path('io/github/baishangui/thunder') / (name + '.java')
         (src / path).write_text((JAVA_SOURCE / path).read_text(encoding='utf-8'), encoding='utf-8')
     # Match generated compiled-resource references without pretending to inflate Android XML.
@@ -57,8 +58,35 @@ with tempfile.TemporaryDirectory(prefix='thunder-effects-') as folder:
     compile_args = folder / 'javac.args'
     compile_args.write_text('\n'.join('"' + p.as_posix() + '"' for p in src.rglob('*.java')), encoding='utf-8')
     subprocess.run([javac, '-encoding', 'UTF-8', '-d', str(classes), '@' + str(compile_args)], check=True)
-    checks = ['StatusBarLayoutCheck', 'StatusBarClockTransitionCheck', 'ReflectCheck', 'AdaptiveTextPerformanceCheck', 'RuntimeReportCheck', 'ProviderVisibilityCheck', 'SettingsUiProviderCheck', 'VolumePanelCheck', 'VolumeLiquidEntranceCheck', 'GestureBarCheck', 'CardBlendCheck', 'PanelStartFrameCheck', 'HookCheck', 'ProviderCheck', 'CloudCheck', 'CloudLayerCheck', 'CloudLockCheck', 'CloudSdkCheck', 'CloudTemplateCheck', 'StatusBarIconCheck', 'IosStatusBarCheck', 'IosDrawSafetyCheck', 'IosRenderPathCheck', 'IosCoverageCheck', 'QsTintCheck', 'QsStateCheck', 'QsGeometryCheck', 'NotificationStyleCheck', 'NotificationExpansionCheck', 'AdaptiveTextCheck']
-    checks.extend(['PanelSaturationCheck', 'PanelColorContinuityCheck', 'ShortcutPerformanceCheck', 'CloudGeometryCheck', 'CloudNotificationGeometryCheck'])
+    # javac cannot declare bridge-only Kotlin/ART forwarders in source. Preserve
+    # their actual bytecode while marking the fixture with the firmware's flags.
+    bridge_class = classes / 'io/github/baishangui/thunder/ReflectCheck$BridgeOnlyRow.class'
+    bytecode = bytearray(bridge_class.read_bytes())
+    def u2(offset): return struct.unpack_from('>H', bytecode, offset)[0]
+    def u4(offset): return struct.unpack_from('>I', bytecode, offset)[0]
+    pos, index, utf8 = 10, 1, {}
+    while index < u2(8):
+        tag = bytecode[pos]; pos += 1
+        if tag == 1:
+            length = u2(pos); utf8[index] = bytecode[pos+2:pos+2+length].decode(); pos += 2+length
+        elif tag in (5, 6): pos += 8; index += 1
+        elif tag in (3, 4, 9, 10, 11, 12, 17, 18): pos += 4
+        elif tag in (7, 8, 16, 19, 20): pos += 2
+        elif tag == 15: pos += 3
+        else: raise AssertionError(f'Unexpected class constant {tag}')
+        index += 1
+    pos += 6
+    pos += 2 + u2(pos)*2
+    for section in ('fields', 'methods'):
+        count = u2(pos); pos += 2
+        for _ in range(count):
+            if section == 'methods' and utf8[u2(pos+2)] != '<init>':
+                struct.pack_into('>H', bytecode, pos, u2(pos) | 0x1040)
+            attributes = u2(pos+6); pos += 8
+            for _ in range(attributes): pos += 6 + u4(pos+2)
+    bridge_class.write_bytes(bytecode)
+    checks = ['StatusBarLayoutCheck', 'StatusBarClockTransitionCheck', 'ReflectCheck', 'AdaptiveTextPerformanceCheck', 'RuntimeReportCheck', 'ProviderVisibilityCheck', 'SettingsUiProviderCheck', 'VolumePanelCheck', 'VolumeLiquidEntranceCheck', 'GestureBarCheck', 'CardBlendCheck', 'PanelStartFrameCheck', 'HookCheck', 'ProviderCheck', 'CloudCheck', 'CloudLayerCheck', 'CloudLockCheck', 'CloudSdkCheck', 'CloudTemplateCheck', 'StatusBarIconCheck', 'IosStatusBarCheck', 'IosDrawSafetyCheck', 'IosRenderPathCheck', 'IosCoverageCheck', 'QsTintCheck', 'QsStateCheck', 'QsGeometryCheck', 'QsMediaGeometryCheck', 'NotificationStyleCheck', 'NotificationExpansionCheck', 'AdaptiveTextCheck']
+    checks.extend(['PanelSaturationCheck', 'PanelColorContinuityCheck', 'ShortcutPerformanceCheck', 'CloudGeometryCheck', 'CloudNotificationGeometryCheck', 'CloudTemplateReentryCheck', 'CloudCurveCheck', 'CloudCapsuleIsolationCheck'])
     if args.only:
         unknown = set(args.only) - set(checks)
         if unknown: raise SystemExit('Unknown checks: ' + ', '.join(sorted(unknown)))

@@ -256,16 +256,9 @@ final class SystemSettingsHook {
             Object screen = Reflect.callMethod(fragment, "getPreferenceScreen");
             if (screen == null || Reflect.callMethod(fragment, "findPreference", ENTRY) != null) return;
             Context context = context(fragment);
-            // An empty-title SettingsPreferenceCategory still provides the correct top padding
-            // via its item view layout, keeping visual separation between this group and
-            // whatever is adjacent. A bare preference has no such padding and sits flush.
-            // A zero-length title renders zero header height — the COUI category item view
-            // measures its header text to decide its own height, so an empty string means no
-            // visible gap. A single non-breaking space produces the standard header height
-            // (matching the native category gap) without showing any visible text.
-            // order=1 places the group after the account card (order=0) and before the first
-            // native category (order≥100); order=-1 would insert it above the account card.
-            Object group = category(loader, context, screen, "thunder:entry_group", " ");
+            // Keep COUI's untitled category spacing; a non-breaking-space title
+            // creates a full, empty heading above the entry in addition to card spacing.
+            Object group = category(loader, context, screen, "thunder:entry_group", "");
             Reflect.callMethod(group, "setOrder", 1);
             Object pref = jump(loader, context, ENTRY, "thunder", true);
             int icon = resource(context, "settings_personalise_ic", "drawable");

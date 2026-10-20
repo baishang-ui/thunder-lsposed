@@ -55,7 +55,7 @@ final class CloudSdkHook {
                     if(light!=null)Reflect.setAdditionalInstanceField(light,"thunder.sdk-chrome",new WeakReference<>(p.thisObject));
                 }
                 @Override protected void afterHookedMethod(Param p) {
-                    if(!p.hasThrowable()&&expandedCloud(p.thisObject)) {
+                    if(!p.hasThrowable()&&(expandedCloud(p.thisObject)||Boolean.TRUE.equals(geometry.get(p.thisObject)))) {
                         geometry.putIfAbsent(p.thisObject,false);refreshGeometryIfNeeded(p.thisObject);
                     }
                 }
@@ -109,21 +109,20 @@ final class CloudSdkHook {
         bind("light-geometry-deopt",() -> Api102Runtime.deoptimizeCallers(Reflect.findClass("t7.e0",loader),"c0","g0"));
     }
     private static boolean expandedCloud(Object card) {
-        if(Reflect.getObjectField(card,"n")==null)return false;
+        if(Reflect.getObjectField(card,"n")==null||CloudLockHook.inNativeCapsule((View)Reflect.getObjectField(card,"b")))return false;
         String entrance=String.valueOf(Reflect.getObjectField(card,"d"));
         return "Notification".equals(entrance)||"StatusBar".equals(entrance)||"LockScreen".equals(entrance)||"SecondaryLockScreen".equals(entrance);
     }
     private static HookConfig.Area cornerArea(Object card) {
         HookConfig c=ShadeHook.snapshot();
         // Entrance changes the host, not ownership of the card's geometry.
-        return c.enabled&&c.cloud?c.cloudCardArea:null;
+        return c.enabled&&c.cloud&&expandedCloud(card)?c.cloudCardArea:null;
     }
     private static Object style(Object card,Object nativeStyle) {
         HookConfig.Area area=cornerArea(card);
         if(area==null||!area.cornerEnabled)return nativeStyle;
         ShadeHook.resourceHit("cloud-sdk-corners");
-        return Reflect.newInstance(nativeStyle.getClass(),Reflect.callMethod(nativeStyle,"b"),
-            (float)area.corner,Reflect.callMethod(nativeStyle,"c"));
+        return Reflect.newInstance(nativeStyle.getClass(),2,(float)area.corner,CloudCornerGeometry.WEIGHT);
     }
     private static boolean customCorners(Object card) {
         HookConfig.Area area=cornerArea(card);return area!=null&&area.cornerEnabled;
@@ -191,7 +190,7 @@ final class CloudSdkHook {
     }
     static void refresh() {
         ArrayList<Object> shapes;synchronized(geometry){shapes=new ArrayList<>(geometry.keySet());}
-        for(Object card:shapes)try {if(expandedCloud(card))refreshGeometryIfNeeded(card);}
+        for(Object card:shapes)try {refreshGeometryIfNeeded(card);}
         catch(Throwable error){ShadeHook.frameworkFailure("cloud-sdk-refresh-geometry",error);}
         ArrayList<Object> current;synchronized(cards){current=new ArrayList<>(cards.keySet());}
         for(Object card:current) {
