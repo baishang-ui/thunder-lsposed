@@ -107,7 +107,6 @@ class MainActivity : ComponentActivity() {
             val wallpaper=rememberLayerBackdrop(); val content=rememberLayerBackdrop()
             val overlaySource=rememberCombinedBackdrop(wallpaper,content)
             val themeController = rememberAppTheme(draft, dark)
-            val dirty=editor.saved!=draft
             SideEffect { WindowCompat.getInsetsController(window,window.decorView).apply {
                 isAppearanceLightStatusBars=!dark; isAppearanceLightNavigationBars=!dark
             } }
@@ -162,12 +161,12 @@ class MainActivity : ComponentActivity() {
                 PredictiveBackSurface(enabled = detail != null || page != 0, onBack = { navigateBack() }) {
                     Wallpaper(Modifier.matchParentSize().layerBackdrop(wallpaper),style)
                     Box(Modifier.fillMaxSize().layerBackdrop(content)) {
-                        val scroll0=rememberScrollState();val scroll1=rememberScrollState();val scroll2=rememberScrollState()
+                        val scroll0=rememberScrollState();val scroll1=rememberScrollState()
                         AnimatedMenuContent(MenuDestination(page, detail), Modifier.fillMaxSize()) { destination ->
                             CompositionLocalProvider(LocalControlScope provides (destination.detail?.name ?: "page-${destination.page}")) {
                                 val detailScroll = rememberScrollState()
                                 Column(Modifier.widthIn(max=640.dp).fillMaxSize()
-                                    .verticalScroll(if (destination.detail != null) detailScroll else when(destination.page) { 0->scroll0;1->scroll1;else->scroll2 })
+                                    .verticalScroll(if (destination.detail != null) detailScroll else when(destination.page) { 0->scroll0;else->scroll1 })
                                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
                                     .statusBarsPadding().padding(start=16.dp,end=16.dp,top=headerHeight,bottom=if (destination.detail == null) navigationHeight + 48.dp else 28.dp).navigationBarsPadding(),
                                     verticalArrangement=Arrangement.spacedBy(20.dp)) {
@@ -214,12 +213,19 @@ class MainActivity : ComponentActivity() {
                                         }
                                     } else when(destination.page) {
                                         0 -> {
-                                            val status = remember(resumeTick, refresh, RemoteSettings.status, RemoteSettings.scopeStatus) { runtimeStatus() }
-                                            val activation = RemoteSettings.activation
                                             SettingsGroup {
                                                 LiquidSwitchRow("启用效果调整", "ColorOS 17", draft.enabled) { editor.draft = draft.copy(enabled = it) }
                                             }
-                                            SettingsSection("模块状态") {
+                                            AdjustmentMenu { detail = it }
+                                        }
+                                        else -> {
+                                            val activation = RemoteSettings.activation
+                                            SettingsMenuGroup("模块") {
+                                                SettingsMenuItem("运行报告",
+                                                    remember(resumeTick, refresh, RemoteSettings.status, RemoteSettings.scopeStatus) { runtimeStatus() }.first,
+                                                    MiuixIcons.Regular.Report) { detail = SettingsPage.Runtime }
+                                            }
+                                            SettingsSection("模块与权限") {
                                                 ModuleStatusRow("LSPosed", activation.label,
                                                     if (activation != RemoteSettings.Activation.Connected) activation.hint else "",
                                                     activation == RemoteSettings.Activation.Connected)
@@ -227,20 +233,15 @@ class MainActivity : ComponentActivity() {
                                                 ModuleStatusRow("作用域", if (RemoteSettings.scopeStatus.startsWith("作用域已完整")) "已完整启用" else "待检查",
                                                     if (RemoteSettings.scopeStatus.startsWith("作用域已完整")) "" else RemoteSettings.scopeStatus,
                                                     RemoteSettings.scopeStatus.startsWith("作用域已完整"))
-                                            }
-                                            SettingsSection("权限检查") {
+                                                SettingsDivider()
                                                 ModuleStatusRow("Root", rootState.label,
                                                     if (rootState !in setOf(RootAccessState.Unchecked, RootAccessState.Granted)) rootState.hint else "",
                                                     rootState == RootAccessState.Granted, rootState == RootAccessState.Checking)
                                                 LiquidAction(if (rootState == RootAccessState.Checking) "正在验证…" else "验证 Root 权限",
                                                     Modifier.fillMaxWidth(), enabled = rootState != RootAccessState.Checking && !restartState.running) { RootAccess.verify() }
                                             }
-                                            SettingsMenuGroup("运行状态") {
-                                                SettingsMenuItem("运行报告", status.first, MiuixIcons.Regular.Report) { detail = SettingsPage.Runtime }
-                                            }
+                                            PreferencesMenu(draft) { detail = it }
                                         }
-                                        1 -> AdjustmentMenu { detail = it }
-                                        else -> PreferencesMenu(draft) { detail = it }
                                     }
                                 }
                             }
@@ -253,12 +254,8 @@ class MainActivity : ComponentActivity() {
                             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
                             contentAlignment = Alignment.TopCenter) {
                             SmallTopAppBar(
-                                title = detail?.title ?: listOf("thunder", "调节", "设置")[page],
-                                subtitle = when {
-                                    writeResult.error != null -> "保存失败，请重试修改"
-                                    dirty -> "正在保存…"
-                                    else -> detail?.category.orEmpty()
-                                },
+                                title = detail?.title ?: listOf("调节", "设置")[page],
+                                subtitle = detail?.category.orEmpty(),
                                 modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().height(headerHeight),
                                 color = Color.Transparent,
                                 defaultWindowInsetsPadding = false,

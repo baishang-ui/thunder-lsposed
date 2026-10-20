@@ -28,7 +28,7 @@ internal enum class SettingsPage(val title: String, val category: String) {
     Appearance("界面外观", "设置"),
     Configuration("配置管理", "设置"),
     About("关于 thunder", "设置"),
-    Runtime("运行报告", "主页");
+    Runtime("运行报告", "模块");
 
     val parent: SettingsPage? get() = when (this) {
         StatusLayout, StatusClock, StatusIcons, StatusStyle -> StatusBar
@@ -50,12 +50,12 @@ internal fun Area.summary(corner: Boolean = true): String = buildList {
         SettingsMenuItem(SettingsPage.Cards.title, "磁贴的模糊、混色与圆角", MiuixIcons.Regular.Layers) { open(SettingsPage.Cards) }
         SettingsMenuItem(SettingsPage.NotificationCenter.title, "通知卡片、列表布局与横幅", MiuixIcons.Regular.Messages) { open(SettingsPage.NotificationCenter) }
     }
-    SettingsMenuGroup("状态与导航") {
+    SettingsMenuGroup("状态栏与导航") {
         SettingsMenuItem(SettingsPage.StatusBar.title, "布局、时钟与图标", MiuixIcons.Regular.Theme) { open(SettingsPage.StatusBar) }
         SettingsMenuItem(SettingsPage.Cloud.title, "胶囊、展开卡片与背景效果", MiuixIcons.Regular.CloudFill) { open(SettingsPage.Cloud) }
         SettingsMenuItem(SettingsPage.GestureBar.title, "显示、尺寸、材质与底部占位", MiuixIcons.Regular.Hide) { open(SettingsPage.GestureBar) }
     }
-    SettingsMenuGroup("声音") {
+    SettingsMenuGroup("声音与反馈") {
         SettingsMenuItem(SettingsPage.Volume.title, "入场动画、展开方式、尺寸与材质", MiuixIcons.Regular.Layers) { open(SettingsPage.Volume) }
     }
 }

@@ -362,10 +362,10 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
     val latestPage = rememberUpdatedState(page)
     val latestChange = rememberUpdatedState(change)
     LiquidBottomTabs(selectedTabIndex = { latestPage.value }, onTabSelected = { latestChange.value(it) },
-        backdrop = s.source, tabsCount = 3, height = floatingNavHeight(),
-        modifier = modifier.widthIn(max = 380.dp).fillMaxWidth().semantics { selectableGroup() }) {
-        val icons = listOf(MiuixIcons.Regular.GridView, MiuixIcons.Regular.Tune, MiuixIcons.Regular.Settings)
-        listOf("主页", "调节", "设置").forEachIndexed { i, name ->
+        backdrop = s.source, tabsCount = 2, height = floatingNavHeight(),
+        modifier = modifier.widthIn(max = 320.dp).fillMaxWidth().semantics { selectableGroup() }) {
+        val icons = listOf(MiuixIcons.Regular.Tune, MiuixIcons.Regular.Settings)
+        listOf("调节", "设置").forEachIndexed { i, name ->
             LiquidBottomTab(onClick = { latestChange.value(i) }, modifier = Modifier.semantics { selected = page == i }) {
                 Icon(icons[i], contentDescription = null, modifier = Modifier.size(22.dp), tint = if (page == i) s.accent else s.muted)
                 UiText(name, 12, bold = page == i, color = if (page == i) s.ink else s.muted)

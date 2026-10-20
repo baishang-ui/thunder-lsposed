@@ -378,10 +378,14 @@ final class SystemSettingsHook {
             page = ((Bundle)Reflect.callMethod(host, "getArguments")).getString(MARKER, "home");
             Object screen = Reflect.callMethod(Reflect.callMethod(host, "getPreferenceManager"), "createPreferenceScreen", context);
             Bundle pages = snapshot.getBundle("pages");
-            statusGroup = category(loader, context, screen, "thunder:status_group", "模块信息");
-            status = preference(loader, context, "COUIPreference", "thunder:status", "模块状态");
-            click(status, loader, this::refresh);
-            Reflect.callMethod(statusGroup, "addPreference", status);
+            // Show the module status row only on the home page. Deep category pages start
+            // directly with their settings, not a repeated status header.
+            if ("home".equals(page) || "tools".equals(page)) {
+                statusGroup = category(loader, context, screen, "thunder:status_group", "模块信息");
+                status = preference(loader, context, "COUIPreference", "thunder:status", "模块状态");
+                click(status, loader, this::refresh);
+                Reflect.callMethod(statusGroup, "addPreference", status);
+            }
             Map<String, Object> groups = new LinkedHashMap<>();
             ArrayList<Bundle> fields = snapshot.getParcelableArrayList("fields", Bundle.class);
             if (fields != null) for (Bundle field : fields) {
@@ -451,14 +455,21 @@ final class SystemSettingsHook {
                 }
             }
             if ("home".equals(page)) {
-                Object appearance = category(loader, context, screen, "thunder:appearance", "界面与通知");
-                Object system = category(loader, context, screen, "thunder:system", "系统显示");
+                Object controlNotify = category(loader, context, screen, "thunder:appearance", "控制与通知");
+                Object statusNav = category(loader, context, screen, "thunder:status_nav", "状态栏与导航");
+                Object cloudCat = category(loader, context, screen, "thunder:cloud_cat", "流体云");
+                Object sound = category(loader, context, screen, "thunder:sound", "声音");
+                Object maintenance = category(loader, context, screen, "thunder:maintenance", "维护");
                 for (String key : new String[]{"panel", "cards", "notifications", "banner", "volume", "cloud", "status", "gesture"}) {
                     Object pref = jump(loader, context, "thunder:page:" + key, pages.getString(key), false);
                     click(pref, loader, () -> open(context, key, pages.getString(key)));
-                    Reflect.callMethod(key.equals("cloud") || key.equals("status") || key.equals("gesture") ? system : appearance, "addPreference", pref);
+                    Object group;
+                    if ("status".equals(key) || "gesture".equals(key)) group = statusNav;
+                    else if ("cloud".equals(key)) group = cloudCat;
+                    else if ("volume".equals(key)) group = sound;
+                    else group = controlNotify;
+                    Reflect.callMethod(group, "addPreference", pref);
                 }
-                Object maintenance = category(loader, context, screen, "thunder:maintenance", "");
                 Object tools = jump(loader, context, "thunder:tools", "配置与维护", false);
                 click(tools, loader, () -> open(context, "tools", "配置与维护"));
                 Reflect.callMethod(maintenance, "addPreference", tools);
@@ -657,6 +668,8 @@ final class SystemSettingsHook {
             if (snapshot == null) return;
             Bundle values = SystemSettingsCatalog.INSTANCE.presentationValues(snapshot.getBundle("values"));
             if (status != null) {
+                // Home page: show status only while loading or when there's a failure.
+                // Tools page: always show (it is the maintenance page).
                 Reflect.callMethod(statusGroup, "setVisible", "tools".equals(page) || !loaded || failure != null);
                 Reflect.callMethod(status, "setAssignment", snapshot.getString("version"));
                 Reflect.callMethod(status, "setTitle", loaded ? "模块状态" : "正在读取模块配置");
