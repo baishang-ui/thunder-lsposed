@@ -135,8 +135,10 @@ background=xml('stat_battery_horizontal_bg')
 battery_width=float(background.get(NS+'width')[:-2])
 battery_height=float(background.get(NS+'height')[:-2])
 assert abs(battery_width/93-battery_height/55)<.000001, 'Battery artwork must enlarge uniformly in both axes using the original 93x55 canvas'
-assert abs(theme['dimensions']['status_bar_battery_horizontal_width']-26*1.12)<.000001
-assert abs(theme['dimensions']['status_bar_battery_horizontal_height']-26*1.12*55/93)<.000001
+assert abs(theme['dimensions']['status_bar_battery_horizontal_width']-34)<.000001
+assert abs(theme['dimensions']['status_bar_battery_horizontal_height']-34*55/93)<.000001
+for edge in ('left','right','top','bottom'):
+    assert theme['dimensions'].get('status_bar_battery_horizontal_padding_'+edge)==0, 'Native battery padding must not shrink already padded theme artwork'
 for edge in ('start','end','top','bottom'):
     assert theme['dimensions']['status_bar_battery_horizontal_progress_'+edge]==0, 'Padding is already in the shared artwork canvas'
 fill=xml('stat_battery_horizontal_progress_bg')
@@ -146,9 +148,10 @@ assert float(background.get(NS+'viewportHeight'))==55, 'Retain the original batt
 for attr in ('width','height','viewportWidth','viewportHeight'):
     assert background.get(NS+attr)==fill.get(NS+attr), (attr,'battery fill must share the background canvas at native bounds')
 assert next(background.iter('path')).get(NS+'pathData')==next(fill.iter('path')).get(NS+'pathData')
+assert geometry(background)==geometry(fill), 'At 100 percent progress must cover the entire background, including its cap'
 assert background.find('group') is None and fill.find('group') is None, 'Do not crop or stretch the original battery proportions'
 assert float(fill.get(NS+'viewportWidth'))==93 and float(fill.get(NS+'viewportHeight'))==55
-assert abs(battery_width-29.12)<.000001 and abs(battery_height*(50-5)/55-26*1.12*45/93)<.000001
+assert abs(battery_width-34)<.000001 and abs(battery_height*(50-5)/55-34*45/93)<.000001
 for name in ('stat_battery_horizontal_percent_out_progress_bg','stat_battery_horizontal_percent_out_no_padding_progress_bg'):
     assert theme['overrides'][name]=='stat_battery_horizontal_progress_bg'
     if name in names:

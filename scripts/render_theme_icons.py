@@ -87,7 +87,7 @@ def main():
         icon = vector(f'stat_signal_wifi_signal_{level}_os17', '#15171b', 64, 48)
         im.paste(icon, (36+level*90, 850), icon)
         draw.text((68+level*90,910), str(level), anchor='mt', fill='#636975', font=small)
-    draw.text((574, 812), 'C16 横向电池 · 原图等比放大 12%', fill='#30343b', font=body)
+    draw.text((574, 812), 'C16 横向电池 · 等比放大至 34dp', fill='#30343b', font=body)
     battery_tree=ET.parse(RES/'thunder_ios_stat_battery_horizontal_bg.xml').getroot()
     battery_width=round(float(battery_tree.get(NS+'width')[:-2])*3)
     battery_height=round(float(battery_tree.get(NS+'height')[:-2])*3)

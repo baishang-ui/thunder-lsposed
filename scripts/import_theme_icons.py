@@ -223,9 +223,8 @@ def main(c16, c17, aapt2):
         # Preserve the original proportions and padding. Scaling only the body
         # height would turn the battery into a short, tall shape.
         original_battery = vector(battery.xml('stat_battery_horizontal_bg'))
-        icon_scale = float(re.search(r'ICON_SCALE = ([0-9.]+)f',
+        battery_width = float(re.search(r'BATTERY_WIDTH_DP = ([0-9.]+)f',
             (ROOT/'app/src/main/java/io/github/baishangui/thunder/IosStatusBarHook.java').read_text())[1])
-        battery_width = float(original_battery.get(NS+'width')[:-2]) * icon_scale
         battery_height = battery_width * 55/93
         def battery_canvas():
             return ET.Element('vector', {NS+'width': f'{battery_width:.9g}dp', NS+'height': f'{battery_height:.9g}dp',
@@ -234,11 +233,12 @@ def main(c16, c17, aapt2):
             tree = battery_canvas()
             for path in vector(battery.xml(name)):
                 tree.append(copy.deepcopy(path))
-            save(name, tree, battery, name, 'C16 battery paths and original 93x55 canvas; uniform 112 percent enlargement')
+            save(name, tree, battery, name, 'C16 battery paths and original 93x55 canvas; uniform enlargement to 34dp width')
         tree = battery_canvas()
-        tree.append(copy.deepcopy(next(battery.xml('stat_battery_horizontal_bg').iter('path'))))
+        for path in original_battery:
+            tree.append(copy.deepcopy(path))
         save('stat_battery_horizontal_progress_bg', tree, battery, 'stat_battery_horizontal_bg',
-             'C16 body path and original 93x55 canvas; uniform 112 percent enlargement matching the background')
+             'C16 body and cap paths; original 93x55 canvas; full coverage at 100 percent; 34dp width')
         aliases = {'stat_battery_horizontal_percent_out_no_padding_bg': 'stat_battery_horizontal_percent_out_bg',
                    'stat_battery_horizontal_percent_out_progress_bg': 'stat_battery_horizontal_progress_bg',
                    'stat_battery_horizontal_percent_out_no_padding_progress_bg': 'stat_battery_horizontal_progress_bg'}
@@ -261,6 +261,10 @@ def main(c16, c17, aapt2):
             'status_bar_battery_horizontal_progress_end': 0.0,
             'status_bar_battery_horizontal_progress_top': 0.0,
             'status_bar_battery_horizontal_progress_bottom': 0.0,
+            'status_bar_battery_horizontal_padding_left': 0.0,
+            'status_bar_battery_horizontal_padding_right': 0.0,
+            'status_bar_battery_horizontal_padding_top': 0.0,
+            'status_bar_battery_horizontal_padding_bottom': 0.0,
             'battery_progress_corner_radius': battery_width*9/93,
             'battery_percent_in_text_size': 10.0, 'battery_percent_in_text_margin_top': 0.14,
             'battery_percent_in_text_offset_x': 0.0, 'battery_percent_in_text_offset_y': 0.25,

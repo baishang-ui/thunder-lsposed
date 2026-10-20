@@ -662,7 +662,7 @@
       "entry": "res/drawable/stat_battery_horizontal_bg.xml",
       "resource": "stat_battery_horizontal_bg",
       "sha256": "b7cb2582d7b3ed1e825c5e71faa575c29e7112f37b293ddf5a3a8608fc8ae60e",
-      "conversion": "C16 battery paths and original 93x55 canvas; uniform 112 percent enlargement",
+      "conversion": "C16 battery paths and original 93x55 canvas; uniform enlargement to 34dp width",
       "path_sha256": [
         "4c65fa39875058236918b59451fa60f43b1d7eadbdca76f67aaf524fccdf1bc0",
         "2f7e757afb233e30cf6dcf6643c09b4f8339458bcb3a3ac02a048f2609ee05c4"
@@ -674,7 +674,7 @@
       "entry": "res/drawable/stat_battery_horizontal_frame.xml",
       "resource": "stat_battery_horizontal_frame",
       "sha256": "fa7dcad9e8a7a0557c98919ce26e6754756733685384aad0da30ec4fe8911987",
-      "conversion": "C16 battery paths and original 93x55 canvas; uniform 112 percent enlargement",
+      "conversion": "C16 battery paths and original 93x55 canvas; uniform enlargement to 34dp width",
       "path_sha256": [
         "4c65fa39875058236918b59451fa60f43b1d7eadbdca76f67aaf524fccdf1bc0",
         "2f7e757afb233e30cf6dcf6643c09b4f8339458bcb3a3ac02a048f2609ee05c4"
@@ -686,7 +686,7 @@
       "entry": "res/drawable/stat_battery_horizontal_percent_out_bg.xml",
       "resource": "stat_battery_horizontal_percent_out_bg",
       "sha256": "b18e971fcb86ee1d21bb8d68efe9ad2302837682de8235950638efec4f812995",
-      "conversion": "C16 battery paths and original 93x55 canvas; uniform 112 percent enlargement",
+      "conversion": "C16 battery paths and original 93x55 canvas; uniform enlargement to 34dp width",
       "path_sha256": [
         "a37b928508a94e35e787da4741844871cce01a63bbc62f4c84d30bde850bedad",
         "2f7e757afb233e30cf6dcf6643c09b4f8339458bcb3a3ac02a048f2609ee05c4"
@@ -698,9 +698,10 @@
       "entry": "res/drawable/stat_battery_horizontal_bg.xml",
       "resource": "stat_battery_horizontal_bg",
       "sha256": "b7cb2582d7b3ed1e825c5e71faa575c29e7112f37b293ddf5a3a8608fc8ae60e",
-      "conversion": "C16 body path and original 93x55 canvas; uniform 112 percent enlargement matching the background",
+      "conversion": "C16 body and cap paths; original 93x55 canvas; full coverage at 100 percent; 34dp width",
       "path_sha256": [
-        "4c65fa39875058236918b59451fa60f43b1d7eadbdca76f67aaf524fccdf1bc0"
+        "4c65fa39875058236918b59451fa60f43b1d7eadbdca76f67aaf524fccdf1bc0",
+        "2f7e757afb233e30cf6dcf6643c09b4f8339458bcb3a3ac02a048f2609ee05c4"
       ]
     },
     "stat_battery_horizontal_progress": {
@@ -835,13 +836,17 @@
   "dimensions": {
     "stat_bt_battery_height": 16.0,
     "stat_bt_battery_width": 16.0,
-    "status_bar_battery_horizontal_width": 29.120000000000005,
-    "status_bar_battery_horizontal_height": 17.22150537634409,
+    "status_bar_battery_horizontal_width": 34.0,
+    "status_bar_battery_horizontal_height": 20.107526881720432,
     "status_bar_battery_horizontal_progress_start": 0.0,
     "status_bar_battery_horizontal_progress_end": 0.0,
     "status_bar_battery_horizontal_progress_top": 0.0,
     "status_bar_battery_horizontal_progress_bottom": 0.0,
-    "battery_progress_corner_radius": 2.8180645161290325,
+    "status_bar_battery_horizontal_padding_left": 0.0,
+    "status_bar_battery_horizontal_padding_right": 0.0,
+    "status_bar_battery_horizontal_padding_top": 0.0,
+    "status_bar_battery_horizontal_padding_bottom": 0.0,
+    "battery_progress_corner_radius": 3.2903225806451615,
     "battery_percent_in_text_size": 10.0,
     "battery_percent_in_text_margin_top": 0.14,
     "battery_percent_in_text_offset_x": 0.0,

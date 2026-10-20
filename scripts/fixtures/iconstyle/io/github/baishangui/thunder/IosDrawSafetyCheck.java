@@ -22,6 +22,7 @@ public final class IosDrawSafetyCheck {
         var wifiUpdate=Api102Runtime.callbacks.get("com.oplus.systemui.statusbar.pipeline.OplusWifiSignalExImpl$bindEx$2$1$2$1#invokeSuspend");
         call=IosStatusBarCheck.param(wifi,model);wifiUpdate.after(call);
         IosStatusBarCheck.check(wifi.$wifiLeftTv.getVisibility()==0 && "6".contentEquals(wifi.$wifiLeftTv.getText()),"default style preserves Wi-Fi standard text");
+        moduleBadgeGuardsPreserveDefaults();
         var height=Api102Runtime.callbacks.get("com.android.internal.policy.SystemBarUtils#getStatusBarHeight");
         call=IosStatusBarCheck.param(null,new android.content.Context()); height.before(call); call.setResult(100); height.after(call);
         IosStatusBarCheck.check(call.getResult().equals(100),"default style preserves status height");
@@ -41,6 +42,19 @@ public final class IosDrawSafetyCheck {
                     || (key.contains("battery.ui.drawable.") && (key.endsWith("#draw") || key.endsWith("#drawContent")))))
                 throw new AssertionError("Style must preserve native drawing and state: "+key);
         }
-        System.out.println("Verified absence of global view, drawing, battery and signal state hooks.");
+        System.out.println("Verified scoped badge setters preserve defaults and native drawing, battery and signal state.");
+    }
+    private static void moduleBadgeGuardsPreserveDefaults() throws Throwable {
+        var module=new IosStatusBarCheck.ResourceContext();module.resources.ids.put("mobile_type_text",501);
+        IosStatusBarHook.prepare(module);
+        var view=new android.widget.TextView();view.id=501;view.res.names.put(501,"com.android.systemui:id/mobile_type_text");
+        var call=IosStatusBarCheck.param(view,"5G",null,false,0);Api102Runtime.callbacks.get("android.widget.TextView#setText").before(call);
+        IosStatusBarCheck.check("5G".equals(call.args[0]),"default style bypasses the text setter guard");
+        call=IosStatusBarCheck.param(view,0);Api102Runtime.callbacks.get("android.view.View#setVisibility").before(call);
+        IosStatusBarCheck.check(call.args[0].equals(0),"default style bypasses the visibility guard");
+        var battery=new com.oplus.systemui.statusbar.pipeline.battery.ui.drawable.HorizontalBatteryContentDrawable();
+        battery.paddingTop=2f;battery.outPaddingTop=3f;
+        call=IosStatusBarCheck.param(battery);Api102Runtime.callbacks.get("com.oplus.systemui.statusbar.pipeline.battery.ui.drawable.HorizontalBatteryContentDrawable#updatePadding").after(call);
+        IosStatusBarCheck.check(battery.paddingTop==2f && battery.outPaddingTop==3f,"default style retains native battery padding");
     }
 }

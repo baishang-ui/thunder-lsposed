@@ -601,13 +601,17 @@ final class IosStatusResources {
         return switch(name) {
             case "com.android.systemui:dimen/stat_bt_battery_height" -> 16f;
             case "com.android.systemui:dimen/stat_bt_battery_width" -> 16f;
-            case "com.android.systemui:dimen/status_bar_battery_horizontal_width" -> 29.12f;
-            case "com.android.systemui:dimen/status_bar_battery_horizontal_height" -> 17.2215054f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_width" -> 34f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_height" -> 20.1075269f;
             case "com.android.systemui:dimen/status_bar_battery_horizontal_progress_start" -> 0f;
             case "com.android.systemui:dimen/status_bar_battery_horizontal_progress_end" -> 0f;
             case "com.android.systemui:dimen/status_bar_battery_horizontal_progress_top" -> 0f;
             case "com.android.systemui:dimen/status_bar_battery_horizontal_progress_bottom" -> 0f;
-            case "com.android.systemui:dimen/battery_progress_corner_radius" -> 2.81806452f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_padding_left" -> 0f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_padding_right" -> 0f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_padding_top" -> 0f;
+            case "com.android.systemui:dimen/status_bar_battery_horizontal_padding_bottom" -> 0f;
+            case "com.android.systemui:dimen/battery_progress_corner_radius" -> 3.29032258f;
             case "com.android.systemui:dimen/battery_percent_in_text_size" -> 10f;
             case "com.android.systemui:dimen/battery_percent_in_text_margin_top" -> 0.14f;
             case "com.android.systemui:dimen/battery_percent_in_text_offset_x" -> 0f;

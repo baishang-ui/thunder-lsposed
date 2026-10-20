@@ -28,12 +28,37 @@ public class CloudMorphCheck {
     }
     public static class Window {public Root g=new Root();public Secondary h=new Secondary();}
     public static class Secondary {public InstantContainer r=new InstantContainer();}
-    public static class Scene {public Window j=new Window(),k=j;public android.content.Context l=new android.content.Context(),i=l;}
+    enum Kind {
+        CAPSULE_TO_CARD,CARD_TO_CAPSULE,CARD_TO_CAPSULE_BY_INTERRUPT,
+        CAPSULE_TO_LARGE_INSTANT_CARD,CAPSULE_TO_SMALL_INSTANT_CARD,CAPSULE_TO_SMALL_INSTANT_CARD_WITH_BLANK,
+        LARGE_INSTANT_CARD_TO_CAPSULE,SMALL_INSTANT_CARD_TO_CAPSULE,SMALL_INSTANT_CARD_TO_CAPSULE_WITH_BLANK,
+        CARD_TO_APP,LOCKSCREEN_TO_CARD,CARD_TO_CAPSULE_WITHOUT_ANIM
+    }
+    public static class Scene {
+        public Window j=new Window(),k=j;
+        public android.content.Context a=new android.content.Context(),l=a,i=a;
+        Kind kind;
+        Runnable beforeClock;
+        public Kind f(){return kind;}
+    }
     static HookCallback hook(String key){var h=Api102Runtime.callbacks.get(BASE+key);check(h!=null,"Missing native morph boundary: "+key);return h;}
     static Animator build(Scene scene,String name,Animator original)throws Throwable {
-        Object graph=new Object();var c=hook("animatorscenes."+name+"#c");
-        var p=CloudCheck.param(scene,graph,new Object(),new Object());c.before(p);c.after(p);
-        var g=hook("engine.animatorengine.h#g");p=CloudCheck.param(graph,original,new Object());g.after(p);
+        scene.kind=switch(name) {
+            case "t" -> Kind.CAPSULE_TO_CARD;case "Q" -> Kind.CARD_TO_CAPSULE;case "P" -> Kind.CARD_TO_CAPSULE_BY_INTERRUPT;
+            case "v" -> Kind.CAPSULE_TO_LARGE_INSTANT_CARD;case "w" -> Kind.CAPSULE_TO_SMALL_INSTANT_CARD;
+            case "y" -> Kind.CAPSULE_TO_SMALL_INSTANT_CARD_WITH_BLANK;case "J0" -> Kind.SMALL_INSTANT_CARD_TO_CAPSULE_WITH_BLANK;
+            case "I0" -> Kind.SMALL_INSTANT_CARD_TO_CAPSULE;case "k0" -> Kind.LARGE_INSTANT_CARD_TO_CAPSULE;
+            case "app" -> Kind.CARD_TO_APP;case "lock" -> Kind.LOCKSCREEN_TO_CARD;
+            default -> Kind.CARD_TO_CAPSULE_WITHOUT_ANIM;
+        };
+        var graph=new com.oplus.systemui.plugins.seedling.engine.animatorengine.h();
+        var builder=new com.oplus.systemui.plugins.seedling.animatorscenes.B0(scene,graph);
+        var c=hook("animatorscenes.B0#invoke");var p=CloudCheck.param(builder,null);c.before(p);
+        p.setResult(builder.invoke());c.after(p);
+        if(scene.beforeClock!=null){Runnable ready=scene.beforeClock;scene.beforeClock=null;ready.run();}
+        var g=hook("engine.animatorengine.h#g");p=CloudCheck.param(graph,original,new Object());g.before(p);g.after(p);
+        if(p.getResult()!=original)check(builder.condition.d==300&&builder.condition.e==0,"native condition clock follows morph without a blank wait");
+        else check(builder.condition.d==250&&builder.condition.e==400,"fallback leaves the entire native timing intact");
         return (Animator)p.getResult();
     }
     static float radius(View v){Outline o=new Outline();v.getOutlineProvider().getOutline(v,o);return o.radius;}
@@ -92,13 +117,31 @@ public class CloudMorphCheck {
         nativeCancel.addListener(new AnimatorListenerAdapter(){public void onAnimationCancel(Animator a){cancelledEvents.add("cancel");a.removeListener(this);}public void onAnimationEnd(Animator a){cancelledEvents.add("end");}});
         ValueAnimator cancelled=(ValueAnimator)build(scene,"t",nativeCancel);cancelled.start();cancelled.cancel();
         check(cancelledEvents.equals(List.of("cancel")),"cancelled native monitor cannot also complete its scene");
-        for(String name:new String[]{"v","w","I0","k0"}) {
+        for(String name:new String[]{"v","w","y","I0","k0","J0"}) {
             boolean expand=name.equals("v")||name.equals("w");InstantContainer instant=expand?scene.j.g.instant:scene.j.h.r;
+            expand=expand||name.equals("y");
             instant.actualWidth=700;instant.actualHeight=300;
+            instant.content.actualWidth=620;instant.content.actualHeight=260;
             var animation=build(scene,name,new AnimatorSet());check(animation instanceof ValueAnimator,"instant card uses same morph: "+name);
-            ((ValueAnimator)animation).start();((ValueAnimator)animation).advance(1);
-            check(instant.getAlpha()==(expand?1:0),"instant endpoint restored: "+name);
+            ((ValueAnimator)animation).start();
+            check(instant.content.getAlpha()==1,"actual material stays opaque from the first capsule frame: "+name);
+            ((ValueAnimator)animation).advance(.25f);
+            check(width(instant.content)>240&&width(instant.content)<620,"actual content surface grows without a shrink prelude: "+name);
+            ((ValueAnimator)animation).advance(1);
+            check(instant.content.getAlpha()==(expand?1:0),"instant endpoint restored: "+name);
         }
+        for(String name:new String[]{"app","lock","no-animation"})check(build(scene,name,original)==original,"unrelated scene retains native animation: "+name);
+        var late=scene.j.h.r;late.content=null;
+        View ready=new View();ready.actualWidth=640;ready.actualHeight=280;
+        scene.beforeClock=()->late.content=ready;
+        var lateAnimation=build(scene,"y",new AnimatorSet());
+        check(lateAnimation instanceof ValueAnimator,"blank branch resolves its actual card after native layout preparation");
+        ((ValueAnimator)lateAnimation).start();check(width(ready)==240,"late card begins at capsule bounds without a pre-shrink");
+        ((ValueAnimator)lateAnimation).advance(1);
+        scene.j.g.instant.content=null;
+        var mounted=build(scene,"v",new AnimatorSet());
+        check(mounted instanceof ValueAnimator,"instant opening uses the mounted secondary host when the primary is only a placeholder");
+        ((ValueAnimator)mounted).start();check(width(ready)==240,"mounted content is the actual morph surface");((ValueAnimator)mounted).advance(1);
         b.putBoolean("cloud_enabled",false);CloudCheck.config(b);
         check(build(scene,"t",original)==original,"disabled cloud keeps complete native animation");
         b.putBoolean("cloud_enabled",true);CloudCheck.config(b);ValueAnimator.durationScale=0;

@@ -9,7 +9,9 @@ import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 /** Native resource styling, with scoped C17 label and status-window sizing hooks. */
@@ -17,11 +19,15 @@ final class IosStatusBarHook {
     private static final String MODULE = "io.github.baishangui.thunder";
     private static final Set<Integer> failed = ConcurrentHashMap.newKeySet();
     private static volatile Context moduleContext;
+    private static final String HORIZONTAL_BATTERY="com.oplus.systemui.statusbar.pipeline.battery.ui.drawable.HorizontalBatteryContentDrawable";
+    private static final String[] BADGE_NAMES={"mobile_type_text","mobile_type_image","mobile_type","mobile_type_alone","wifi_left","wifi_left_tv"};
+    private static volatile int[] badgeIds=new int[0];
+    private static final Map<View,Float> wifiTranslations=new WeakHashMap<>();
     private static boolean enabled;
     static final float ICON_SCALE = 1.12f;
     static final float ICON_SIDE_GAP_DP = 1f;
-    // Scale the original 26dp / 93x55 canvas uniformly, including its padding.
-    static final float BATTERY_WIDTH_DP = 26f * ICON_SCALE;
+    // Enlarge the complete original 93x55 canvas without changing its proportions.
+    static final float BATTERY_WIDTH_DP = 34f;
     static final float BATTERY_HEIGHT_DP = BATTERY_WIDTH_DP * 55f / 93f;
     static final float BATTERY_WIDTH_SCALE = 1f;
     static final float BATTERY_HEIGHT_SCALE = 1f;
@@ -34,8 +40,10 @@ final class IosStatusBarHook {
         // Resource consumers cache drawables and Compose vectors. Freeze the style until restart.
         enabled = IosStatusIcons.active(ShadeHook.snapshot());
         installLabels(loader);
+        installBadgeGuards();
         installHeight(loader);
         installBatteryTextLayout(loader);
+        installBatteryPadding(loader);
         Api102Runtime.findAndHookMethod(Resources.class, "getDrawableForDensity", int.class, int.class,
             Resources.Theme.class, new HookCallback() {
                 @Override protected void afterHookedMethod(Param p) {
@@ -74,7 +82,7 @@ final class IosStatusBarHook {
     }
 
     private static void installBatteryTextLayout(ClassLoader loader) {
-        String type = "com.oplus.systemui.statusbar.pipeline.battery.ui.drawable.HorizontalBatteryContentDrawable";
+        String type = HORIZONTAL_BATTERY;
         try {
             Api102Runtime.findAndHookMethod(type, loader, "getBodyRectForLayout", RectF.class, new HookCallback() {
                 @Override protected void afterHookedMethod(Param p) {
@@ -96,6 +104,94 @@ final class IosStatusBarHook {
                 }
             });
         } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-battery-text-layout", error); }
+    }
+
+    private static void installBatteryPadding(ClassLoader loader) {
+        try {
+            Api102Runtime.findAndHookMethod("com.oplus.systemui.statusbar.pipeline.battery.ui.drawable.BatteryBarDrawableBase",loader,"updatePadding",new HookCallback() {
+                @Override protected void afterHookedMethod(Param p) {
+                    if (enabled && !p.hasThrowable() && p.thisObject.getClass().getName().equals(HORIZONTAL_BATTERY)) clearBatteryPadding(p.thisObject,false);
+                }
+            });
+        } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-battery-padding-base",error); }
+        try {
+            Api102Runtime.findAndHookMethod(HORIZONTAL_BATTERY,loader,"updatePadding",new HookCallback() {
+                @Override protected void afterHookedMethod(Param p) {
+                    if (enabled && !p.hasThrowable()) clearBatteryPadding(p.thisObject,true);
+                }
+            });
+        } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-battery-padding",error); }
+    }
+
+    private static void clearBatteryPadding(Object drawable,boolean outside) {
+        // Source vectors already contain their own padding. Native 2dp insets,
+        // including theme-derived insets, would shrink the actual visible icon.
+        for (String edge : new String[]{"Left","Right","Top","Bottom"}) {
+            Reflect.callMethod(drawable,"setPadding"+edge,0f);
+            if (outside) Reflect.setObjectField(drawable,"outPadding"+edge,0f);
+        }
+        ShadeHook.resourceHit("status-bar-ios-battery-padding");
+    }
+
+    private static boolean isBadge(View view) {
+        if (!enabled) return false;
+        int id=view.getId();
+        if (id<=0) return false;
+        boolean candidate=false;
+        for (int target : badgeIds) if (target!=0 && target==id) { candidate=true;break; }
+        if (!candidate) return false;
+        return switch (ResourceOverrides.name(view.getResources(),id)) {
+            case "com.android.systemui:id/mobile_type_text", "com.android.systemui:id/mobile_type_image",
+                 "com.android.systemui:id/mobile_type", "com.android.systemui:id/mobile_type_alone",
+                 "com.android.systemui:id/wifi_left", "com.android.systemui:id/wifi_left_tv" -> true;
+            default -> false;
+        };
+    }
+
+    private static void installBadgeGuards() {
+        // Fast integer-ID rejection keeps unrelated views on their native path.
+        // The package-qualified check also rejects resource-ID collisions.
+        try {
+            Api102Runtime.findAndHookMethod(View.class,"setVisibility",int.class,new HookCallback() {
+                @Override protected void beforeHookedMethod(Param p) {
+                    if (p.thisObject instanceof View view && isBadge(view)) {
+                        if (!p.args[0].equals(View.GONE)) ShadeHook.resourceHit("status-bar-ios-badge-guard");
+                        p.args[0]=View.GONE;
+                    }
+                }
+            });
+        } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-badge-visibility",error); }
+        try {
+            // This central framework method also catches optimized callers that
+            // bypass setVisibility. Other view flags are left unchanged.
+            Api102Runtime.findAndHookMethod(View.class,"setFlags",int.class,int.class,new HookCallback() {
+                @Override protected void beforeHookedMethod(Param p) {
+                    if ((((Integer)p.args[1])&12)!=0 && p.thisObject instanceof View view && isBadge(view)) {
+                        if ((((Integer)p.args[0])&12)!=View.GONE) ShadeHook.resourceHit("status-bar-ios-badge-guard");
+                        p.args[0]=(((Integer)p.args[0])&~12)|View.GONE;
+                        p.args[1]=((Integer)p.args[1])|12;
+                    }
+                }
+            });
+        } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-badge-flags",error); }
+        HookCallback text=new HookCallback() {
+            @Override protected void beforeHookedMethod(Param p) {
+                if (p.thisObject instanceof TextView view && isBadge(view)) p.args[0]=null;
+            }
+            @Override protected void afterHookedMethod(Param p) {
+                if (!p.hasThrowable() && p.thisObject instanceof TextView view && isBadge(view)) {
+                    view.setContentDescription(null);
+                    view.setVisibility(View.GONE);
+                    ShadeHook.resourceHit("status-bar-ios-badge-guard");
+                }
+            }
+        };
+        try {
+            Api102Runtime.findAndHookMethod(TextView.class,"setText",CharSequence.class,"android.widget.TextView$BufferType",text);
+        } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-badge-text",error); }
+        try {
+            Api102Runtime.findAndHookMethod(TextView.class,"setText",CharSequence.class,"android.widget.TextView$BufferType",boolean.class,int.class,text);
+        } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-badge-text-internal",error); }
     }
 
     private static void installLabels(ClassLoader loader) {
@@ -142,6 +238,13 @@ final class IosStatusBarHook {
                         for (String name : new String[]{"wifi_left", "wifi_left_tv"}) {
                             int id=root.getResources().getIdentifier(name,"id","com.android.systemui");
                             if (id!=0) hideBadge(root.findViewById(id));
+                        }
+                        int signalId=root.getResources().getIdentifier("wifi_signal","id","com.android.systemui");
+                        View signal=signalId==0?null:root.findViewById(signalId);
+                        if (signal!=null) {
+                            float original=wifiTranslations.computeIfAbsent(signal,View::getTranslationY);
+                            signal.setTranslationY(original+1f); // One physical pixel, independent of density.
+                            ShadeHook.resourceHit("status-bar-ios-wifi-baseline");
                         }
                     }
                 });
@@ -286,6 +389,9 @@ final class IosStatusBarHook {
     static void prepare(Context context) throws android.content.pm.PackageManager.NameNotFoundException {
         // This context loads resources only; module code is already supplied by libxposed.
         moduleContext = context.createPackageContext(MODULE, 0);
+        int[] ids=new int[BADGE_NAMES.length];
+        for (int i=0;i<ids.length;i++) ids[i]=context.getResources().getIdentifier(BADGE_NAMES[i],"id","com.android.systemui");
+        badgeIds=ids;
     }
 
     static int replacement(Resources resources, int id) {
@@ -316,7 +422,7 @@ final class IosStatusBarHook {
     }
 
     static String state() {
-        return (enabled ? "style=ios;renderer=resources;signals=status-c16-c17-stacked;battery=status-c16;state=system;icons=112%;height=+4dp;gap=+2dp;battery-scale=112%;battery-width="+BATTERY_WIDTH_DP+"dp;battery-height="+BATTERY_HEIGHT_DP+"dp;battery-text=body-centered;network-text=hidden" : "style=system")
+        return (enabled ? "style=ios;renderer=resources;signals=status-c16-c17-stacked;battery=status-c16;state=system;icons=112%;height=+4dp;gap=+2dp;battery-proportions=93:55;battery-width="+BATTERY_WIDTH_DP+"dp;battery-height="+BATTERY_HEIGHT_DP+"dp;battery-text=body-centered;battery-padding=0;network-text=hidden;wifi-offset=1px" : "style=system")
             + (enabled != IosStatusIcons.active(ShadeHook.snapshot()) ? ";restart-required=true" : "");
     }
     private IosStatusBarHook() { }
