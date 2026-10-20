@@ -75,8 +75,11 @@ class MainActivity : ComponentActivity() {
         val prefs = SettingsProvider.preferences(this)
         val loaded = Bundle().apply { prefs.all.forEach { (k,v) -> when(v) { is Boolean -> putBoolean(k,v); is Int -> putInt(k,v) } } }
         setContent {
-            var saved by remember { mutableStateOf(Settings.from(loaded)) }
-            var draft by rememberSaveable(stateSaver=Settings.saver) { mutableStateOf(SettingsWriter.latest ?: saved) }
+            val editor = remember {
+                val saved = Settings.from(loaded)
+                SettingsEditorState(saved, SettingsWriter.latest ?: saved)
+            }
+            val draft = editor.draft
             var page by rememberSaveable { mutableIntStateOf(0) }
             var detail by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
             var restartFeedback by rememberSaveable { mutableStateOf(false) }
@@ -104,21 +107,17 @@ class MainActivity : ComponentActivity() {
             val wallpaper=rememberLayerBackdrop(); val content=rememberLayerBackdrop()
             val overlaySource=rememberCombinedBackdrop(wallpaper,content)
             val themeController = rememberAppTheme(draft, dark)
-            val dirty=saved!=draft
+            val dirty=editor.saved!=draft
             SideEffect { WindowCompat.getInsetsController(window,window.decorView).apply {
                 isAppearanceLightStatusBars=!dark; isAppearanceLightNavigationBars=!dark
             } }
             val history = remember { ControlHistory() }
             val writeResult by SettingsWriter.result.collectAsState()
-            val lastRequested = remember { arrayOf(saved) }
             SideEffect {
-                if (lastRequested[0] != draft) {
-                    lastRequested[0] = draft
-                    SettingsWriter.submit(this@MainActivity, draft)
-                }
+                editor.pendingWrite()?.let { SettingsWriter.submit(this@MainActivity, it) }
             }
             LaunchedEffect(writeResult) {
-                writeResult.settings?.let { saved = it }
+                writeResult.settings?.let { editor.acceptSaved(it, SettingsWriter.latest) }
                 if (writeResult.error != null) message = "自动保存失败：${writeResult.error}"
             }
             LaunchedEffect(message) {
@@ -176,7 +175,7 @@ class MainActivity : ComponentActivity() {
                                     if (currentDetail != null) {
                                         SettingsPreview(currentDetail, draft)
                                         when (currentDetail) {
-                                            SettingsPage.Appearance -> AppearanceSettings(draft) { draft = it }
+                                            SettingsPage.Appearance -> AppearanceSettings(draft) { editor.draft = it }
                                             SettingsPage.Configuration -> {
                                                 SettingsSection("导入与导出") {
                                                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -211,14 +210,14 @@ class MainActivity : ComponentActivity() {
                                                 Summary("适配系统", "ColorOS 17")
                                                 UiText("LSPosed API 102\nMiuix UI & Icons 0.9.0\nLiquid Glass · Kyant0 Backdrop 1.0.6", 13, muted = true)
                                             }
-                                            else -> AdjustmentDetails(currentDetail, draft, { draft = it }, { testNotification() }, { detail = it })
+                                            else -> AdjustmentDetails(currentDetail, draft, { editor.draft = it }, { testNotification() }, { detail = it })
                                         }
                                     } else when(destination.page) {
                                         0 -> {
                                             val status = remember(resumeTick, refresh, RemoteSettings.status, RemoteSettings.scopeStatus) { runtimeStatus() }
                                             val activation = RemoteSettings.activation
                                             SettingsGroup {
-                                                LiquidSwitchRow("启用效果调整", "ColorOS 17", draft.enabled) { draft = draft.copy(enabled = it) }
+                                                LiquidSwitchRow("启用效果调整", "ColorOS 17", draft.enabled) { editor.draft = draft.copy(enabled = it) }
                                             }
                                             SettingsSection("模块状态") {
                                                 ModuleStatusRow("LSPosed", activation.label,
@@ -304,7 +303,7 @@ class MainActivity : ComponentActivity() {
                     if(reset) SettingsDialog("恢复默认设置",{reset=false}, footer = {
                         Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                             LiquidAction("取消",Modifier.weight(1f)) { reset=false }
-                            LiquidAction("恢复",Modifier.weight(1f),selected=true) { draft=Settings();reset=false }
+                            LiquidAction("恢复",Modifier.weight(1f),selected=true) { editor.draft=Settings();reset=false }
                         }
                     }) {
                         UiText("将界面外观和效果参数恢复为默认值，并自动保存。",14,muted=true)
@@ -312,7 +311,7 @@ class MainActivity : ComponentActivity() {
                     if(importConfirm) SettingsDialog("导入此配置？",{importConfirm=false}, footer = {
                         Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                             LiquidAction("取消",Modifier.weight(1f)) { importConfirm=false }
-                            LiquidAction("导入",Modifier.weight(1f),selected=true) { draft=imported;importConfirm=false;message="已导入，正在自动保存" }
+                            LiquidAction("导入",Modifier.weight(1f),selected=true) { editor.draft=imported;importConfirm=false;message="已导入，正在自动保存" }
                         }
                     }) {
                         UiText("导入后会替换当前配置并自动保存。",14,muted=true)

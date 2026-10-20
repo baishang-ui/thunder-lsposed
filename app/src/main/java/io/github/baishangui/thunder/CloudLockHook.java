@@ -47,7 +47,7 @@ final class CloudLockHook {
         Object ref=Reflect.getAdditionalInstanceField(owner,key);
         return ref instanceof WeakReference<?>?((WeakReference<?>)ref).get():null;
     }
-    private static boolean flowCapsule(View view) {
+    static boolean flowCapsule(View view) {
         for(int i=0;view!=null&&i<8;i++) {
             String name=view.getClass().getName();
             if(name.equals(LOCK+"CapsuleItemView")) {
@@ -142,6 +142,23 @@ final class CloudLockHook {
                     float radius=c.cloudCardArea.corner*view.getResources().getDisplayMetrics().density;
                     p.setResult(Math.min(radius,Math.max(0f,clip.height()/2f)));
                     ShadeHook.resourceHit("cloud-lock-corners");
+                }
+            }));
+        // onClipInfoChange bypasses getActualRadius and writes CapsuleConfig's
+        // default directly. Repair only the radius after native bounds, scaling
+        // and smoothing have been applied, using the provider's own cache updater.
+        bind("capsule-clip-corners",() -> Api102Runtime.findAndHookMethod(LOCK+"CapsuleItemView",loader,"onClipInfoChange",
+            LOCK+"CapsuleViewState$ScrollClipInfo",new HookCallback() {
+                @Override protected void afterHookedMethod(Param p) {
+                    if(p.hasThrowable())return;
+                    View view=(View)p.thisObject;capsuleGeometry.put(view,true);
+                    HookConfig c=ShadeHook.snapshot();
+                    if(!c.enabled||!c.cloud||!c.cloudCardArea.cornerEnabled||!flowCapsule(view))return;
+                    Object location=Reflect.getObjectField(view,"location");
+                    android.graphics.Rect clip=(android.graphics.Rect)Reflect.callMethod(location,"getClipRect");
+                    float radius=Math.min(c.cloudCardArea.corner*view.getResources().getDisplayMetrics().density,Math.max(0f,clip.height()/2f));
+                    Reflect.callMethod(Reflect.getObjectField(view,"pathProvider"),"updateMetaData",radius,null,null);
+                    ShadeHook.resourceHit("cloud-lock-clip-corners");
                 }
             }));
         bind("capsule-corners-deopt",() -> Api102Runtime.deoptimizeCallers(Reflect.findClass(LOCK+"CapsuleItemView",loader),

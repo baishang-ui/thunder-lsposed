@@ -105,26 +105,29 @@ final class NotificationCardHook {
         bind("row-class",() -> rowClass=Reflect.findClass(ROW+"ExpandableNotificationRow",loader));
         // setRadius also updates the focus overlay, direct BaseDrawable stroke and
         // shadow edge. Those writes bypass ViewBlurProxy.applyBlurConfig, and the
-        // upstream row getters may have been inlined by ART. Select cloud geometry
-        // at this shared receiver before native code fans out to every edge layer.
-        bind("cloud-edge-radius",() -> Api102Runtime.findAndHookMethod(ROW+"NotificationBackgroundView",loader,"setRadius",
+        // upstream row getters may have been inlined by ART. Select the effective
+        // notification, heads-up or cloud geometry here before native code fans out
+        // to every edge layer; changing only BlurConfig misses these direct writes.
+        bind("edge-radius",() -> Api102Runtime.findAndHookMethod(ROW+"NotificationBackgroundView",loader,"setRadius",
             float.class,float.class,boolean.class,new HookCallback() {
                 @Override protected void beforeHookedMethod(Param p) {
                     View background=(View)p.thisObject;
                     Object parent=background.getParent();
                     if(rowClass==null||!rowClass.isInstance(parent))return;
                     View row=(View)parent;views.put(row,true);
-                    HookConfig.Area area=CloudLockHook.areaForView(background,ShadeHook.snapshot());
+                    HookConfig.Area area=area(background);
                     if(area==null||!area.cornerEnabled)return;
                     float radius=area.corner*background.getResources().getDisplayMetrics().density;
                     for(int i=0;i<2;i++) {
                         float roundness=((Number)Reflect.callMethod(row,i==0?"getTopRoundness":"getBottomRoundness")).floatValue();
                         p.args[i]=radius*Math.max(0f,Math.min(1f,roundness));
                     }
-                    ShadeHook.resourceHit("cloud-notification-edge-radius");
+                    ShadeHook.resourceHit("notification-edge-radius");
+                    if(CloudLockHook.areaForView(background,ShadeHook.snapshot())!=null)
+                        ShadeHook.resourceHit("cloud-notification-edge-radius");
                 }
             }));
-        bind("cloud-edge-deopt",() -> Api102Runtime.deoptimizeCallers(Reflect.findClass(ROW+"ActivatableNotificationView",loader),
+        bind("edge-deopt",() -> Api102Runtime.deoptimizeCallers(Reflect.findClass(ROW+"ActivatableNotificationView",loader),
             "applyRoundnessAndInvalidate"));
         // Stacked notifications have separate configs and call PlatformBlurDrawable directly,
         // bypassing ViewBlurProxy's main config and all of its backend hooks.

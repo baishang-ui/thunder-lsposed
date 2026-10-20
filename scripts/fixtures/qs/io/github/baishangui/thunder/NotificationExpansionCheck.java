@@ -124,6 +124,40 @@ public final class NotificationExpansionCheck {
         HookCallback.Param untracked=before(DRAW,new Object(),unrelated,1f);
         check(unrelated.cornerRadius==47 && unrelated.blurRadius==0 && unrelated.platformMixConfig==unrelatedMix,
             "direct drawable hook preserves unrelated system materials");after(DRAW,untracked);
+        // C17's direct radius receiver can run with inlined/unhooked row getters.
+        // Replay that path with native incoming values, without calling the getter hooks.
+        String receiver="com.android.systemui.statusbar.notification.row.NotificationBackgroundView#setRadius";
+        var direct=new com.android.systemui.statusbar.notification.row.NotificationBackgroundView();
+        Row directRow=new Row();direct.parent=directRow;directRow.mBackgroundNormal=direct;
+        b.putInt("notification_card_corner",13);
+        b.putBoolean("notification_card_blur",false);b.putBoolean("notification_card_tint",false);
+        CloudCheck.config(b);
+        for(boolean headsUp:new boolean[]{false,true}) {
+            NotificationCardHook.track(direct,headsUp?"banner":"notification-card");
+            for(int radius:new int[]{0,13,64})for(float fraction:new float[]{0,.5f,1}) {
+                b.putInt(headsUp?"banner_corner":"notification_card_corner",radius);CloudCheck.config(b);
+                directRow.top=fraction;directRow.bottom=1-fraction;
+                HookCallback.Param received=before(receiver,direct,47*fraction,47*(1-fraction),true);
+                direct.setRadius((Float)received.args[0],(Float)received.args[1],(Boolean)received.args[2]);after(receiver,received);
+                float top=radius*density*fraction,bottom=radius*density*(1-fraction);
+                check(direct.top==top && direct.bottom==bottom && direct.strokeRadius==top && direct.shadowRadius==top &&
+                    direct.focusRadius==Math.max(0,top-1),
+                    "direct "+(headsUp?"heads-up":"notification")+" edges use radius="+radius+" fraction="+fraction+" without getter hooks");
+            }
+        }
+        int directRefreshes=directRow.refreshed;NotificationCardHook.refresh();
+        check(directRow.refreshed>directRefreshes,"direct radius receiver registers ordinary rows for live refresh");
+        b.putBoolean("banner_corner_enabled",false);CloudCheck.config(b);
+        HookCallback.Param nativeRadius=before(receiver,direct,47f,31f,false);
+        check(nativeRadius.args[0].equals(47f)&&nativeRadius.args[1].equals(31f)&&nativeRadius.args[2].equals(false),
+            "disabled heads-up radius retains native values and smooth flag");after(receiver,nativeRadius);
+        NotificationCardHook.track(direct,"notification-card");
+        b.putBoolean("notification_card_corner_enabled",false);CloudCheck.config(b);
+        nativeRadius=before(receiver,direct,47f,31f,true);
+        check(nativeRadius.args[0].equals(47f)&&nativeRadius.args[1].equals(31f),"disabled notification corners restore native radius");after(receiver,nativeRadius);
+        b.putBoolean("notification_card_corner_enabled",true);b.putBoolean("enabled",false);CloudCheck.config(b);
+        nativeRadius=before(receiver,direct,47f,31f,true);
+        check(nativeRadius.args[0].equals(47f)&&nativeRadius.args[1].equals(31f),"module off restores direct edge geometry");after(receiver,nativeRadius);
         b.putBoolean("enabled",false);CloudCheck.config(b);
         for(BlurConfig layer:stack.configMap.values()) {
             HookCallback.Param draw=before(DRAW,new Object(),layer,1f);

@@ -99,15 +99,17 @@ final class CloudHook {
             @Override protected void beforeHookedMethod(Param p) {
                 if(!(p.args[0] instanceof View))return;
                 View view=(View)p.args[0];
-                if(!cardSurface(view))return;
+                boolean page=CloudTemplateHook.pageSurface(view);
+                if(!cardSurface(view)&&!page)return;
                 outlines.put(view,true);
                 Object saved=Reflect.getObjectField(p.thisObject,"b");
                 Object nativeCorners=nativeCorners(saved);
                 HookConfig c=ShadeHook.snapshot();HookConfig.Area area=c.cloudCardArea;
                 Object scaleValue=Reflect.getAdditionalInstanceField(p.thisObject,"thunder.cloud-corner-scale");
                 float scale=scaleValue instanceof Number?((Number)scaleValue).floatValue():1f;
-                Object corners=c.enabled&&c.cloud&&area.cornerEnabled?
-                    cornerConfig(nativeCorners,area.corner*view.getResources().getDisplayMetrics().density*scale):nativeCorners;
+                Float radius=page?CloudTemplateHook.pageRadius(view):
+                    c.enabled&&c.cloud&&area.cornerEnabled?area.corner*view.getResources().getDisplayMetrics().density:null;
+                Object corners=radius!=null?cornerConfig(nativeCorners,radius*scale):nativeCorners;
                 p.setObjectExtra("corners",saved);Reflect.setObjectField(p.thisObject,"b",corners);
             }
             @Override protected void afterHookedMethod(Param p) {

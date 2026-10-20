@@ -2,6 +2,8 @@ package io.github.baishangui.thunder;
 
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
+import java.lang.ref.WeakReference;
 import android.view.View;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,6 +16,30 @@ final class CloudTemplateHook {
     private static final Map<ClassLoader,Boolean> installed=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<Drawable,Integer> backgrounds=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View,Boolean> geometryViews=Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<View,PageSurface> pages=Collections.synchronizedMap(new WeakHashMap<>());
+    private static final class PageSurface {
+        WeakReference<GradientDrawable> stroke=new WeakReference<>(null);
+        float radius;
+        float[] radii;
+        Float applied;
+        void restore() {
+            GradientDrawable drawable=stroke.get();if(drawable==null)return;
+            if(radii==null)drawable.setCornerRadius(radius);else drawable.setCornerRadii(radii.clone());
+        }
+        void apply(View view,Float corner) {
+            Drawable foreground=view.getForeground();
+            GradientDrawable current=foreground instanceof GradientDrawable?(GradientDrawable)foreground:null;
+            if(current!=stroke.get()) {
+                restore();stroke=new WeakReference<>(current);applied=null;
+                if(current!=null) {
+                    radius=current.getCornerRadius();radii=current.getCornerRadii();
+                    if(radii!=null)radii=radii.clone();
+                }
+            }
+            if(corner==null) {if(applied!=null)restore();applied=null;}
+            else if(current!=null&&!corner.equals(applied)) {current.setCornerRadius(corner);applied=corner;}
+        }
+    }
     private record Alpha(float[] values,int index,float original) {
         void restore(){values[index]=original;}
     }
@@ -26,6 +52,15 @@ final class CloudTemplateHook {
             android.content.Context.class,int.class,boolean.class,new HookCallback() {
                 @Override protected void beforeHookedMethod(Param p){CloudHook.beginNativeCorners();}
                 @Override protected void afterHookedMethod(Param p){CloudHook.endNativeCorners();}
+            }));
+        // SingleCardPage owns a plain ViewGroup root. Its content clip and XML
+        // foreground stroke are separate from CardBackgroundView and media light.
+        bind("page-surface",() -> Api102Runtime.hookAllConstructors(Reflect.findClass(BASE+"page.entity.t",loader),new HookCallback() {
+            @Override protected void afterHookedMethod(Param p){if(!p.hasThrowable())trackPage(p.thisObject);}
+        }));
+        bind("page-surface-update",() -> Api102Runtime.findAndHookMethod(BASE+"page.entity.s",loader,"a",
+            Object.class,"kotlin.coroutines.Continuation",new HookCallback() {
+                @Override protected void afterHookedMethod(Param p){if(!p.hasThrowable())trackPage(Reflect.getObjectField(p.thisObject,"c"));}
             }));
         bind("media-stroke",() -> Api102Runtime.findAndHookMethod(BASE+"component.view.CustomLottieView",loader,"i",Canvas.class,mediaGeometry(false)));
         bind("media-outline",() -> Api102Runtime.findAndHookMethod(BASE+"component.view.c",loader,"getOutline",
@@ -88,6 +123,17 @@ final class CloudTemplateHook {
         bind("page-deopt",() -> Api102Runtime.deoptimizeCallers(Reflect.findClass(BASE+"page.view.a",loader),"draw"));
         bind("media-geometry-deopt",() -> Api102Runtime.deoptimizeCallers(Reflect.findClass(BASE+"component.view.CustomLottieView",loader),"dispatchDraw"));
     }
+    private static void trackPage(Object page) {
+        Object root=Reflect.getObjectField(page,"k");if(!(root instanceof View))return;
+        View view=(View)root;
+        PageSurface surface=pages.computeIfAbsent(view,key -> new PageSurface());
+        surface.apply(view,radius(view));view.invalidateOutline();view.invalidate();
+    }
+    static boolean pageSurface(View view){return pages.containsKey(view);}
+    static Float pageRadius(View view) {
+        PageSurface surface=pages.get(view);if(surface==null)return null;
+        Float corner=radius(view);surface.apply(view,corner);return corner;
+    }
     private static View owner(Drawable drawable) {
         Object callback=drawable.getCallback();
         for(int depth=0;callback instanceof Drawable&&depth<16;depth++)callback=((Drawable)callback).getCallback();
@@ -99,7 +145,7 @@ final class CloudTemplateHook {
         HookConfig c=ShadeHook.snapshot();
         HookConfig.Area notification=NotificationCardHook.containingArea(view);
         // These are flow-template background layers even when hosted by a row.
-        return c.enabled&&c.cloud&&c.cloudCardArea.cornerEnabled&&(notification!=null||CloudHook.inCard(view))?
+        return c.enabled&&c.cloud&&c.cloudCardArea.cornerEnabled&&(notification!=null||CloudHook.inCard(view)||CloudLockHook.flowCapsule(view))?
             c.cloudCardArea.corner*view.getResources().getDisplayMetrics().density:null;
     }
     private static HookCallback mediaGeometry(boolean outline) {
@@ -142,6 +188,9 @@ final class CloudTemplateHook {
         return strength;
     }
     static void refresh() {
+        ArrayList<Map.Entry<View,PageSurface>> surfaces;
+        synchronized(pages){surfaces=new ArrayList<>(pages.entrySet());}
+        for(Map.Entry<View,PageSurface> entry:surfaces)entry.getValue().apply(entry.getKey(),radius(entry.getKey()));
         ArrayList<Drawable> current;synchronized(backgrounds){current=new ArrayList<>(backgrounds.keySet());}
         for(Drawable drawable:current)drawable.invalidateSelf();
         ArrayList<View> views;synchronized(geometryViews){views=new ArrayList<>(geometryViews.keySet());}

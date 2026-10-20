@@ -4,6 +4,7 @@ import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.drawable.ColorDrawable;
+import android.graphics.Color;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -18,7 +19,7 @@ import java.util.function.IntConsumer;
 
 /** Direct color selection using Settings' own color wheel and native swatches. */
 final class SystemSettingsPalette {
-    private static final String WHEEL = "com.oplus.settings.feature.display.atmospherelight.color.AtmosphereLightColorPickRound";
+    private static final String WHEEL = "com.oplus.settings.feature.display.breathinglight.multiled.BreathingLightColorPickRound";
     private SystemSettingsPalette() { }
     static final class Editor {
         final int[] selected;
@@ -47,8 +48,15 @@ final class SystemSettingsPalette {
         wheel.setContentDescription("色环，点选或拖动选择颜色");
         int radius = dp(themed, Math.min(104, Math.max(56, (context.getResources().getConfiguration().screenWidthDp - 144) / 2)));
         int thickness = dp(themed, 24), halo = dp(themed, 16);
-        Reflect.callMethod(wheel, "setCanvasParameter", radius, thickness, halo, null, null,
-            String.format(Locale.ROOT, "#%06X", initial & 0xffffff));
+        float[] hsv = new float[3]; Color.colorToHSV(initial, hsv);
+        // The native continuous wheel interpolates between these RGB stops. The
+        // duplicate end stops occupy no angle and bypass its notification-light
+        // special cases for an "off" segment and a fixed final red segment.
+        int[] spectrum = {Color.RED, Color.RED, Color.YELLOW, Color.GREEN, Color.CYAN,
+            Color.BLUE, Color.MAGENTA, Color.RED, Color.RED};
+        float[] stops = {0f, 0f, 1f / 6, 2f / 6, 3f / 6, 4f / 6, 5f / 6, 1f, 1f};
+        Reflect.callMethod(wheel, "setCanvasParameter", radius, thickness, halo, spectrum, stops,
+            (float)Math.toRadians(hsv[0]));
         wheelArea.addView(wheel, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
         ImageView preview = (ImageView)Reflect.newInstance(Reflect.findClass("com.coui.appcompat.imageview.COUIRoundImageView", loader), themed);
         int circle;
@@ -86,6 +94,8 @@ final class SystemSettingsPalette {
                 View swatch = tones.get(i);
                 Reflect.callMethod(swatch, "setColor", toneColors[i]);
                 boolean checked = (color & 0xffffff) == (toneColors[i] & 0xffffff);
+                for (int previous = 0; previous < i && checked; previous++)
+                    if ((toneColors[previous] & 0xffffff) == (color & 0xffffff)) checked = false;
                 toneTargets.get(i).setSelected(checked);
                 toneLabels.get(i).setText((checked ? "✓ " : "") + toneNames[i]);
                 toneTargets.get(i).setContentDescription((i == 0 ? "原颜色 " : "颜色 ") +
@@ -110,7 +120,7 @@ final class SystemSettingsPalette {
             return null;
         });
         Reflect.callMethod(wheel, "setOnColorSelectedListener", listener);
-        ready[0] = true; // Native listener registration reports its closest preset; preserve arbitrary existing colors.
+        ready[0] = true; // Opening an editor must preserve its exact existing ARGB value.
         LinearLayout strip = new LinearLayout(themed); strip.setGravity(Gravity.CENTER);
         for (int index = 0; index < toneColors.length; index++) {
             final int chosen = index;

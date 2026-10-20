@@ -12,6 +12,7 @@
 | 卡片及动画裁剪 | `common.util.k.c` → `common.util.j.getOutline` | 保存原生半径和动画缩放；实际裁剪半径为 `设置 dp × density / scale`，保留动画 Rect 和平滑权重 |
 | 按压高光 | `seedling.card.ui.view.k.b` | 绘制时更新构造时缓存的 Triple，绘制后或异常后恢复 |
 | 音乐模板裁剪、描边 | `MediaBackGroundView`、`CustomLottieView.i`、`component.view.c.getOutline` | 仅流体云卡片祖先内的背景视图采用卡片半径；不覆盖封面、按钮及普通通知模板 |
+| 普通模板根容器 | `page.entity.t.k`、`page.entity.s.a` → `common.util.j.getOutline` | 精确登记模板根 ViewGroup；同步内容裁剪与原生前景描边，保留动画缩放，替换描边或关闭自定义时恢复原值 |
 | 模板光效 | `component.light.f.draw` → `g.d[6..9]` | 同步四角，在原生遮罩强度 100% 时也生效；恢复 CPU 参数后标记 uniform 重新上传 |
 | SDK 内容、描边、COE 背景 | `g7.f2.s0` → `c0` / `h1` / `e1` | 使用 SDK 原生 `f8.j5`，半径单位保持 dp；实时设置重放现有消费者 |
 | SDK 新光效后端 | `t7.e0.K0` → `c0` / `g0` | 单独更新其缓存样式、两个裁剪宿主及已存在的光效参数，不能只修改 `g7.f2.s0` |
@@ -24,7 +25,7 @@ SDK 只匹配已有展开组件：StatusBar、LockScreen、SecondaryLockScreen�
 
 用户反馈边缘仍有一层不同步后，进一步从同一份 C17 固件确认了两条未覆盖的边缘路径：
 
-- 通知 `NotificationBackgroundView.setRadius(float,float,boolean)` 同时驱动背景层、focus overlay，以及 `NotificationBackgroundViewExtImp.updateRadius()`。后者直接调用 `BaseDrawable.setCornerParams()` 并刷新阴影，绕过 `ViewBlurProxy.applyBlurConfig()`。在 `setRadius` 接收处按当前所属流体云和原生上下圆角动画比例改参，避免依赖可能已被 ART 内联的上游半径 getter；反优化调用者 `ActivatableNotificationView.applyRoundnessAndInvalidate()`。普通通知的传入值保持原样。
+- 通知 `NotificationBackgroundView.setRadius(float,float,boolean)` 同时驱动背景层、focus overlay，以及 `NotificationBackgroundViewExtImp.updateRadius()`。后者直接调用 `BaseDrawable.setCornerParams()` 并刷新阴影，绕过 `ViewBlurProxy.applyBlurConfig()`。在 `setRadius` 接收处按当前所属流体云和原生上下圆角动画比例改参，避免依赖可能已被 ART 内联的上游半径 getter；反优化调用者 `ActivatableNotificationView.applyRoundnessAndInvalidate()`。普通通知按自身通知圆角配置处理，与流体云参数独立。
 - 锁屏 `stroke.StrokeView` 是独立动画边缘视图，`updateViewSize()` 会把每个 `StrokeLayer` 的半径直接重设为当前高度的一半。它不读取 `CapsuleItemView.getActualRadius()`。在该视图绘制期间同步每层原生 shader 半径，按这层自己的当前高度限制，绘制完成或异常后恢复缓存；配置变化会使该独立视图重绘。仅 `CapsuleSeedingData` 所属视图生效。
 
 模板 shader 的形状分支也已核对，但本次没有据此统一改写原生形状类型或平滑权重；本次追加修复针对上述已确认绕过旧入口的路径。
@@ -42,3 +43,14 @@ SDK 只匹配已有展开组件：StatusBar、LockScreen、SecondaryLockScreen�
 `CloudNotificationGeometryCheck` 覆盖流体云总开关、0/64/12/22 dp 实时切换、通知参数隔离、普通通知保留、模板描边/光效、异常恢复、锁屏材质与流体云圆角合并、锁屏原生裁剪和描边源、尺寸限制及关闭恢复。修复前因 Notification 入口仍返回通知半径失败；锁屏边缘专项在缺少 `getActualRadius` Hook 时失败。合成检查不代替手机视觉验收。
 
 追加回归用固件的尺寸重设行为和直接描边更新路径重放，覆盖 0/12/64 dp、分组圆角动画、阴影与 focus overlay、收起高度限制、异常恢复、普通通知复用和关闭恢复。分别移除两处新增修复后，检查因“尺寸重设后独立边缘未使用流体云半径”和“focus overlay / 分组圆角未同步”失败，日志为 `.local/cloud-edge-lock-behavior-red.log`、`.local/cloud-edge-shade-behavior-red.log`；当前实现通过 82 项流体云几何检查。这些主机检查只验证调用参数和生命周期，手机最终边缘外观仍待用户验证。
+
+## 展开与锁屏反馈后的追加修复
+
+继续按同一份 C17 固件的调用顺序核对，确认两处旧检查未覆盖的入口：
+
+- 展开卡片的 `SingleCardPage` 将模板根容器保存在 `page.entity.t.k`。这是普通 `ViewGroup`，此前 `CloudHook.cardSurface()` 不会识别。`page.entity.s.a()` 还会从 `strategy.f.H()` 安装内容 Outline，并独立替换 XML 前景描边。现在在页面构造和模板观察者回调处登记该容器，内容轮廓继续保留原生 Rect、平滑参数和逆动画缩放，前景只更新圆角。页面先构造后挂载时，在首次 Outline 计算处补齐同步；同值不会反复改写 Drawable。更换前景时恢复旧对象，关闭自定义或移出流体云宿主后恢复原生逐角数组。
+- 锁屏 `CapsuleItemView.onClipInfoChange()` 会绕过 `getActualRadius()`，直接把 `CapsuleConfig.getDefaultRadius()` 写入 `AutoRoundRectPathProvider`。现在在该原生方法成功结束后，用 provider 自带的 `updateMetaData(radius, null, null)` 重建圆角缓存，保留它刚计算的裁剪区域、缩放和平滑模式。半径仍限制在当前裁剪高度的一半；普通胶囊和关闭自定义时保持原生行为。
+
+此外，模板的归属检查补上 `CapsuleSeedingData` 锁屏宿主，使锁屏流体云中的模板裁剪、描边和光效也使用卡片参数。
+
+测试先重放上述写回再检查最终消费者，旧实现分别因“普通模板根裁剪仍使用默认值”“锁屏裁剪变化重置内容圆角”失败。首次挂载与锁屏模板归属也各自验证过修复前失败。完整 `scripts/check_effects.py` 通过，其中跨层几何 60 项、通知与锁屏流体云几何 96 项。日志保存在 `.local/cloud-template-root-red.log`、`.local/cloud-clip-change-red.log`、`.local/cloud-template-attach-red.log`、`.local/cloud-lock-template-red.log` 和 `.local/cloud-followup-all-effects.log`。这些检查验证 Hook 参数与生命周期；此次按用户指示不做真机核验。
