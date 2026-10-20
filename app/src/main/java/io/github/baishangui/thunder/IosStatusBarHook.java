@@ -6,6 +6,9 @@ import android.content.res.TypedArray;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.util.TypedValue;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.TextView;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -17,6 +20,9 @@ final class IosStatusBarHook {
     private static boolean enabled;
     static final float ICON_SCALE = 1.12f;
     static final float ICON_SIDE_GAP_DP = 1f;
+    // Scale the original 26dp / 93x55 canvas uniformly, including its padding.
+    static final float BATTERY_WIDTH_DP = 26f * ICON_SCALE;
+    static final float BATTERY_HEIGHT_DP = BATTERY_WIDTH_DP * 55f / 93f;
     static final float BATTERY_WIDTH_SCALE = 1f;
     static final float BATTERY_HEIGHT_SCALE = 1f;
     // C16's body ends at x=85 in its 93-wide canvas; exclude its cap from text.
@@ -101,6 +107,9 @@ final class IosStatusBarHook {
                         // Native null branch clears both the text and Tigo image on every update.
                         if (enabled) p.args[0] = null;
                     }
+                    @Override protected void afterHookedMethod(Param p) {
+                        if (enabled && !p.hasThrowable()) hideMobileBadges(p.thisObject);
+                    }
                 });
             Api102Runtime.findAndHookMethod(binding, loader, "bindRoamingText", boolean.class, new HookCallback() {
                 @Override protected void beforeHookedMethod(Param p) {
@@ -108,6 +117,59 @@ final class IosStatusBarHook {
                 }
             });
         } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-c17-labels", error); }
+        // The collector itself must clear the views after every update: ART can
+        // inline bindNetworkTypeText into this vendor collector on device.
+        try {
+            Api102Runtime.findAndHookMethod(binding+"$bindSubclassFlows$1$1", loader, "emit",
+                Object.class, "kotlin.coroutines.Continuation", new HookCallback() {
+                    @Override protected void afterHookedMethod(Param p) {
+                        if (enabled && !p.hasThrowable())
+                            hideMobileBadges(Reflect.getObjectField(p.thisObject, "this$0"));
+                    }
+                });
+        } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-c17-label-collector", error); }
+        installWifiLabels(loader);
+    }
+
+    private static void installWifiLabels(ClassLoader loader) {
+        String binding="com.oplus.systemui.statusbar.pipeline.OplusWifiSignalExImpl";
+        try {
+            Api102Runtime.findAndHookMethod(binding, loader, "bindEx", ViewGroup.class,
+                "kotlinx.coroutines.flow.MutableStateFlow",
+                "com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.LocationBasedWifiViewModel", new HookCallback() {
+                    @Override protected void afterHookedMethod(Param p) {
+                        if (!enabled || p.hasThrowable() || !(p.args[0] instanceof ViewGroup root)) return;
+                        for (String name : new String[]{"wifi_left", "wifi_left_tv"}) {
+                            int id=root.getResources().getIdentifier(name,"id","com.android.systemui");
+                            if (id!=0) hideBadge(root.findViewById(id));
+                        }
+                    }
+                });
+        } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-wifi-label-init", error); }
+        try {
+            // C17 renders Wi-Fi 4/5/6/6E/7 as either text or an image. This
+            // audited binding owns both alternatives, separate from signal bars.
+            Api102Runtime.findAndHookMethod(binding+"$bindEx$2$1$2$1", loader, "invokeSuspend", Object.class, new HookCallback() {
+                @Override protected void afterHookedMethod(Param p) {
+                    if (!enabled || p.hasThrowable()) return;
+                    hideBadge(Reflect.getObjectField(p.thisObject,"$wifiLeftTv"));
+                    hideBadge(Reflect.getObjectField(p.thisObject,"$wifiLeft"));
+                }
+            });
+        } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-wifi-label-update", error); }
+    }
+
+    private static void hideMobileBadges(Object binding) {
+        if (binding==null) return;
+        for (String field : new String[]{"mobileTypeText","mobileTypeImage","mobileRoamingText"})
+            hideBadge(Reflect.getObjectField(binding,field));
+    }
+
+    private static void hideBadge(Object target) {
+        if (!(target instanceof View view)) return;
+        if (view instanceof TextView text) text.setText(null);
+        view.setContentDescription(null);
+        view.setVisibility(View.GONE);
     }
 
     private static void installHeight(ClassLoader loader) {
@@ -254,7 +316,7 @@ final class IosStatusBarHook {
     }
 
     static String state() {
-        return (enabled ? "style=ios;renderer=resources;signals=status-c16-c17-stacked;battery=status-c16;state=system;icons=112%;height=+4dp;gap=+2dp;battery-width=28dp;battery-height=17dp;battery-text=body-centered;network-text=hidden" : "style=system")
+        return (enabled ? "style=ios;renderer=resources;signals=status-c16-c17-stacked;battery=status-c16;state=system;icons=112%;height=+4dp;gap=+2dp;battery-scale=112%;battery-width="+BATTERY_WIDTH_DP+"dp;battery-height="+BATTERY_HEIGHT_DP+"dp;battery-text=body-centered;network-text=hidden" : "style=system")
             + (enabled != IosStatusIcons.active(ShadeHook.snapshot()) ? ";restart-required=true" : "");
     }
     private IosStatusBarHook() { }

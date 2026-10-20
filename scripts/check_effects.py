@@ -48,7 +48,7 @@ with tempfile.TemporaryDirectory(prefix='thunder-effects-') as folder:
             target = src / path.relative_to(ROOT / 'scripts/fixtures' / fixture)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(path.read_text(encoding='utf-8'), encoding='utf-8')
-    for name in ['StatusBarLayoutHook', 'StatusBarClockHook', 'StatusBarClockTransitionHook', 'VolumeHook', 'VolumeShortcutFeedback', 'VolumeLiquidEntrance', 'VolumePanelGeometry', 'GestureBarHook', 'PanelSaturationHook', 'ShadeHook', 'QsCardHook', 'QsCornerHook', 'NotificationCardHook', 'AdaptiveTextColor', 'AdaptiveTextHook', 'LiveSettings', 'HookConfig', 'SettingsProvider', 'ResourceOverrides', 'Reflect', 'CloudHook', 'CloudCornerGeometry', 'CloudLockHook', 'CloudSdkHook', 'CloudTemplateHook', 'HookEntry', 'StatusBarIcons', 'StatusBarIconHook', 'IosStatusIcons', 'IosStatusBarHook', 'IosStatusResources', 'IosBatteryResources']:
+    for name in ['StatusBarLayoutHook', 'StatusBarClockHook', 'StatusBarClockTransitionHook', 'VolumeHook', 'VolumeShortcutFeedback', 'VolumeLiquidEntrance', 'VolumePanelGeometry', 'GestureBarHook', 'PanelSaturationHook', 'ShadeHook', 'QsCardHook', 'QsCornerHook', 'NotificationCardHook', 'AdaptiveTextColor', 'AdaptiveTextHook', 'LiveSettings', 'HookConfig', 'SettingsProvider', 'ResourceOverrides', 'Reflect', 'CloudHook', 'CloudMorphHook', 'CloudCornerGeometry', 'CloudLockHook', 'CloudSdkHook', 'CloudTemplateHook', 'HookEntry', 'StatusBarIcons', 'StatusBarIconHook', 'IosStatusIcons', 'IosStatusBarHook', 'IosStatusResources', 'IosBatteryResources']:
         path = Path('io/github/baishangui/thunder') / (name + '.java')
         (src / path).write_text((JAVA_SOURCE / path).read_text(encoding='utf-8'), encoding='utf-8')
     # Match generated compiled-resource references without pretending to inflate Android XML.
@@ -86,7 +86,7 @@ with tempfile.TemporaryDirectory(prefix='thunder-effects-') as folder:
             for _ in range(attributes): pos += 6 + u4(pos+2)
     bridge_class.write_bytes(bytecode)
     checks = ['StatusBarLayoutCheck', 'StatusBarClockTransitionCheck', 'ReflectCheck', 'AdaptiveTextPerformanceCheck', 'RuntimeReportCheck', 'ProviderVisibilityCheck', 'SettingsUiProviderCheck', 'VolumePanelCheck', 'VolumeLiquidEntranceCheck', 'GestureBarCheck', 'CardBlendCheck', 'PanelStartFrameCheck', 'HookCheck', 'ProviderCheck', 'CloudCheck', 'CloudLayerCheck', 'CloudLockCheck', 'CloudSdkCheck', 'CloudTemplateCheck', 'StatusBarIconCheck', 'IosStatusBarCheck', 'IosDrawSafetyCheck', 'IosRenderPathCheck', 'IosCoverageCheck', 'QsTintCheck', 'QsStateCheck', 'QsGeometryCheck', 'QsMediaGeometryCheck', 'NotificationStyleCheck', 'NotificationExpansionCheck', 'AdaptiveTextCheck']
-    checks.extend(['PanelSaturationCheck', 'PanelColorContinuityCheck', 'ShortcutPerformanceCheck', 'CloudGeometryCheck', 'CloudNotificationGeometryCheck', 'CloudTemplateReentryCheck', 'CloudCurveCheck', 'CloudCapsuleIsolationCheck'])
+    checks.extend(['PanelSaturationCheck', 'PanelColorContinuityCheck', 'ShortcutPerformanceCheck', 'CloudGeometryCheck', 'CloudNotificationGeometryCheck', 'CloudTemplateReentryCheck', 'CloudCurveCheck', 'CloudCapsuleIsolationCheck', 'CloudMorphCheck'])
     if args.only:
         unknown = set(args.only) - set(checks)
         if unknown: raise SystemExit('Unknown checks: ' + ', '.join(sorted(unknown)))

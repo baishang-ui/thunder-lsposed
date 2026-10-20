@@ -14,6 +14,14 @@ public final class IosDrawSafetyCheck {
         var label=Api102Runtime.callbacks.get("com.oplus.systemui.statusbar.pipeline.mobile.ui.view.OplusStatusBarMobileViewBinder$Os17Binding#bindNetworkTypeText");
         Object model=new Object(); var call=IosStatusBarCheck.param(null,model); label.before(call);
         IosStatusBarCheck.check(call.args[0]==model,"default style preserves network labels until restart");
+        var mobile=new IosRenderPathCheck.MobileUpdate();mobile.this$0.mobileTypeText.setText("5G");
+        var mobileUpdate=Api102Runtime.callbacks.get("com.oplus.systemui.statusbar.pipeline.mobile.ui.view.OplusStatusBarMobileViewBinder$Os17Binding$bindSubclassFlows$1$1#emit");
+        call=IosStatusBarCheck.param(mobile,model,null);mobileUpdate.after(call);
+        IosStatusBarCheck.check(mobile.this$0.mobileTypeText.getVisibility()==0 && "5G".contentEquals(mobile.this$0.mobileTypeText.getText()),"default style preserves network text updates");
+        var wifi=new IosRenderPathCheck.WifiUpdate();wifi.$wifiLeftTv.setText("6");
+        var wifiUpdate=Api102Runtime.callbacks.get("com.oplus.systemui.statusbar.pipeline.OplusWifiSignalExImpl$bindEx$2$1$2$1#invokeSuspend");
+        call=IosStatusBarCheck.param(wifi,model);wifiUpdate.after(call);
+        IosStatusBarCheck.check(wifi.$wifiLeftTv.getVisibility()==0 && "6".contentEquals(wifi.$wifiLeftTv.getText()),"default style preserves Wi-Fi standard text");
         var height=Api102Runtime.callbacks.get("com.android.internal.policy.SystemBarUtils#getStatusBarHeight");
         call=IosStatusBarCheck.param(null,new android.content.Context()); height.before(call); call.setResult(100); height.after(call);
         IosStatusBarCheck.check(call.getResult().equals(100),"default style preserves status height");

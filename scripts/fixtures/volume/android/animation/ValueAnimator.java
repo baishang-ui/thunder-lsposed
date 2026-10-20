@@ -4,7 +4,7 @@ import java.util.*;
 import android.view.animation.PathInterpolator;
 
 /** An explicit frame clock: tests advance real handler interpolation without sleeping. */
-public final class ValueAnimator {
+public final class ValueAnimator extends Animator {
     public static float durationScale=1;
     public static float getDurationScale(){return durationScale;}
     public interface AnimatorUpdateListener {void onAnimationUpdate(ValueAnimator animator);}
@@ -17,12 +17,12 @@ public final class ValueAnimator {
     public void addUpdateListener(AnimatorUpdateListener v){listeners.add(v);}
     public Object getAnimatedValue(){return value;}
     public void removeAllUpdateListeners(){listeners.clear();}
-    public void cancel(){cancelled=true;running.remove(this);}
-    public void start(){running.add(this);advance(0);}
+    public void cancel(){cancelled=true;running.remove(this);super.cancel();}
+    public void start(){running.add(this);dispatchStart();advance(0);}
     public void advance(float t){
         value=from+(to-from)*(t==0||t==1?t:interpolator.getInterpolation(t));
         for(AnimatorUpdateListener l:new ArrayList<>(listeners))l.onAnimationUpdate(this);
-        if(t>=1)running.remove(this);
+        if(t>=1){running.remove(this);dispatchEnd();}
     }
     public static void finishAll(){for(ValueAnimator a:new ArrayList<>(running))a.advance(1);}
 }

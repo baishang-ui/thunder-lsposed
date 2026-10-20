@@ -219,18 +219,26 @@ def main(c16, c17, aapt2):
             for suffix in ('', '_error'):
                 manifest['overrides'][f'ic_wifi_{level}{suffix}'] = f'stat_signal_wifi_signal_{source_level}_os17'
 
-        # Adapt C16 battery art to C17's native fill API. The fill is the exact
-        # source body path, cropped to its bounds, with the system owning clipping.
+        # C17 assigns the same bounds to background and progress drawables.
+        # Preserve the original proportions and padding. Scaling only the body
+        # height would turn the battery into a short, tall shape.
+        original_battery = vector(battery.xml('stat_battery_horizontal_bg'))
+        icon_scale = float(re.search(r'ICON_SCALE = ([0-9.]+)f',
+            (ROOT/'app/src/main/java/io/github/baishangui/thunder/IosStatusBarHook.java').read_text())[1])
+        battery_width = float(original_battery.get(NS+'width')[:-2]) * icon_scale
+        battery_height = battery_width * 55/93
+        def battery_canvas():
+            return ET.Element('vector', {NS+'width': f'{battery_width:.9g}dp', NS+'height': f'{battery_height:.9g}dp',
+                NS+'viewportWidth': '93', NS+'viewportHeight': '55'})
         for name in ('stat_battery_horizontal_bg', 'stat_battery_horizontal_frame', 'stat_battery_horizontal_percent_out_bg'):
-            tree = vector(battery.xml(name))
-            tree.set(NS+'width', '28dp'); tree.set(NS+'height', '17dp')
-            save(name, tree, battery, name, 'C16 battery paths; normalized C17 28x17dp frame')
-        tree = ET.Element('vector', {NS+'width': f'{28*85/93:g}dp', NS+'height': f'{17*45/55:g}dp',
-            NS+'viewportWidth': '85', NS+'viewportHeight': '45'})
-        group = ET.SubElement(tree, 'group', {NS+'translateY': '-5'})
-        group.append(copy.deepcopy(next(battery.xml('stat_battery_horizontal_bg').iter('path'))))
+            tree = battery_canvas()
+            for path in vector(battery.xml(name)):
+                tree.append(copy.deepcopy(path))
+            save(name, tree, battery, name, 'C16 battery paths and original 93x55 canvas; uniform 112 percent enlargement')
+        tree = battery_canvas()
+        tree.append(copy.deepcopy(next(battery.xml('stat_battery_horizontal_bg').iter('path'))))
         save('stat_battery_horizontal_progress_bg', tree, battery, 'stat_battery_horizontal_bg',
-             'C16 body path cropped to x=0..85,y=5..50 for native C17 progress clipping')
+             'C16 body path and original 93x55 canvas; uniform 112 percent enlargement matching the background')
         aliases = {'stat_battery_horizontal_percent_out_no_padding_bg': 'stat_battery_horizontal_percent_out_bg',
                    'stat_battery_horizontal_percent_out_progress_bg': 'stat_battery_horizontal_progress_bg',
                    'stat_battery_horizontal_percent_out_no_padding_progress_bg': 'stat_battery_horizontal_progress_bg'}
@@ -242,17 +250,18 @@ def main(c16, c17, aapt2):
             ET.SubElement(item, 'clip', {NS+'drawable': '@drawable/stat_battery_horizontal_progress_bg',
                 NS+'clipOrientation': 'horizontal', NS+'gravity': 'left'})
             save(name, tree, battery, 'stat_battery_horizontal_progress', 'C17 native progress ID and clip around C16 battery body')
-        # These are C16 body bounds expressed in the normalized C17 frame.
+        # The artwork contains its padding. Legacy ProgressBar consumers must
+        # also receive the full frame instead of applying that padding twice.
         # No vertical-battery or ADB dimensions from the second pack are retained.
         manifest['dimensions'].update({name: bluetooth.dimensions[name]
             for name in ('stat_bt_battery_height', 'stat_bt_battery_width')})
         manifest['dimensions'].update({
-            'status_bar_battery_horizontal_width': 28.0, 'status_bar_battery_horizontal_height': 17.0,
+            'status_bar_battery_horizontal_width': battery_width, 'status_bar_battery_horizontal_height': battery_height,
             'status_bar_battery_horizontal_progress_start': 0.0,
-            'status_bar_battery_horizontal_progress_end': 28*8/93,
-            'status_bar_battery_horizontal_progress_top': 17*5/55,
-            'status_bar_battery_horizontal_progress_bottom': 17*5/55,
-            'battery_progress_corner_radius': 17*9/55,
+            'status_bar_battery_horizontal_progress_end': 0.0,
+            'status_bar_battery_horizontal_progress_top': 0.0,
+            'status_bar_battery_horizontal_progress_bottom': 0.0,
+            'battery_progress_corner_radius': battery_width*9/93,
             'battery_percent_in_text_size': 10.0, 'battery_percent_in_text_margin_top': 0.14,
             'battery_percent_in_text_offset_x': 0.0, 'battery_percent_in_text_offset_y': 0.25,
             'signal_cluster_battery_padding': 1.2,

@@ -77,6 +77,7 @@ import androidx.compose.ui.text.style.TextAlign
     val resources = LocalResources.current
     val density = LocalDensity.current.density
     val battery = symbol.kind() == IosStatusIcons.Kind.BATTERY
+    val batteryHeight = IosStatusBarHook.BATTERY_HEIGHT_DP
     val name = previewResource(symbol)
     val id = IosStatusResources.replacement("com.android.systemui:drawable/$name")
     // The theme leaves some icons (including rotation lock and hotspot) native.
@@ -90,7 +91,7 @@ import androidx.compose.ui.text.style.TextAlign
         return
     }
     val width = if (symbol.row() > 0 || symbol.kind() == IosStatusIcons.Kind.CELLULAR) 22f
-        else if (battery) 28f else (drawable.intrinsicWidth / density).coerceIn(16f, 30f) + 3f
+        else if (battery) IosStatusBarHook.BATTERY_WIDTH_DP else (drawable.intrinsicWidth / density).coerceIn(16f, 30f) + 3f
     val asset = remember(drawable) {
         drawable.toBitmap(width = drawable.intrinsicWidth.coerceAtLeast(1),
             height = drawable.intrinsicHeight.coerceAtLeast(1)).asImageBitmap()
@@ -99,18 +100,18 @@ import androidx.compose.ui.text.style.TextAlign
         .semantics { contentDescription = label }, contentAlignment = Alignment.CenterStart) {
         Image(asset, contentDescription = null, contentScale = ContentScale.Fit,
             colorFilter = ColorFilter.tint(color), alpha = if (battery) .25f else 1f,
-            modifier = if (battery) Modifier.size(width.dp, 17.dp) else Modifier.fillMaxSize().padding(end = 3.dp))
+            modifier = if (battery) Modifier.size(width.dp, batteryHeight.dp) else Modifier.fillMaxSize().padding(end = 3.dp))
         if (battery) {
             val level = symbol.level().coerceIn(0, 100)
             val progress = remember(resources, level) {
                 resources.getDrawable(R.drawable.thunder_ios_stat_battery_horizontal_progress, null)!!.mutate().apply {
                     this.level = level * 100
                 }.toBitmap(width = with(androidx.compose.ui.unit.Density(density)) { width.dp.roundToPx() }.coerceAtLeast(1),
-                    height = with(androidx.compose.ui.unit.Density(density)) { 17.dp.roundToPx() }.coerceAtLeast(1)).asImageBitmap()
+                    height = with(androidx.compose.ui.unit.Density(density)) { batteryHeight.dp.roundToPx() }.coerceAtLeast(1)).asImageBitmap()
             }
             Image(progress, contentDescription = null, colorFilter = ColorFilter.tint(color),
-                modifier = Modifier.size(width.dp, 17.dp))
-            Box(Modifier.width((width * IosStatusBarHook.BATTERY_BODY_FRACTION).dp).height(17.dp),
+                modifier = Modifier.size(width.dp, batteryHeight.dp))
+            Box(Modifier.width((width * IosStatusBarHook.BATTERY_BODY_FRACTION).dp).height(batteryHeight.dp),
                 contentAlignment = Alignment.Center) {
                 Text(level.toString(), color = cutout, fontSize = with(LocalDensity.current) { 10.dp.toSp() },
                     fontWeight = FontWeight.Bold, maxLines = 1)

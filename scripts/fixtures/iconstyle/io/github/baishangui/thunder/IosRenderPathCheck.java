@@ -5,6 +5,18 @@ import android.content.res.TypedArray;
 import android.graphics.drawable.VectorDrawable;
 
 public final class IosRenderPathCheck {
+    static final class MobileBadges {
+        final android.widget.TextView mobileTypeText=new android.widget.TextView();
+        final android.widget.ImageView mobileTypeImage=new android.widget.ImageView();
+        final android.widget.TextView mobileRoamingText=new android.widget.TextView();
+    }
+    static final class MobileUpdate {
+        final MobileBadges this$0=new MobileBadges();
+    }
+    static final class WifiUpdate {
+        final android.widget.ImageView $wifiLeft=new android.widget.ImageView();
+        final android.widget.TextView $wifiLeftTv=new android.widget.TextView();
+    }
     static void check(boolean value,String message) { IosStatusBarCheck.check(value,message); }
     public static void main(String[] args) throws Throwable {
         IosStatusBarCheck.config(true,1);
@@ -35,7 +47,7 @@ public final class IosRenderPathCheck {
         check(Math.abs((Float)call.getResult())<.001f,"C16 body starts at the left edge of the normalized battery");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_battery_horizontal_progress_end";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
-        check(Math.abs((Float)call.getResult()-(28f*8f/93f)*host.getDisplayMetrics().density)<.001f,"progress excludes the C16 battery cap at host density");
+        check(Math.abs((Float)call.getResult())<.001f,"legacy progress keeps the full canvas instead of applying source padding twice");
         host=new Resources(); host.full="foreign:dimen/status_bar_battery_horizontal_progress_start";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
         check(call.getResult().equals(99f),"battery dimensions are isolated to SystemUI");
@@ -44,7 +56,7 @@ public final class IosRenderPathCheck {
         HookCallback getValue=Api102Runtime.callbacks.get(Resources.class.getName()+"#getValue");
         call=IosStatusBarCheck.param(host,1,value,true); getValue.after(call);
         check(value.type==android.util.TypedValue.TYPE_DIMENSION,"raw dimension consumers receive a dimension");
-        check(Math.abs((value.data >> 8)/32768f-28f)<.0001f && (value.data & 15)==1,"raw dimension value matches the 28dp battery width");
+        check(Math.abs((value.data >> 8)/32768f-IosStatusBarHook.BATTERY_WIDTH_DP)<.0001f && (value.data & 15)==1,"raw dimension value matches the uniformly enlarged battery width");
         check(Math.abs((IosStatusBarHook.complexDimension(4.92f)>>8)/32768f-4.92f)<.0001f,"raw fractional dimensions retain subpixel precision");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_wifi_signal_size";
         call=IosStatusBarCheck.param(host,1); call.setResult(30f); dimension.after(call);
@@ -63,27 +75,29 @@ public final class IosRenderPathCheck {
         check((value.data&15)==2 && Math.abs((value.data>>8)/32768f-16.8f)<.0001f,"native SP dimensions retain font-scale units after scaling");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_battery_horizontal_height";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
-        check(Math.abs((Float)call.getResult()-17f*host.getDisplayMetrics().density)<.001f,"horizontal battery preserves 17dp height with a compact 28dp width");
+        check(Math.abs((Float)call.getResult()-IosStatusBarHook.BATTERY_HEIGHT_DP*host.getDisplayMetrics().density)<.001f,"horizontal battery height preserves the original 93x55 canvas proportions");
+        check(Math.abs(IosStatusBarHook.BATTERY_WIDTH_DP/93f-IosStatusBarHook.BATTERY_HEIGHT_DP/55f)<.000001f,"horizontal and vertical enlargement use the same scale");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_battery_horizontal_progress_top";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
-        check(Math.abs((Float)call.getResult()-(17f*5f/55f)*host.getDisplayMetrics().density)<.001f,"progress is aligned to the C16 body's y=5 outline");
+        check(Math.abs((Float)call.getResult())<.001f,"background and progress share the full original canvas");
         host=new Resources(); host.full="com.android.systemui:dimen/battery_percent_in_text_size";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
         check(Math.abs((Float)call.getResult()-10f*host.getDisplayMetrics().density)<.001f,"internal percentage returns to the 17dp battery height scale");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_battery_horizontal_height";
         value=new android.util.TypedValue(); call=IosStatusBarCheck.param(host,1,value,true); getValue.after(call);
-        check(Math.abs((value.data>>8)/32768f-17f)<.0001f,"raw and getter battery heights agree");
+        check(Math.abs((value.data>>8)/32768f-IosStatusBarHook.BATTERY_HEIGHT_DP)<.0001f,"raw and getter battery heights agree");
         String batteryType="com.oplus.systemui.statusbar.pipeline.battery.ui.drawable.HorizontalBatteryContentDrawable";
         HookCallback bodyLayout=Api102Runtime.callbacks.get(batteryType+"#getBodyRectForLayout");
         HookCallback fallbackOffset=Api102Runtime.callbacks.get(batteryType+"#getOffsetX");
         var battery=new com.oplus.systemui.statusbar.pipeline.battery.ui.drawable.HorizontalBatteryContentDrawable();
         for (float density : new float[]{1f, 2.75f, 3.5f}) for (boolean rtl : new boolean[]{false,true}) {
             battery.rtl=rtl;
-            var content=new android.graphics.RectF(3f*density,2f*density,31f*density,19f*density);
+            var content=new android.graphics.RectF(3f*density,2f*density,
+                (3f+IosStatusBarHook.BATTERY_WIDTH_DP)*density,(2f+IosStatusBarHook.BATTERY_HEIGHT_DP)*density);
             battery.rect=content;
             var body=battery.getBodyRectForLayout(content);
             call=IosStatusBarCheck.param(battery,content);call.setResult(body);bodyLayout.after(call);
-            float cap=28f*density*(1f-85f/93f);
+            float cap=IosStatusBarHook.BATTERY_WIDTH_DP*density*(1f-85f/93f);
             check(Math.abs(body.left-(content.left+(rtl?cap:0)))<.001f && Math.abs(body.right-(content.right-(rtl?0:cap)))<.001f,"text layout excludes the C16 battery cap in LTR and RTL");
             check(body.top==content.top && body.bottom==content.bottom,"text centering preserves vertical layout");
             for (String digits : new String[]{"7","75","100"}) {
@@ -106,6 +120,34 @@ public final class IosRenderPathCheck {
         HookCallback label=Api102Runtime.callbacks.get("com.oplus.systemui.statusbar.pipeline.mobile.ui.view.OplusStatusBarMobileViewBinder$Os17Binding#bindNetworkTypeText");
         call=IosStatusBarCheck.param(null,new Object()); label.before(call);
         check(call.args[0]==null,"C17 text-based 5G and vendor image labels follow the native clear branch");
+        var mobile=new MobileUpdate();
+        HookCallback mobileUpdate=Api102Runtime.callbacks.get("com.oplus.systemui.statusbar.pipeline.mobile.ui.view.OplusStatusBarMobileViewBinder$Os17Binding$bindSubclassFlows$1$1#emit");
+        check(mobileUpdate!=null,"C17 network collector must hide labels even when ART inlines the binder");
+        for(String text:new String[]{"5G","5G+","4G","5G"}) {
+            mobile.this$0.mobileTypeText.setText(text);mobile.this$0.mobileTypeText.setVisibility(0);
+            mobile.this$0.mobileTypeImage.setVisibility(0);mobile.this$0.mobileRoamingText.setVisibility(0);
+            call=IosStatusBarCheck.param(mobile,new Object(),null);mobileUpdate.after(call);
+            check(mobile.this$0.mobileTypeText.getVisibility()==8 && mobile.this$0.mobileTypeText.getText()==null
+                && mobile.this$0.mobileTypeImage.getVisibility()==8 && mobile.this$0.mobileRoamingText.getVisibility()==8,"network update cannot re-show text or image badges");
+        }
+        var wifi=new WifiUpdate();
+        HookCallback wifiUpdate=Api102Runtime.callbacks.get("com.oplus.systemui.statusbar.pipeline.OplusWifiSignalExImpl$bindEx$2$1$2$1#invokeSuspend");
+        check(wifiUpdate!=null,"Wi-Fi standard text updates need a scoped binding hook");
+        for(String text:new String[]{"4","5","6","6E","7"}) {
+            wifi.$wifiLeftTv.setText(text);wifi.$wifiLeftTv.setVisibility(0);wifi.$wifiLeft.setVisibility(0);
+            call=IosStatusBarCheck.param(wifi,new Object());wifiUpdate.after(call);
+            check(wifi.$wifiLeftTv.getVisibility()==8 && wifi.$wifiLeftTv.getText()==null && wifi.$wifiLeft.getVisibility()==8,"Wi-Fi digits and image alternatives stay hidden: "+text);
+        }
+        var wifiRoot=new android.view.ViewGroup();
+        wifiRoot.res.ids.put("wifi_left",201);wifiRoot.res.ids.put("wifi_left_tv",202);
+        wifi.$wifiLeft.id=201;wifi.$wifiLeftTv.id=202;
+        wifiRoot.addView(wifi.$wifiLeft);wifiRoot.addView(wifi.$wifiLeftTv);
+        var signal=new android.widget.ImageView();signal.id=203;wifiRoot.addView(signal);
+        wifi.$wifiLeftTv.setText("6");wifi.$wifiLeftTv.setVisibility(0);wifi.$wifiLeft.setVisibility(0);
+        var wifiInit=Api102Runtime.callbacks.get("com.oplus.systemui.statusbar.pipeline.OplusWifiSignalExImpl#bindEx");
+        check(wifiInit!=null,"initial Wi-Fi binding also hides the badge");
+        call=IosStatusBarCheck.param(null,wifiRoot,new Object(),new Object());wifiInit.after(call);
+        check(wifi.$wifiLeftTv.getVisibility()==8 && wifi.$wifiLeft.getVisibility()==8 && signal.getVisibility()==0,"badge hiding preserves the Wi-Fi signal view");
         HookCallback roaming=Api102Runtime.callbacks.get("com.oplus.systemui.statusbar.pipeline.mobile.ui.view.OplusStatusBarMobileViewBinder$Os17Binding#bindRoamingText");
         call=IosStatusBarCheck.param(null,true); roaming.before(call); check(Boolean.FALSE.equals(call.args[0]),"C17 roaming text stays hidden after updates");
         HookCallback height=Api102Runtime.callbacks.get("com.android.internal.policy.SystemBarUtils#getStatusBarHeight");

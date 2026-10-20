@@ -73,6 +73,7 @@ final class CloudHook {
         // Do not mark an unrelated/host loader as installed after failed resolution.
         Reflect.findClass(BASE+"capsule.ui.view.CapsuleContainer",loader);
         installed.put(loader,true);
+        CloudMorphHook.install(loader);
         CloudSdkHook.watch(loader);
         CloudTemplateHook.install(loader);
         bind(loader,"corner-config",() -> {
@@ -99,6 +100,7 @@ final class CloudHook {
             @Override protected void beforeHookedMethod(Param p) {
                 if(!(p.args[0] instanceof View))return;
                 View view=(View)p.args[0];
+                if(CloudMorphHook.ownsOutline(view.getOutlineProvider()))return;
                 boolean page=CloudTemplateHook.pageSurface(view);
                 if(CloudLockHook.inNativeCapsule(view)) {
                     if(page)CloudTemplateHook.pageRadius(view); // Restore a reused expanded foreground on its first mini-card outline.
@@ -353,7 +355,7 @@ final class CloudHook {
             if(gradient.getColor()!=null||gradient.getColors()!=null)fills.add(drawable);
         }
     }
-    private static void remember(Drawable drawable,java.util.ArrayList<Runnable> restore) {
+    static void remember(Drawable drawable,java.util.ArrayList<Runnable> restore) {
         if(drawable!=null) {
             android.graphics.ColorFilter filter=drawable.getColorFilter();
             restore.add(() -> drawable.setColorFilter(filter));
@@ -374,8 +376,13 @@ final class CloudHook {
             LayerDrawable layers=(LayerDrawable)drawable;
             for(int i=0;i<layers.getNumberOfLayers();i++)remember(layers.getDrawable(i),restore);
         } else if(drawable instanceof DrawableWrapper)remember(((DrawableWrapper)drawable).getDrawable(),restore);
+        else if(drawable!=null&&drawable.getClass().getName().equals(BASE+"util.d")) {
+            Object corners=Reflect.getObjectField(drawable,"d");
+            restore.add(() -> Reflect.setObjectField(drawable,"d",corners));
+        }
     }
     static void refresh() {
+        CloudMorphHook.refresh();
         java.util.ArrayList<View> parents;
         synchronized(outlines){parents=new java.util.ArrayList<>(outlines.keySet());}
         for(View view:parents){view.invalidateOutline();view.invalidate();}
@@ -442,7 +449,7 @@ final class CloudHook {
         }
         view.invalidate();
     }
-    private static void round(Drawable drawable,float radius) {
+    static void round(Drawable drawable,float radius) {
         if(drawable==null)return;
         drawable=drawable.mutate();
         if(drawable instanceof GradientDrawable) {

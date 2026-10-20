@@ -37,7 +37,7 @@ def vector(name, color, width=100, height=80):
                 result += f'<path d="{html.escape(node.get(NS+"pathData"), quote=True)}" fill="{color}" fill-opacity="{fa*float(node.get(NS+"fillAlpha",1))}" fill-rule="{rule}" stroke="{color}" stroke-opacity="{sa*float(node.get(NS+"strokeAlpha",1))}" stroke-width="{node.get(NS+"strokeWidth",0)}" stroke-linecap="{node.get(NS+"strokeLineCap","butt")}" stroke-linejoin="{node.get(NS+"strokeLineJoin","miter")}"/>'
         return result
 
-    svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {tree.get(NS+"viewportWidth")} {tree.get(NS+"viewportHeight")}">{nodes(tree)}</svg>'
+    svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" preserveAspectRatio="xMidYMid meet" viewBox="0 0 {tree.get(NS+"viewportWidth")} {tree.get(NS+"viewportHeight")}">{nodes(tree)}</svg>'
     try:
         import cairosvg
     except ImportError:
@@ -87,14 +87,17 @@ def main():
         icon = vector(f'stat_signal_wifi_signal_{level}_os17', '#15171b', 64, 48)
         im.paste(icon, (36+level*90, 850), icon)
         draw.text((68+level*90,910), str(level), anchor='mt', fill='#636975', font=small)
-    draw.text((574, 812), 'C16 横向电池 · 28 × 17dp', fill='#30343b', font=body)
-    battery = vector('stat_battery_horizontal_bg', '#15171b', 84, 51)
+    draw.text((574, 812), 'C16 横向电池 · 原图等比放大 12%', fill='#30343b', font=body)
+    battery_tree=ET.parse(RES/'thunder_ios_stat_battery_horizontal_bg.xml').getroot()
+    battery_width=round(float(battery_tree.get(NS+'width')[:-2])*3)
+    battery_height=round(float(battery_tree.get(NS+'height')[:-2])*3)
+    battery = vector('stat_battery_horizontal_bg', '#15171b', battery_width, battery_height)
     for index, text in enumerate(['7', '75', '100']):
         x, y = 584+index*140, 856
         im.paste(battery, (x, y), battery)
         digits = font(26)
         left, top, right, bottom = draw.textbbox((0, 0), text, font=digits)
-        draw.text((x+84*(85/93)/2-(left+right)/2, y+51/2-(top+bottom)/2), text, fill='white', font=digits)
+        draw.text((x+battery_width*(85/93)/2-(left+right)/2, y+battery_height/2-(top+bottom)/2), text, fill='white', font=digits)
     draw.text((36, 960), '离线资源预览；电量、充电状态、双卡排列与亮暗颜色由系统控制。', fill='#636975', font=small)
     im.save(ROOT / 'docs/status-icons-preview.png')
 

@@ -131,21 +131,32 @@ for name in ('stat_signal_wifi_6','stat_signal_wifi_7','stat_signal_wifi_double_
              'stat_signal_activity_wifi_inout_os17','stat_signal_connected_5g','stat_signal_volte'):
     assert name in names,'Transparent badge suppression must remain available'
     assert all(p.get(NS+'fillColor')=='#00000000' for p in xml(name).iter('path'))
-assert theme['dimensions']['status_bar_battery_horizontal_width']==28
-assert theme['dimensions']['status_bar_battery_horizontal_height']==17
-assert abs(theme['dimensions']['status_bar_battery_horizontal_progress_end']-28*8/93)<.00001
-assert abs(theme['dimensions']['status_bar_battery_horizontal_progress_top']-17*5/55)<.00001
 background=xml('stat_battery_horizontal_bg')
+battery_width=float(background.get(NS+'width')[:-2])
+battery_height=float(background.get(NS+'height')[:-2])
+assert abs(battery_width/93-battery_height/55)<.000001, 'Battery artwork must enlarge uniformly in both axes using the original 93x55 canvas'
+assert abs(theme['dimensions']['status_bar_battery_horizontal_width']-26*1.12)<.000001
+assert abs(theme['dimensions']['status_bar_battery_horizontal_height']-26*1.12*55/93)<.000001
+for edge in ('start','end','top','bottom'):
+    assert theme['dimensions']['status_bar_battery_horizontal_progress_'+edge]==0, 'Padding is already in the shared artwork canvas'
 fill=xml('stat_battery_horizontal_progress_bg')
+assert float(background.get(NS+'viewportHeight'))==55, 'Retain the original battery canvas and vertical padding'
+# C17 gives both drawables the same bounds. A separately cropped fill viewport would be
+# stretched to those full bounds and paint outside the background silhouette.
+for attr in ('width','height','viewportWidth','viewportHeight'):
+    assert background.get(NS+attr)==fill.get(NS+attr), (attr,'battery fill must share the background canvas at native bounds')
 assert next(background.iter('path')).get(NS+'pathData')==next(fill.iter('path')).get(NS+'pathData')
-assert fill.find('group').get(NS+'translateY')=='-5'
-assert float(fill.get(NS+'viewportWidth'))==85 and float(fill.get(NS+'viewportHeight'))==45
-assert abs((28-theme['dimensions']['status_bar_battery_horizontal_progress_end'])/85-28/93)<.00001
-assert abs((17-2*theme['dimensions']['status_bar_battery_horizontal_progress_top'])/45-17/55)<.00001
+assert background.find('group') is None and fill.find('group') is None, 'Do not crop or stretch the original battery proportions'
+assert float(fill.get(NS+'viewportWidth'))==93 and float(fill.get(NS+'viewportHeight'))==55
+assert abs(battery_width-29.12)<.000001 and abs(battery_height*(50-5)/55-26*1.12*45/93)<.000001
+for name in ('stat_battery_horizontal_percent_out_progress_bg','stat_battery_horizontal_percent_out_no_padding_progress_bg'):
+    assert theme['overrides'][name]=='stat_battery_horizontal_progress_bg'
+    if name in names:
+        assert geometry(xml(name))==geometry(fill), 'All native percentage branches need the shared canvas'
 for name in ('stat_battery_horizontal_progress','stat_battery_horizontal_percent_out_progress','stat_battery_horizontal_percent_out_no_padding_progress'):
     item=xml(name).find('item');assert item.get(NS+'id')=='@android:id/progress';assert item.find('clip').get(NS+'clipOrientation')=='horizontal'
 hook=(JAVA/'IosStatusBarHook.java').read_text(encoding='utf-8')
-for forbidden in ('Canvas','Paint','SignalDrawable','getPowerLevel','getLevel(','"dispatchDraw"','"onDraw"','setImageDrawable','setImageResource','StateFlow','BatteryViewBinder','new IosIconDrawable'):
+for forbidden in ('Canvas','Paint','SignalDrawable','getPowerLevel','getLevel(','"dispatchDraw"','"onDraw"','setImageDrawable','setImageResource','StateFlowImpl','BatteryViewBinder','new IosIconDrawable'):
     assert forbidden not in hook,forbidden
 settings=(ROOT/'app/src/main/kotlin/io/github/baishangui/thunder/StatusIconSettings.kt').read_text(encoding='utf-8')
 assert '需重启系统界面' in settings and '切回系统默认' in settings

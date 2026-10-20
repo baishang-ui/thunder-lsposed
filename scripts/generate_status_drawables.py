@@ -135,7 +135,7 @@ def main():
         '        return switch(name) {', *xml_mapping, '            default -> 0;',
         '        };', '    }', '    static Float dimension(String name) {',
         '        return switch(name) {',
-        *[f'            case "com.android.systemui:dimen/{name}" -> {value:g}f;' for name, value in THEME['dimensions'].items()],
+        *[f'            case "com.android.systemui:dimen/{name}" -> {value:.9g}f;' for name, value in THEME['dimensions'].items()],
         '            default -> null;', '        };', '    }',
         '    private IosStatusResources() { }', '}', '']))
     print(f'Prepared {len(mapping)} native Android drawable resources.')
