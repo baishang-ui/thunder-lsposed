@@ -110,8 +110,12 @@ final class QsCardHook {
         bind("notification-top-rebuild",() -> Api102Runtime.findAndHookMethod(TOP_CARD,loader,"onDrawableUpdate",java.util.List.class,boolean.class,owner));
     }
     private static void trackNotificationTopCard(Object tile) {
-        QsCornerHook.trackCard((Drawable)Reflect.getObjectField(tile,"mBgDrawable"));
-        trackCardSurface((Drawable)Reflect.getObjectField(tile,"mBgDrawable"));
+        // mBgDrawable on OplusQSHighlightTileView is a TileDrawableWrapper (extends DrawableWrapper),
+        // not a MixColorTileDrawable directly. trackCardSurface walks DrawableWrapper chains
+        // to reach the inner drawable and mark the blur proxy; call it on both drawables.
+        Drawable bg = (Drawable)Reflect.getObjectField(tile,"mBgDrawable");
+        QsCornerHook.trackCard(bg);
+        trackCardSurface(bg);
     }
     private static void installControlCenterTwoXOne(ClassLoader loader) {
         // Separate control center uses SepQSResPool and bgDrawable/themeDrawable, not mBgDrawable.

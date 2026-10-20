@@ -43,8 +43,12 @@ final class NotificationCardHook {
     static HookConfig.Area containingArea(View view) {
         for(int depth=0;view!=null&&depth<32;depth++) {
             // Match by class name as templates may come from the plugin loader.
+            // On this firmware mBackgroundNormal lives on ActivatableNotificationView
+            // (the direct parent), so match any class in the ExpandableNotificationRow
+            // hierarchy rather than only the exact leaf class.
             for(Class<?> type=view.getClass();type!=null;type=type.getSuperclass()) {
-                if(type.getName().equals(ROW+"ExpandableNotificationRow")) {
+                String n=type.getName();
+                if(n.equals(ROW+"ExpandableNotificationRow")||n.equals(ROW+"ActivatableNotificationView")) {
                     Object background=Reflect.getObjectField(view,"mBackgroundNormal");
                     return background instanceof View?area((View)background):null;
                 }

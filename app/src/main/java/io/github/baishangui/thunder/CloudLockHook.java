@@ -52,7 +52,15 @@ final class CloudLockHook {
             String name=view.getClass().getName();
             if(name.equals(LOCK+"CapsuleItemView")) {
                 Object entry=Reflect.callMethod(view,"getEntry");
-                return entry!=null&&entry.getClass().getName().equals("com.oplus.systemui.notification.lockscreen.seedling.CapsuleSeedingData");
+                if(entry==null)return false;
+                // CapsuleSeedingData extends CapsuleItemData; check the full class
+                // hierarchy so subclasses introduced by future firmware updates
+                // also pass without requiring a code change.
+                for(Class<?> c=entry.getClass();c!=null;c=c.getSuperclass()) {
+                    if(c.getName().equals("com.oplus.systemui.notification.lockscreen.seedling.CapsuleSeedingData"))
+                        return true;
+                }
+                return false;
             }
             if(name.equals(LOCK+"NotificationCapsuleContainer")) {
                 Object base=Reflect.callMethod(view,"getBaseCard");
