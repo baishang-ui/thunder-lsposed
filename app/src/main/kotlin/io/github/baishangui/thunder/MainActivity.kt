@@ -172,7 +172,6 @@ class MainActivity : ComponentActivity() {
                                     verticalArrangement=Arrangement.spacedBy(20.dp)) {
                                     val currentDetail = destination.detail
                                     if (currentDetail != null) {
-                                        SettingsPreview(currentDetail, draft)
                                         when (currentDetail) {
                                             SettingsPage.Appearance -> AppearanceSettings(draft) { editor.draft = it }
                                             SettingsPage.Configuration -> {
