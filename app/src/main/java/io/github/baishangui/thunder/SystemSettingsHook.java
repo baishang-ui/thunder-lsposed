@@ -256,17 +256,18 @@ final class SystemSettingsHook {
             Object screen = Reflect.callMethod(fragment, "getPreferenceScreen");
             if (screen == null || Reflect.callMethod(fragment, "findPreference", ENTRY) != null) return;
             Context context = context(fragment);
-            // Place the entry directly on the screen without a wrapper category: an empty-title
-            // category produces no visible header and COUIPreferenceItemDecoration does not insert
-            // spacing between it and the next group, so the entry would appear flush against the
-            // native account card. A bare preference with order -1 sorts first and lets the
-            // decoration handle inter-item spacing naturally.
+            // An empty-title SettingsPreferenceCategory still provides the correct top padding
+            // via its item view layout, keeping visual separation between this group and
+            // whatever is adjacent. A bare preference has no such padding and sits flush.
+            // order=1 places the group after the account card (order=0) and before the first
+            // native category (order≥100); order=-1 would insert it above the account card.
+            Object group = category(loader, context, screen, "thunder:entry_group", "");
+            Reflect.callMethod(group, "setOrder", 1);
             Object pref = jump(loader, context, ENTRY, "thunder", true);
-            Reflect.callMethod(pref, "setOrder", -1);
             int icon = resource(context, "settings_personalise_ic", "drawable");
             if (icon != 0) Reflect.callMethod(pref, "setIcon", icon);
             click(pref, loader, () -> open(context, "home", "thunder"));
-            Reflect.callMethod(screen, "addPreference", pref);
+            Reflect.callMethod(group, "addPreference", pref);
         } catch (Throwable error) { Log.e("ThunderSettings", "Cannot add Settings entry", error); }
     }
     private static void open(Context context, String page, String title) {
