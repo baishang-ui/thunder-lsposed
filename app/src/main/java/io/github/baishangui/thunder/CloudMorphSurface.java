@@ -86,10 +86,13 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     private final View.OnLayoutChangeListener cardGeometryChanged=(view,l,t,r,b,oldL,oldT,oldR,oldB)->queueCardGeometry();
     private HookConfig styledConfig;
     private View styledCapsule;
-    private Drawable nativeCapsuleBackground,styledBackground,cardDecoration;
+    private Drawable nativeCapsuleBackground,styledBackground,styledForeground,cardDecoration;
+    private Drawable roundedCardDecoration;
+    private float cardDecorationRadius=-1;
+    private boolean cardDecorationSmooth;
     private final CloudSurfacePolicy.CapsuleBackground<Drawable> capsuleBackground=new CloudSurfacePolicy.CapsuleBackground<>();
     private CloudNativeMaterial nativeMaterial;
-    private CloudNativeDecoration capsuleDecoration;
+    private CloudNativeDecoration capsuleDecoration,capsuleForeground;
     private final CloudVisibilityState visibility=new CloudVisibilityState();
     private ValueAnimator hostVisibilityClock;
     private boolean hostVisibilityObserved,businessVisibilityObserved,lifetimeVisible=true;
@@ -404,7 +407,16 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
             outlineWidth=width;outlineHeight=height;outlineRadius=radius;outlineSmooth=smooth;
             shape.invalidateOutline();
         }
+        decorationGeometry(width,height,radius,smooth);
         updateInputRegion();shape.invalidate();
+    }
+    private void decorationGeometry(int width,int height,float radius,boolean smooth) {
+        if(capsuleDecoration!=null)capsuleDecoration.geometry(width,height,radius,smooth);
+        if(capsuleForeground!=null)capsuleForeground.geometry(width,height,radius,smooth);
+        if(cardDecoration!=null&&(cardDecoration!=roundedCardDecoration||radius!=cardDecorationRadius||smooth!=cardDecorationSmooth)) {
+            CloudHook.round(cardDecoration,radius,smooth);roundedCardDecoration=cardDecoration;
+            cardDecorationRadius=radius;cardDecorationSmooth=smooth;
+        }
     }
     void settleInput(boolean expanded) {
         inputOwnership.settle(expanded);
@@ -416,7 +428,9 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         suppressNative();body.nodesChanged();shape.invalidate();
         if(current!=null)ShadeHook.observed("cloud-unified-state",(expanded?"card":"capsule")+";object="+
             Integer.toHexString(System.identityHashCode(body))+";form="+current.progress()+";radius="+current.radius()+
-            ";input="+inputRegion.getBounds().toShortString()+";envelope="+params.width+"x"+params.height);
+            ";input="+inputRegion.getBounds().toShortString()+";envelope="+params.width+"x"+params.height+
+            ";capsuleBackground="+(styledBackground==null?"null":styledBackground.getClass().getName())+
+            ";capsuleForeground="+(styledForeground==null?"null":styledForeground.getClass().getName())+";nativeDecoration=true");
     }
     /** Settings call this after native factories, even if the same config was observed earlier. */
     void refreshStyle() {
@@ -476,12 +490,14 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     private void updateStyle() {
         if(disposed||!materialReady)return;
         nativeCapsuleBackground=capsuleBackground.resolve(capsule==null?null:capsule.getBackground(),this::fallbackCapsuleBackground);
+        Drawable foreground=capsule==null?null:capsule.getForeground();
         HookConfig config=ShadeHook.snapshot();
-        if(config==styledConfig&&styledCapsule==capsule&&styledBackground==nativeCapsuleBackground) {
+        if(config==styledConfig&&styledCapsule==capsule&&styledBackground==nativeCapsuleBackground&&styledForeground==foreground) {
             if(capsuleDecoration!=null)capsuleDecoration.refresh();
+            if(capsuleForeground!=null)capsuleForeground.refresh();
             nativeMaterial.apply(current==null?0:current.progress(),config.cloudArea.blur);return;
         }
-        styledConfig=config;styledCapsule=capsule;styledBackground=nativeCapsuleBackground;
+        styledConfig=config;styledCapsule=capsule;styledBackground=nativeCapsuleBackground;styledForeground=foreground;
         Object factory=Reflect.newInstance(Reflect.findClass("com.heytap.log.nx.obus.a",loader),container.getContext(),3);
         // Recreate defaults only on source/config changes, never for each animation frame.
         Reflect.callMethod(factory,"b",shape,material);
@@ -489,14 +505,16 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         cardDecoration=shape.getBackground();
         if(nativeMaterial==null)nativeMaterial=new CloudNativeMaterial(material,loader);
         nativeMaterial.capture(nativeCapsuleBackground,config.cloudArea.blur);
-        capsuleDecoration=!config.cloudArea.blur&&nativeCapsuleBackground!=null?
+        capsuleDecoration=nativeCapsuleBackground!=null?
             new CloudNativeDecoration(nativeCapsuleBackground,container.getResources(),container.getContext().getTheme()):null;
+        capsuleForeground=foreground==null?null:new CloudNativeDecoration(foreground,container.getResources(),container.getContext().getTheme());
         shape.setBackground(nativeMaterial.blur);
         nativeMaterial.apply(current==null?0:current.progress(),config.cloudArea.blur);
         shape.setOutlineProvider((ViewOutlineProvider)outline);shape.setClipToOutline(true);
         if(presented!=null) {
             float radius=Math.max(0,Math.min(presented.radius(),Math.min(presented.width(),presented.height())/2f));
             Reflect.callMethod(material,"setCornerRadius",radius);CloudHook.round(shape.getBackground(),radius,presented.progress()>.001f);
+            decorationGeometry(Math.max(1,Math.round(presented.width())),Math.max(1,Math.round(presented.height())),radius,presented.progress()>.001f);
         }
         shape.invalidate();
     }
@@ -870,6 +888,10 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
             // Capsule exits early; the card enters only after there is usable space.
             drawCapsule(canvas,Math.max(0,1-form*2.5f));
             drawContent(canvas,cardContent,Math.max(0,(form-.35f)/.65f),instant);
+            if(form<1&&capsuleForeground!=null) {
+                int foreground=canvas.saveLayerAlpha(0,0,getWidth(),getHeight(),Math.round(255*(1-form)));
+                capsuleForeground.drawable.draw(canvas);canvas.restoreToCount(foreground);
+            }
         }
         private void drawCapsule(Canvas canvas,float alpha) {
             if(capsule==null||!(container instanceof ViewGroup group))return;

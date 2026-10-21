@@ -1,30 +1,42 @@
 package io.github.baishangui.thunder;
 
 import android.content.res.Resources;
+import android.content.res.ColorStateList;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.DrawableWrapper;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.LayerDrawable;
 import java.util.Arrays;
+import java.util.IdentityHashMap;
 
-/** Native capsule fill with its own bounds and opacity; the Surface outline owns its silhouette. */
+/** Native plate/foreground drawing with independent bounds and the current silhouette. */
 final class CloudNativeDecoration {
     private static final String NATIVE_GRADIENT="com.oplus.systemui.plugins.seedling.util.d";
     private static final String[] GRADIENT_COLORS={"a","b","c"};
     private final Drawable source;
     final Drawable drawable;
+    private final IdentityHashMap<Drawable,Stroke> strokes=new IdentityHashMap<>();
+    private int width=-1,height=-1;
+    private float radius=-1;
+    private boolean smooth;
+    private record Stroke(int width,ColorStateList color,float dashWidth,float dashGap) { }
     CloudNativeDecoration(Drawable source,Resources resources,Resources.Theme theme) {
         this.source=source;
         drawable=copy(source,resources,theme);
         refresh();
     }
     private static Drawable copy(Drawable source,Resources resources,Resources.Theme theme) {
+        // A background blur drawable belongs to its original ViewRoot. The
+        // independent native blur host draws this layer; keep its decoration.
+        if(source.getClass().getName().equals("com.android.internal.graphics.drawable.BackgroundBlurDrawable"))
+            return new ColorDrawable(0);
         if(source.getClass().getName().equals(NATIVE_GRADIENT)) {
             Object corners=Reflect.getObjectField(source,"d");
-            return (Drawable)Reflect.newInstance(source.getClass(),Reflect.getIntField(source,"a"),
+            Drawable result=(Drawable)Reflect.newInstance(source.getClass(),Reflect.getIntField(source,"a"),
                 Reflect.getIntField(source,"b"),Reflect.getIntField(source,"c"),
-                Reflect.newInstance(corners.getClass(),0,0f,0f));
+                Reflect.newInstance(corners.getClass(),Reflect.callMethod(corners,"d"),Reflect.callMethod(corners,"e"),Reflect.callMethod(corners,"f")));
+            Reflect.setAdditionalInstanceField(result,"thunder.cloud-capsule-decoration",true);return result;
         }
         if(source instanceof LayerDrawable layers) {
             Drawable[] fills=new Drawable[layers.getNumberOfLayers()];
@@ -37,8 +49,14 @@ final class CloudNativeDecoration {
         if(state==null)throw new IllegalStateException("Native capsule decoration cannot be copied: "+source.getClass().getName());
         return (resources==null?state.newDrawable():state.newDrawable(resources,theme)).mutate();
     }
+    void geometry(int width,int height,float radius,boolean smooth) {
+        float value=Math.max(0,Math.min(radius,Math.min(width,height)/2f));
+        if(this.width==width&&this.height==height&&this.radius==value&&this.smooth==smooth)return;
+        this.width=width;this.height=height;this.radius=value;this.smooth=smooth;
+        drawable.setBounds(0,0,width,height);CloudHook.round(drawable,value,smooth);
+    }
     void refresh(){refresh(source,drawable);}
-    private static void refresh(Drawable source,Drawable copy) {
+    private void refresh(Drawable source,Drawable copy) {
         copy.setState(source.getState());copy.setLevel(source.getLevel());
         copy.setLayoutDirection(source.getLayoutDirection());copy.setColorFilter(source.getColorFilter());
         if(source instanceof GradientDrawable original&&copy instanceof GradientDrawable fill) {
@@ -47,7 +65,15 @@ final class CloudNativeDecoration {
                 if(!Arrays.equals(colors,fill.getColors()))fill.setColors(colors.clone());
                 fill.setOrientation(original.getOrientation());
             }else if(original.getColor()!=null&&!original.getColor().equals(fill.getColor()))fill.setColor(original.getColor());
-            fill.setCornerRadii(null);fill.setCornerRadius(0);
+            // Native dark intensity changes the foreground stroke in place.
+            // Refresh it without importing native width-animation bounds or
+            // replacing the independent current corner geometry.
+            Object state=original.getConstantState();
+            Stroke stroke=new Stroke(Reflect.getIntField(state,"mStrokeWidth"),
+                (ColorStateList)Reflect.getObjectField(state,"mStrokeColors"),
+                ((Number)Reflect.getObjectField(state,"mStrokeDashWidth")).floatValue(),
+                ((Number)Reflect.getObjectField(state,"mStrokeDashGap")).floatValue());
+            if(!stroke.equals(strokes.put(copy,stroke)))fill.setStroke(Math.max(0,stroke.width),stroke.color,stroke.dashWidth,stroke.dashGap);
         }else if(source.getClass().getName().equals(NATIVE_GRADIENT)) {
             boolean changed=false;
             for(String field:GRADIENT_COLORS) {
@@ -55,7 +81,7 @@ final class CloudNativeDecoration {
                 if(Reflect.getIntField(copy,field)!=color){Reflect.setObjectField(copy,field,color);changed=true;}
             }
             // This firmware Drawable has no ConstantState and clips its own
-            // gradient with a cached Triple. The independent Shape owns that clip.
+            // gradient with a cached Triple shared with current geometry.
             if(changed)Reflect.callMethod(copy,"onBoundsChange",copy.getBounds());
         }else if(source instanceof ColorDrawable original&&copy instanceof ColorDrawable fill) {
             // ConstantState retains the base color when the host animates ColorDrawable.setAlpha.

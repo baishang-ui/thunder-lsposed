@@ -30,7 +30,7 @@ final class CloudHook {
     private static final View.OnLayoutChangeListener capsuleGeometry=(view,left,top,right,bottom,oldLeft,oldTop,oldRight,oldBottom)->{
         if(right-left==oldRight-oldLeft&&bottom-top==oldBottom-oldTop)return;
         HookConfig config=ShadeHook.snapshot();CapsuleState state=capsules.get(view);
-        if(state!=null&&config.enabled&&config.cloud&&config.cloudArea.cornerEnabled)
+        if(state!=null&&config.enabled&&config.cloud)
             applyCapsuleCorners(view,config.cloudArea,state.manager);
     };
     private static final class SharedBackground {
@@ -264,6 +264,7 @@ final class CloudHook {
         }
         bind(loader,"card-gradient",() -> Api102Runtime.findAndHookMethod(BASE+"util.d",loader,"draw",android.graphics.Canvas.class,new HookCallback() {
             @Override protected void beforeHookedMethod(Param p) {
+                if(Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(p.thisObject,"thunder.cloud-capsule-decoration")))return;
                 HookConfig c=ShadeHook.snapshot();
                 java.lang.ref.WeakReference<View> ref=gradients.get(p.thisObject);
                 View owner=ref==null?null:ref.get();
@@ -363,9 +364,8 @@ final class CloudHook {
         state.applied=c;view.invalidate();view.invalidateOutline();
     }
     private static void applyCapsuleCorners(View view,HookConfig.Area area,Object manager) {
-        if(!area.cornerEnabled)return;
-        float radius=CloudCornerGeometry.capsuleRadius(view.getWidth(),view.getHeight(),area.corner,
-            view.getResources().getDisplayMetrics().density);
+        float radius=CloudSurfacePolicy.radius(view.getWidth(),view.getHeight(),Math.min(view.getWidth(),view.getHeight())/2f,
+            area.cornerEnabled,area.corner,view.getResources().getDisplayMetrics().density);
         round(view.getBackground(),radius,false);round(view.getForeground(),radius,false);
         if(manager!=null)Reflect.callMethod(manager,"setCornerRadius",radius);
         // Capsule ends are semicircles. G2's card smoothing remains visibly square
@@ -470,9 +470,12 @@ final class CloudHook {
         // Mini is a framework FrameLayout; its class loader cannot see plugin
         // util.c, while its inflation Context retains the plugin loader.
         ClassLoader loader=view.getContext().getClassLoader();
-        if(area.cornerEnabled || view.getClass().getName().endsWith("CapsuleView")) {
-            int dp=area.cornerEnabled?area.corner:20;
-            Reflect.callMethod(manager,"setCornerRadius",dp*view.getResources().getDisplayMetrics().density);
+        if(capsule) {
+            float radius=CloudSurfacePolicy.radius(view.getWidth(),view.getHeight(),Math.min(view.getWidth(),view.getHeight())/2f,
+                area.cornerEnabled,area.corner,view.getResources().getDisplayMetrics().density);
+            Reflect.callMethod(manager,"setCornerRadius",radius);
+        } else if(area.cornerEnabled) {
+            Reflect.callMethod(manager,"setCornerRadius",area.corner*view.getResources().getDisplayMetrics().density);
         }
         if(area.tint) {
             int color=area.color;
@@ -481,7 +484,7 @@ final class CloudHook {
             try {
                 Object geometry=Reflect.findClass(BASE+"util.c",loader).getDeclaredMethod("f").invoke(null);
                 int type=((Number)Reflect.callMethod(geometry,"d")).intValue();
-                boolean circularCapsule=capsule&&area.cornerEnabled;
+                boolean circularCapsule=capsule;
                 Reflect.callMethod(param,"setSmoothCornerType",circularCapsule?0:type==2?1:0);
                 Reflect.callMethod(param,"setSmoothCornerWeight",circularCapsule
                     ?CloudCornerGeometry.nonSmoothWeight(loader)
