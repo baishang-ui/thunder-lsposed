@@ -103,8 +103,9 @@ class Overlay:
 
 def main(c16, c17, aapt2):
     inventory = json.loads((ROOT/'docs/status-icons-resource-inventory.json').read_text())
+    sizing = json.loads((ROOT/'docs/status-icons-sizing.json').read_text())
     manifest = {'artwork_archive': ARCHIVE, 'layout_archive': LAYOUT_ARCHIVE,
-                'sources': {}, 'overrides': {}, 'dimensions': {}}
+                'sources': {}, 'overrides': {}, 'dimensions': {}, 'sizing': sizing['targets']}
     OUT.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='status-c16-') as folder:
         directory = Path(folder)
@@ -144,6 +145,13 @@ def main(c16, c17, aapt2):
 
         def save(name, tree, overlay, original, conversion):
             tree = tint(copy.deepcopy(tree), overlay.dimensions)
+            fraction=sizing['optical_height_fractions'].get(name)
+            if fraction and tree.tag=='vector':
+                old_height=float(tree.get(NS+'height')[:-2])
+                height=sizing['targets']['status_visible_height_dp']/fraction
+                tree.set(NS+'width',f'{float(tree.get(NS+"width")[:-2])*height/old_height:.9g}dp')
+                tree.set(NS+'height',f'{height:.9g}dp')
+                conversion+='; optical visible height matched to the user reference'
             for node in tree.iter():
                 for key, value in list(node.attrib.items()):
                     if value.startswith('@drawable/'):
@@ -179,9 +187,13 @@ def main(c16, c17, aapt2):
             bottom.sort(key=lambda p: float(re.match(r'M([0-9.]+)', p.get(NS+'pathData'))[1]))
             # Center the original 19x13 artwork inside C17's shared 19x16 frame.
             for row, selected in [('primary', top), ('secondary', bottom), ('single', top)]:
-                tree = ET.Element('vector', {NS+'width': f'{frame_width:g}dp', NS+'height': f'{frame_height:g}dp',
-                    NS+'viewportWidth': '19', NS+'viewportHeight': '16'})
-                offset = (frame_height-13)/2 if row != 'single' else (frame_height-7.56)/2
+                stacked_scale=sizing['targets']['stacked_visible_height_dp']/12.6
+                width=sizing['targets']['single_signal_width_dp'] if row=='single' else frame_width*stacked_scale
+                height=sizing['targets']['single_signal_height_dp'] if row=='single' else frame_height*stacked_scale
+                viewport_height=8 if row=='single' else 16
+                tree = ET.Element('vector', {NS+'width': f'{width:.9g}dp', NS+'height': f'{height:.9g}dp',
+                    NS+'viewportWidth': '19', NS+'viewportHeight': str(viewport_height)})
+                offset = (16-13)/2 if row != 'single' else (8-7.56)/2
                 group = ET.SubElement(tree, 'group', {NS+'translateY': f'{offset:g}'})
                 for index, path in enumerate(selected):
                     path = copy.deepcopy(path)
@@ -196,12 +208,16 @@ def main(c16, c17, aapt2):
             for prefix in ('stat_signal_soft_signal_stacked_primary_', 'stat_signal_soft_signal_stacked_secondary_'):
                 manifest['overrides'][prefix+str(level)] = f'stat_signal_lte_signal_stacked_{"primary" if "primary" in prefix else "secondary"}_{level}'
             wifi = f'stat_signal_wifi_signal_{level}'
-            save(wifi+'_os17', vector(status.xml(wifi)), status, wifi, 'C16 Wi-Fi paths and opacity; C17 resource alias; standardized spacing')
+            wifi_tree=vector(status.xml(wifi))
+            wifi_canvas=vector(status.xml('stat_signal_wifi_signal_4'))
+            for attr in ('width','height'):wifi_tree.set(NS+attr,wifi_canvas.get(NS+attr))
+            save(wifi+'_os17', wifi_tree, status, wifi, 'C16 Wi-Fi paths and opacity; shared state canvas; reference optical sizing')
             manifest['overrides'][wifi] = wifi+'_os17'
         for row in ('primary', 'secondary'):
             original = 'stat_signal_noservice_lte'
             source = vector(status.xml(original))
-            tree = ET.Element('vector', {NS+'width': '19dp', NS+'height': '16dp',
+            stacked_scale=sizing['targets']['stacked_visible_height_dp']/12.6
+            tree = ET.Element('vector', {NS+'width': f'{19*stacked_scale:.9g}dp', NS+'height': f'{16*stacked_scale:.9g}dp',
                 NS+'viewportWidth': '19', NS+'viewportHeight': '16'})
             # Align the source short bars to the regular row's baseline.
             selected = source.find('group')
@@ -213,7 +229,10 @@ def main(c16, c17, aapt2):
             for prefix in ('stat_signal_lte_signal_stacked_', 'stat_signal_soft_signal_stacked_'):
                 manifest['overrides'][prefix+row+'_noservice'] = name
         # Keep the actual C16 no-service short bars for a single unavailable SIM.
-        save('stat_signal_signal_null_lte', vector(status.xml('stat_signal_signal_null_lte')), status,
+        no_service=vector(status.xml('stat_signal_signal_null_lte'))
+        no_service.set(NS+'width',f'{sizing["targets"]["single_signal_width_dp"]:g}dp')
+        no_service.set(NS+'height',f'{sizing["targets"]["single_signal_height_dp"]:g}dp')
+        save('stat_signal_signal_null_lte', no_service, status,
              'stat_signal_signal_null_lte', 'C16 no-service paths and opacity; standardized spacing')
         for level, source_level in enumerate((0, 1, 2, 4)):
             for suffix in ('', '_error'):
@@ -223,8 +242,9 @@ def main(c16, c17, aapt2):
         # Preserve the original proportions and padding. Scaling only the body
         # height would turn the battery into a short, tall shape.
         original_battery = vector(battery.xml('stat_battery_horizontal_bg'))
-        battery_width = float(re.search(r'BATTERY_WIDTH_DP = ([0-9.]+)f',
-            (ROOT/'app/src/main/java/io/github/baishangui/thunder/IosStatusBarHook.java').read_text())[1])
+        sizing_source=(ROOT/'app/src/main/java/io/github/baishangui/thunder/IosStatusBarHook.java').read_text()
+        battery_width = float(re.search(r'BATTERY_WIDTH_DP = ([0-9.]+)f',sizing_source)[1])
+        battery_text_size = float(re.search(r'BATTERY_TEXT_SIZE_DP = ([0-9.]+)f',sizing_source)[1])
         battery_height = battery_width * 55/93
         def battery_canvas():
             return ET.Element('vector', {NS+'width': f'{battery_width:.9g}dp', NS+'height': f'{battery_height:.9g}dp',
@@ -233,12 +253,12 @@ def main(c16, c17, aapt2):
             tree = battery_canvas()
             for path in vector(battery.xml(name)):
                 tree.append(copy.deepcopy(path))
-            save(name, tree, battery, name, 'C16 battery paths and original 93x55 canvas; uniform enlargement to 34dp width')
+            save(name, tree, battery, name, f'C16 battery paths and original 93x55 canvas; uniform enlargement to {battery_width:g}dp width')
         tree = battery_canvas()
         for path in original_battery:
             tree.append(copy.deepcopy(path))
         save('stat_battery_horizontal_progress_bg', tree, battery, 'stat_battery_horizontal_bg',
-             'C16 body and cap paths; original 93x55 canvas; full coverage at 100 percent; 34dp width')
+             f'C16 body and cap paths; original 93x55 canvas; full coverage at 100 percent; {battery_width:g}dp width')
         aliases = {'stat_battery_horizontal_percent_out_no_padding_bg': 'stat_battery_horizontal_percent_out_bg',
                    'stat_battery_horizontal_percent_out_progress_bg': 'stat_battery_horizontal_progress_bg',
                    'stat_battery_horizontal_percent_out_no_padding_progress_bg': 'stat_battery_horizontal_progress_bg'}
@@ -266,9 +286,9 @@ def main(c16, c17, aapt2):
             'status_bar_battery_horizontal_padding_top': 0.0,
             'status_bar_battery_horizontal_padding_bottom': 0.0,
             'battery_progress_corner_radius': battery_width*9/93,
-            'battery_percent_in_text_size': 10.0, 'battery_percent_in_text_margin_top': 0.14,
+            'battery_percent_in_text_size': battery_text_size, 'battery_percent_in_text_margin_top': 0.14,
             'battery_percent_in_text_offset_x': 0.0, 'battery_percent_in_text_offset_y': 0.25,
-            'signal_cluster_battery_padding': 1.2,
+            'signal_cluster_battery_padding': sizing['targets']['battery_separator_dp'],
         })
         # C17 dimensions are consulted above for the frame only; assert provenance
         # before pruning old assets so an accidental source swap cannot go unnoticed.

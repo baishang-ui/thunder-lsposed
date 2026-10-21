@@ -8,7 +8,7 @@
       "entry": "res/drawable-xxhdpi/stat_sys_airplane_mode.xml",
       "resource": "stat_sys_airplane_mode",
       "sha256": "e9359e9ec4d4aa620b85112170e5e278dfaa242bdec73e9af6fdbc5c412353ef",
-      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing; optical visible height matched to the user reference",
       "path_sha256": [
         "e6135295feef99d3d616c867c4d0bcf9d91ac6087e1f8bee2502ed7ee214a1d4"
       ]
@@ -19,7 +19,7 @@
       "entry": "res/drawable-xxhdpi/stat_sys_alarm.xml",
       "resource": "stat_sys_alarm",
       "sha256": "8a1947c5bbec59f529751cd6d1285928844205aad53beda40af9096eda43088f",
-      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing; optical visible height matched to the user reference",
       "path_sha256": [
         "9ae9704e8c3f524afdd679a65556ef7bd16d4b3d543dbd9c6687923096e20343",
         "191e749b8d00855ca7e8cec54b21048ccdf69393f11e8db077c995b7988f62ff",
@@ -34,7 +34,7 @@
       "entry": "res/drawable-xxhdpi/stat_sys_data_bluetooth.xml",
       "resource": "stat_sys_data_bluetooth",
       "sha256": "2cb87995981e0f388676528ed66b521f23f1aeec74a03e96e1aa79202b977cfd",
-      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing; optical visible height matched to the user reference",
       "path_sha256": [
         "ffaeb390bdf9e1d298a754a4660c8b0b2634dc51f4fa7fc004500ed55c150682"
       ]
@@ -45,7 +45,7 @@
       "entry": "res/drawable-xxhdpi/stat_sys_data_bluetooth_connected_ing.xml",
       "resource": "stat_sys_data_bluetooth_connected_ing",
       "sha256": "8291eb25d92ce82921952a75ed8b0944512edf86355753849d17ce49c53e892b",
-      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing; optical visible height matched to the user reference",
       "path_sha256": [
         "0abb7136441e348eb2e4214d0dce6095c0119ab6d5a1bf4a3c3943020775795e"
       ]
@@ -56,7 +56,7 @@
       "entry": "res/drawable-xxhdpi/stat_sys_data_bluetooth.xml",
       "resource": "stat_sys_data_bluetooth_connected_stop",
       "sha256": "2cb87995981e0f388676528ed66b521f23f1aeec74a03e96e1aa79202b977cfd",
-      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing; optical visible height matched to the user reference",
       "path_sha256": [
         "ffaeb390bdf9e1d298a754a4660c8b0b2634dc51f4fa7fc004500ed55c150682"
       ]
@@ -67,7 +67,7 @@
       "entry": "res/drawable-xxhdpi/stat_sys_dnd.xml",
       "resource": "stat_sys_dnd",
       "sha256": "6e80c8f9cad567710a8c1e5a14c5e8a92711e8991e62a6252a81d9a6006b4d5b",
-      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing; optical visible height matched to the user reference",
       "path_sha256": [
         "86d1b443e5796b104164e3c422f637af2b035b2d797e1f14bbe5c9d218c832c0"
       ]
@@ -78,7 +78,7 @@
       "entry": "res/drawable-xxhdpi/stat_sys_ringer_vibrate.xml",
       "resource": "stat_sys_flavor_one_ringer_vibrate",
       "sha256": "34ae928b9ebb5702a2412b0b2f01a9ebc6b5cef9abfb696d828ef2c24687f742",
-      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing; optical visible height matched to the user reference",
       "path_sha256": [
         "af55ae5b76776722d8b67d08a46d753bdaf8fc71788655052b18c04014b89327"
       ]
@@ -89,7 +89,7 @@
       "entry": "res/drawable-xxhdpi/stat_sys_headset.xml",
       "resource": "stat_sys_headset",
       "sha256": "0ac52e1c023e5ac88e759b478a66997fdc63020bd390f9406e22ca1ef440da93",
-      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing; optical visible height matched to the user reference",
       "path_sha256": [
         "379e2fc7e5500af320033af32b3cac8705215262cb0fa1d13bfc7173f119ad52"
       ]
@@ -100,7 +100,7 @@
       "entry": "res/drawable-xxhdpi/stat_sys_headset_mic.xml",
       "resource": "stat_sys_headset_mic",
       "sha256": "0ac52e1c023e5ac88e759b478a66997fdc63020bd390f9406e22ca1ef440da93",
-      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing; optical visible height matched to the user reference",
       "path_sha256": [
         "379e2fc7e5500af320033af32b3cac8705215262cb0fa1d13bfc7173f119ad52"
       ]
@@ -111,7 +111,7 @@
       "entry": "res/drawable-xxhdpi/stat_sys_location.xml",
       "resource": "stat_sys_location",
       "sha256": "88f75626911fc23e235c150b02845a158d743f780abe3b9ed85d516d7a4309ed",
-      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing; optical visible height matched to the user reference",
       "path_sha256": [
         "6296bef33e350389efc1fe9026db034d641b0f404acb7929bde73fbf09318128"
       ]
@@ -122,7 +122,7 @@
       "entry": "res/drawable-xxhdpi/stat_sys_nfc.xml",
       "resource": "stat_sys_nfc",
       "sha256": "7a183d57f6e160bb6687033134c9dc87f6aa7c00907446a398218cd46c09e71b",
-      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing; optical visible height matched to the user reference",
       "path_sha256": [
         "2417bb9060e212271e9412c694cba1a21634270a92353717f3c24387e1c5a29c"
       ]
@@ -133,7 +133,7 @@
       "entry": "res/drawable-xxhdpi/stat_sys_ringer_silent.xml",
       "resource": "stat_sys_ringer_silent",
       "sha256": "6b7cc89aae54c9af73029c8f79261e75f0565c7fb156908d11a78ad7049130e4",
-      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing; optical visible height matched to the user reference",
       "path_sha256": [
         "5aab089866ebedd1bfbf94a9f5f6019ab750074d2a203f4de167171d2849d8f6"
       ]
@@ -144,7 +144,7 @@
       "entry": "res/drawable-xxhdpi/stat_sys_ringer_vibrate.xml",
       "resource": "stat_sys_ringer_vibrate",
       "sha256": "34ae928b9ebb5702a2412b0b2f01a9ebc6b5cef9abfb696d828ef2c24687f742",
-      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing; optical visible height matched to the user reference",
       "path_sha256": [
         "af55ae5b76776722d8b67d08a46d753bdaf8fc71788655052b18c04014b89327"
       ]
@@ -155,7 +155,7 @@
       "entry": "res/drawable-xxhdpi/stat_sys_vpn_ic.xml",
       "resource": "stat_sys_vpn_ic",
       "sha256": "618fdb2b7a2175564e61745d8ffebb297ce7081683c1e35e209d5fc179ed8830",
-      "conversion": "C16 paths and opacity; native tint; standardized external spacing",
+      "conversion": "C16 paths and opacity; native tint; standardized external spacing; optical visible height matched to the user reference",
       "path_sha256": [
         "762c762580db887268cb4af72e832206695fe2a2bd611115f6daab92507f21c8"
       ]
@@ -387,7 +387,7 @@
       "entry": "res/drawable/stat_signal_wifi_signal_0.xml",
       "resource": "stat_signal_wifi_signal_0",
       "sha256": "6f2a3b8616aa698fd9de422c9e166a13066f1141bfca362fc787f0a33a45eb2f",
-      "conversion": "C16 Wi-Fi paths and opacity; C17 resource alias; standardized spacing",
+      "conversion": "C16 Wi-Fi paths and opacity; shared state canvas; reference optical sizing; optical visible height matched to the user reference",
       "path_sha256": [
         "4ddbf31254db1e11c66d8dd97a5741bea2831ad83f15a3cbcf69cf648948ddbe",
         "1b0b8222efe7db42c8aa4d4e0f83ce6814b05ba814d23610a900ef7a3d2cfcca",
@@ -442,7 +442,7 @@
       "entry": "res/drawable/stat_signal_wifi_signal_1.xml",
       "resource": "stat_signal_wifi_signal_1",
       "sha256": "36053959213e6128b48f9bf3e7ccf7189c0b0371304f30231b6d366db8e543a1",
-      "conversion": "C16 Wi-Fi paths and opacity; C17 resource alias; standardized spacing",
+      "conversion": "C16 Wi-Fi paths and opacity; shared state canvas; reference optical sizing; optical visible height matched to the user reference",
       "path_sha256": [
         "4ddbf31254db1e11c66d8dd97a5741bea2831ad83f15a3cbcf69cf648948ddbe",
         "1b0b8222efe7db42c8aa4d4e0f83ce6814b05ba814d23610a900ef7a3d2cfcca",
@@ -497,7 +497,7 @@
       "entry": "res/drawable/stat_signal_wifi_signal_2.xml",
       "resource": "stat_signal_wifi_signal_2",
       "sha256": "8cebba2ec726f43a470d87e78e9a4c8722e41cdecf404aca3be9cf73be890622",
-      "conversion": "C16 Wi-Fi paths and opacity; C17 resource alias; standardized spacing",
+      "conversion": "C16 Wi-Fi paths and opacity; shared state canvas; reference optical sizing; optical visible height matched to the user reference",
       "path_sha256": [
         "4ddbf31254db1e11c66d8dd97a5741bea2831ad83f15a3cbcf69cf648948ddbe",
         "1b0b8222efe7db42c8aa4d4e0f83ce6814b05ba814d23610a900ef7a3d2cfcca",
@@ -552,7 +552,7 @@
       "entry": "res/drawable/stat_signal_wifi_signal_3.xml",
       "resource": "stat_signal_wifi_signal_3",
       "sha256": "6b5695ec927be7ca725727ce92b3bdba5954be991cd49fba0ebe110dddb863a2",
-      "conversion": "C16 Wi-Fi paths and opacity; C17 resource alias; standardized spacing",
+      "conversion": "C16 Wi-Fi paths and opacity; shared state canvas; reference optical sizing; optical visible height matched to the user reference",
       "path_sha256": [
         "4ddbf31254db1e11c66d8dd97a5741bea2831ad83f15a3cbcf69cf648948ddbe",
         "1b0b8222efe7db42c8aa4d4e0f83ce6814b05ba814d23610a900ef7a3d2cfcca",
@@ -607,7 +607,7 @@
       "entry": "res/drawable/stat_signal_wifi_signal_4.xml",
       "resource": "stat_signal_wifi_signal_4",
       "sha256": "6b5695ec927be7ca725727ce92b3bdba5954be991cd49fba0ebe110dddb863a2",
-      "conversion": "C16 Wi-Fi paths and opacity; C17 resource alias; standardized spacing",
+      "conversion": "C16 Wi-Fi paths and opacity; shared state canvas; reference optical sizing; optical visible height matched to the user reference",
       "path_sha256": [
         "4ddbf31254db1e11c66d8dd97a5741bea2831ad83f15a3cbcf69cf648948ddbe",
         "1b0b8222efe7db42c8aa4d4e0f83ce6814b05ba814d23610a900ef7a3d2cfcca",
@@ -662,7 +662,7 @@
       "entry": "res/drawable/stat_battery_horizontal_bg.xml",
       "resource": "stat_battery_horizontal_bg",
       "sha256": "b7cb2582d7b3ed1e825c5e71faa575c29e7112f37b293ddf5a3a8608fc8ae60e",
-      "conversion": "C16 battery paths and original 93x55 canvas; uniform enlargement to 34dp width",
+      "conversion": "C16 battery paths and original 93x55 canvas; uniform enlargement to 32dp width",
       "path_sha256": [
         "4c65fa39875058236918b59451fa60f43b1d7eadbdca76f67aaf524fccdf1bc0",
         "2f7e757afb233e30cf6dcf6643c09b4f8339458bcb3a3ac02a048f2609ee05c4"
@@ -674,7 +674,7 @@
       "entry": "res/drawable/stat_battery_horizontal_frame.xml",
       "resource": "stat_battery_horizontal_frame",
       "sha256": "fa7dcad9e8a7a0557c98919ce26e6754756733685384aad0da30ec4fe8911987",
-      "conversion": "C16 battery paths and original 93x55 canvas; uniform enlargement to 34dp width",
+      "conversion": "C16 battery paths and original 93x55 canvas; uniform enlargement to 32dp width",
       "path_sha256": [
         "4c65fa39875058236918b59451fa60f43b1d7eadbdca76f67aaf524fccdf1bc0",
         "2f7e757afb233e30cf6dcf6643c09b4f8339458bcb3a3ac02a048f2609ee05c4"
@@ -686,7 +686,7 @@
       "entry": "res/drawable/stat_battery_horizontal_percent_out_bg.xml",
       "resource": "stat_battery_horizontal_percent_out_bg",
       "sha256": "b18e971fcb86ee1d21bb8d68efe9ad2302837682de8235950638efec4f812995",
-      "conversion": "C16 battery paths and original 93x55 canvas; uniform enlargement to 34dp width",
+      "conversion": "C16 battery paths and original 93x55 canvas; uniform enlargement to 32dp width",
       "path_sha256": [
         "a37b928508a94e35e787da4741844871cce01a63bbc62f4c84d30bde850bedad",
         "2f7e757afb233e30cf6dcf6643c09b4f8339458bcb3a3ac02a048f2609ee05c4"
@@ -698,7 +698,7 @@
       "entry": "res/drawable/stat_battery_horizontal_bg.xml",
       "resource": "stat_battery_horizontal_bg",
       "sha256": "b7cb2582d7b3ed1e825c5e71faa575c29e7112f37b293ddf5a3a8608fc8ae60e",
-      "conversion": "C16 body and cap paths; original 93x55 canvas; full coverage at 100 percent; 34dp width",
+      "conversion": "C16 body and cap paths; original 93x55 canvas; full coverage at 100 percent; 32dp width",
       "path_sha256": [
         "4c65fa39875058236918b59451fa60f43b1d7eadbdca76f67aaf524fccdf1bc0",
         "2f7e757afb233e30cf6dcf6643c09b4f8339458bcb3a3ac02a048f2609ee05c4"
@@ -836,8 +836,8 @@
   "dimensions": {
     "stat_bt_battery_height": 16.0,
     "stat_bt_battery_width": 16.0,
-    "status_bar_battery_horizontal_width": 34.0,
-    "status_bar_battery_horizontal_height": 20.107526881720432,
+    "status_bar_battery_horizontal_width": 32.0,
+    "status_bar_battery_horizontal_height": 18.9247311827957,
     "status_bar_battery_horizontal_progress_start": 0.0,
     "status_bar_battery_horizontal_progress_end": 0.0,
     "status_bar_battery_horizontal_progress_top": 0.0,
@@ -846,12 +846,25 @@
     "status_bar_battery_horizontal_padding_right": 0.0,
     "status_bar_battery_horizontal_padding_top": 0.0,
     "status_bar_battery_horizontal_padding_bottom": 0.0,
-    "battery_progress_corner_radius": 3.2903225806451615,
-    "battery_percent_in_text_size": 10.0,
+    "battery_progress_corner_radius": 3.096774193548387,
+    "battery_percent_in_text_size": 14.0,
     "battery_percent_in_text_margin_top": 0.14,
     "battery_percent_in_text_offset_x": 0.0,
     "battery_percent_in_text_offset_y": 0.25,
-    "signal_cluster_battery_padding": 1.2
+    "signal_cluster_battery_padding": 4.0
+  },
+  "sizing": {
+    "status_visible_height_dp": 14.0,
+    "single_signal_width_dp": 22.5,
+    "single_signal_height_dp": 14.5,
+    "stacked_visible_height_dp": 14.0,
+    "side_padding_dp": 3.25,
+    "battery_separator_dp": 4.0,
+    "battery_width_dp": 32.0,
+    "battery_text_size_dp": 14.0,
+    "battery_digit_weight": 900,
+    "battery_digit_scale_x": 1.08,
+    "battery_digit_font": "system-selected"
   },
   "signal_frame": {
     "width": 19.0,

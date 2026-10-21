@@ -8,8 +8,7 @@ internal object SystemSettingsCatalog {
         val range: IntRange? = null, val choices: List<String>? = null,
         val color: Boolean = false, val dependency: String? = null, val bit: Int = 0,
         val choiceValues: List<Int>? = null)
-    val pages = linkedMapOf("panel" to "下拉背景", "cards" to "控制中心磁贴", "notifications" to "通知中心",
-        "banner" to "通知横幅", "volume" to "音量面板", "cloud" to "流体云",
+    val pages = linkedMapOf("cloud" to "流体云", "center" to "通控中心", "volume" to "音量面板",
         "status" to "状态栏", "gesture" to "手势条")
     val fields = buildList {
         fun flag(key: String, title: String, page: String, dependency: String? = null) {
@@ -23,15 +22,17 @@ internal object SystemSettingsCatalog {
         }
         fun material(key: String, title: String, page: String, corner: Boolean = true) {
             flag("${key}_blur", "$title · 自定义模糊", page)
-            number("${key}_radius", "$title · 模糊半径", page, 0..200, "${key}_blur")
+            number("${key}_radius", "$title · 模糊半径（px）", page, 0..200, "${key}_blur")
             flag("${key}_tint", "$title · 自定义混色", page)
             add(Field("${key}_color", "$title · 混色颜色", page, color = true, dependency = "${key}_tint"))
             if (corner) {
                 flag("${key}_corner_enabled", "$title · 自定义圆角", page)
-                number("${key}_corner", "$title · 圆角", page, 0..64, "${key}_corner_enabled")
+                number("${key}_corner", "$title · 圆角（dp）", page, 0..64, "${key}_corner_enabled")
             }
         }
         flag("enabled", "启用 thunder", "home")
+        StyleGroups.groups.forEach { flag("style_${it.key}", it.title, it.page) }
+        HookConfig.TILE_KEYS.forEach { key -> material(key, StyleGroups.group(key).title, StyleGroups.group(key).page) }
         material("panel", "共用背景", "panel", false)
         flag("panel_saturation_enabled", "调整背景饱和度", "panel")
         number("panel_saturation", "背景饱和度（%）", "panel", 0..200, "panel_saturation_enabled")
@@ -55,7 +56,7 @@ internal object SystemSettingsCatalog {
         material("cloud", "胶囊背景", "cloud", false)
         material("cloud_card", "展开卡片", "cloud")
         add(Field("cloud_lock_style", "锁屏背景", "cloud", 0..2, listOf("跟随系统", "自定义材质"), choiceValues = listOf(0, 2)))
-        material("cloud_lock", "锁屏材质", "cloud", false)
+        material("cloud_lock", "锁屏材质", "cloud")
         flag("cloud_app_color", "应用提供的背景颜色", "cloud")
         flag("cloud_app_color_strength_enabled", "自定义应用色强度", "cloud")
         number("cloud_app_color_strength", "应用色强度（%）", "cloud", 0..200, "cloud_app_color_strength_enabled")
@@ -89,34 +90,11 @@ internal object SystemSettingsCatalog {
         add(Field("gesture_light_color", "亮色手势条", "gesture", color = true, dependency = "gesture_colors"))
         add(Field("gesture_dark_color", "暗色手势条", "gesture", color = true, dependency = "gesture_colors"))
     }
+    .map { if (it.page in setOf("panel", "cards", "notifications", "banner")) it.copy(page = "center") else it }
     // Legacy storage flags remain accepted for compatibility; their effective value is
     // presented as one control, just as in the standalone app.
-    private val internalControls = setOf("cloud_lock_style", "cloud_app_color", "cloud_app_color_strength_enabled")
-    private fun section(f: Field): String = when {
-        f.page == "cloud" -> when {
-            f.key == "cloud_enabled" -> "流体云"
-            f.key.startsWith("cloud_app_") -> "应用提供的背景颜色"
-            f.key.startsWith("cloud_lock_") -> "锁屏背景"
-            f.key.startsWith("cloud_card_") -> "展开卡片"
-            else -> "胶囊"
-        }
-        f.page == "gesture" -> when {
-            f.key in listOf("gesture_bar_hidden", "gesture_bar_remove_inset") -> "显示"
-            else -> "手势条外观"
-        }
-        f.page == "status" -> when {
-            f.bit != 0 -> "隐藏状态图标"
-            f.key.startsWith("status_bar_clock") || f.key == "status_bar_compress_clock" -> "时钟"
-            f.key in listOf("status_bar_icon_style", "status_bar_stack_signals") -> "状态图标"
-            else -> "状态栏布局"
-        }
-        " · " in f.title -> f.title.substringBefore(" · ")
-        f.page == "home" -> ""
-        f.page == "panel" -> "共用背景"
-        f.page == "notifications" -> "通知卡片材质"
-        f.page == "volume" -> "音量面板"
-        else -> pages[f.page].orEmpty()
-    }
+    private val internalControls = setOf("cloud_lock_style", "cloud_app_color", "cloud_app_color_strength_enabled", "status_bar_clock", "gesture_style")
+    private fun section(f: Field): String = if (f.page == "home") "" else StyleGroups.group(StyleGroups.forField(f.key)).title
     /** Conditions match HookConfig semantics, including parents of dependent options. */
     private fun conditions(f: Field): Map<String, Boolean> = linkedMapOf<String, Boolean>().apply {
         fun parent(key: String) {
@@ -124,7 +102,7 @@ internal object SystemSettingsCatalog {
             fields.firstOrNull { it.key == key }?.dependency?.let { parent(it) }
         }
         if (f.key != "cloud_app_color_strength") f.dependency?.let { parent(it) }
-        if (f.page == "cloud" && f.key != "cloud_enabled") put("cloud_enabled", true)
+        if (f.page != "home" && !f.key.startsWith("style_")) put("style_" + StyleGroups.forField(f.key), true)
         if (f.key.startsWith("status_bar_clock_")) put("status_bar_clock", true)
         if (f.page == "gesture" && f.key !in listOf("gesture_bar_hidden", "gesture_bar_remove_inset")) {
             put("gesture_bar_hidden", false)
@@ -132,7 +110,10 @@ internal object SystemSettingsCatalog {
         }
     }
     fun presentationValues(stored: Bundle): Bundle = Bundle(stored).apply {
-        if (stored.getInt("cloud_lock_style") == 0) {
+        HookConfig.STYLE_KEYS.forEach { putBoolean("style_$it", HookConfig.styleEnabled(stored, it)) }
+        if (getBoolean("style_status_clock")) putBoolean("status_bar_clock", true)
+        if (getBoolean("style_gesture")) putBoolean("gesture_style", true)
+        if (stored.getInt("cloud_lock_style") == 0 && !HookConfig.styleEnabled(stored, "cloud_lock")) {
             putBoolean("cloud_lock_blur", false); putBoolean("cloud_lock_tint", false)
         }
         putInt("cloud_app_color_strength", when {
@@ -146,7 +127,9 @@ internal object SystemSettingsCatalog {
         val expected = field.getBooleanArray("visibility_values") ?: return true
         return keys.indices.all { values.getBoolean(keys[it]) == expected[it] }
     }
-    fun schema() = ArrayList(fields.filterNot { it.key in internalControls }.map { f -> Bundle().apply {
+    fun schema() = ArrayList(fields.filterNot { it.key in internalControls || it.key == "cloud_enabled" || it.key.startsWith("qs_card_") }
+        .sortedWith(compareBy<Field> { if (it.page == "home") -1 else StyleGroups.groups.indexOf(StyleGroups.group(StyleGroups.forField(it.key))) }
+            .thenBy { if (it.key.startsWith("style_")) 0 else 1 }).map { f -> Bundle().apply {
         putString("key", f.key)
         putString("title", when (f.key) {
             "cloud_height_enabled" -> "自定义高度"
@@ -157,8 +140,10 @@ internal object SystemSettingsCatalog {
             else -> f.title.substringAfter(" · ").substringBefore("（")
         })
         putString("page", f.page); putString("section", section(f))
+        if (f.page != "home") putString("style_group", StyleGroups.forField(f.key))
         putString("unit", when {
             "（dp）" in f.title -> "dp"
+            "（px）" in f.title -> "px"
             "（sp）" in f.title -> "sp"
             "（%）" in f.title -> "%"
             else -> ""
@@ -180,9 +165,6 @@ internal object SystemSettingsCatalog {
         validate(key, value, bit)
         val b = current.bundle()
         if (key.startsWith("cloud_lock_") && key != "cloud_lock_style") {
-            if (current.cloudLock.style == 0) {
-                b.putBoolean("cloud_lock_blur", false); b.putBoolean("cloud_lock_tint", false)
-            }
             b.putInt("cloud_lock_style", 2)
         }
         if (key == "cloud_app_color_strength") {

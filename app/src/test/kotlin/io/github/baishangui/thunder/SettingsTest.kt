@@ -29,7 +29,7 @@ class SettingsTest {
     }
     @Test fun wrongVersionOrForeignFormatFails() {
         val root=JSONObject(Settings().json())
-        root.put("version",23)
+        root.put("version",24)
         assertThrows(IllegalArgumentException::class.java) { Settings.parse(root.toString()) }
         root.legacyVersion(3).removeV13Fields().put("format","other")
         assertThrows(IllegalArgumentException::class.java) { Settings.parse(root.toString()) }
@@ -96,10 +96,11 @@ class SettingsTest {
         val c=HookConfig(s.bundle())
         assertEquals(123,c.cloudArea.radius)
         assertEquals(44,ResourceOverrides.dimension("com.oplus.systemui.plugins:dimen/capsule_height",c))
-        assertEquals(9,ResourceOverrides.dimension("com.oplus.systemui.plugins:dimen/round_corner_radius_fluid_cloud",c))
+        // Shared dimensions stay native; owning views select their scoped geometry.
+        assertNull(ResourceOverrides.dimension("com.oplus.systemui.plugins:dimen/round_corner_radius_fluid_cloud",c))
         assertNull(ResourceOverrides.dimension("com.oplus.systemui.plugins:dimen/new_round_corner_radius_notif",c))
         assertNull(ResourceOverrides.color("com.oplus.systemui.plugins:color/card_background_blend_color",c))
-        assertEquals(0xffffa800.toInt(),ResourceOverrides.color("com.oplus.systemui.plugins:color/coui_color_primary_text_blue_dark",c))
+        assertNull(ResourceOverrides.color("com.oplus.systemui.plugins:color/coui_color_primary_text_blue_dark",c))
         assertNull(ResourceOverrides.color("com.android.systemui:color/card_background_blend_color",c))
         val off=HookConfig(s.copy(cloud=false).bundle())
         assertNull(ResourceOverrides.dimension("com.oplus.systemui.plugins:dimen/capsule_height",off))

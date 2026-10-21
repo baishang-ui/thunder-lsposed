@@ -26,7 +26,7 @@ class StatusBarSettingsTest {
         val migrated = Settings.parse(old.toString())
         assertEquals(existing, migrated)
         assertEquals(StatusBarSettings(), migrated.statusBar)
-        assertEquals(22, JSONObject(migrated.json()).getInt("version"))
+        assertEquals(23, JSONObject(migrated.json()).getInt("version"))
         assertEquals(Settings(), Settings.from(Bundle()))
     }
     @Test fun invalidLayoutAndClockValuesAreRejected() {
@@ -47,7 +47,7 @@ class StatusBarSettingsTest {
         assertThrows(IllegalArgumentException::class.java) { Settings.parse(root.toString()) }
     }
     @Test fun nestedStatusPagesReturnToTheirOwnMenu() {
-        for (page in listOf(SettingsPage.StatusLayout, SettingsPage.StatusClock, SettingsPage.StatusStyle, SettingsPage.StatusIcons))
+        for (page in listOf(SettingsPage.StatusIcons))
             assertEquals(SettingsPage.StatusBar, page.parent)
         assertNull(SettingsPage.StatusBar.parent)
     }

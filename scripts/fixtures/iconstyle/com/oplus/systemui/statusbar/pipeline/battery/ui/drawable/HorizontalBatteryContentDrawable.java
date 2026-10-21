@@ -12,5 +12,5 @@ public class HorizontalBatteryContentDrawable extends android.graphics.drawable.
  }
  public android.graphics.RectF getBodyRectForLayout(android.graphics.RectF content){return new android.graphics.RectF(content.left,content.top,content.right,content.bottom);}
  public float getOffsetX(){return 1f;}
- public android.graphics.Paint paint=new android.graphics.Paint();public int getBatteryLevel(){return level;}public int getChargeIconId(){return charge;}public int getOutlineColor(){return -1;}public int getProgressColor(){return 0xff34c759;}
+ public android.graphics.Paint paint=new android.graphics.Paint(),percentInPaint=new android.graphics.Paint();public int getBatteryLevel(){return level;}public int getChargeIconId(){return charge;}public int getOutlineColor(){return -1;}public int getProgressColor(){return 0xff34c759;}
 }

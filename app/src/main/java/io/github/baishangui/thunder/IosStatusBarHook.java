@@ -3,7 +3,9 @@ package io.github.baishangui.thunder;
 import android.content.Context;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
+import android.graphics.Paint;
 import android.graphics.RectF;
+import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.util.TypedValue;
 import android.view.View;
@@ -25,10 +27,14 @@ final class IosStatusBarHook {
     private static final Map<View,Float> wifiTranslations=new WeakHashMap<>();
     private static boolean enabled;
     static final float ICON_SCALE = 1.12f;
-    static final float ICON_SIDE_GAP_DP = 1f;
-    // Enlarge the complete original 93x55 canvas without changing its proportions.
-    static final float BATTERY_WIDTH_DP = 34f;
+    static final float ICON_SIDE_GAP_DP = 3.25f;
+    static final float BATTERY_SEPARATOR_DP = 4f;
+    // Keep the original 93x55 proportions at the reference screenshot's scale.
+    static final float BATTERY_WIDTH_DP = 32f;
     static final float BATTERY_HEIGHT_DP = BATTERY_WIDTH_DP * 55f / 93f;
+    static final float BATTERY_TEXT_SIZE_DP = 14f;
+    static final int BATTERY_DIGIT_WEIGHT = 900;
+    static final float BATTERY_DIGIT_SCALE_X = 1.08f;
     static final float BATTERY_WIDTH_SCALE = 1f;
     static final float BATTERY_HEIGHT_SCALE = 1f;
     // C16's body ends at x=85 in its 93-wide canvas; exclude its cap from text.
@@ -43,6 +49,7 @@ final class IosStatusBarHook {
         installBadgeGuards();
         installHeight(loader);
         installBatteryTextLayout(loader);
+        installBatteryDigitFont(loader);
         installBatteryPadding(loader);
         Api102Runtime.findAndHookMethod(Resources.class, "getDrawableForDensity", int.class, int.class,
             Resources.Theme.class, new HookCallback() {
@@ -104,6 +111,26 @@ final class IosStatusBarHook {
                 }
             });
         } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-battery-text-layout", error); }
+    }
+
+    private static void installBatteryDigitFont(ClassLoader loader) {
+        try {
+            Api102Runtime.findAndHookMethod(HORIZONTAL_BATTERY,loader,"updatePercentInTextBounds",new HookCallback() {
+                @Override protected void beforeHookedMethod(Param p) {
+                    if (!enabled) return;
+                    Object target=Reflect.getObjectField(p.thisObject,"percentInPaint");
+                    if (!(target instanceof Paint digits)) return;
+                    // Configure the existing native paint before its own path/ink measurement.
+                    // The system still handles centering, cutouts, colors and level changes.
+                    Typeface face=digits.getTypeface();
+                    // Derive weight from the face supplied by system font settings.
+                    // Native setFontTypeface updates are picked up on the next measurement.
+                    if (face==null || face.getWeight()!=BATTERY_DIGIT_WEIGHT)
+                        digits.setTypeface(Typeface.create(face,BATTERY_DIGIT_WEIGHT,face!=null && face.isItalic()));
+                    digits.setTextScaleX(BATTERY_DIGIT_SCALE_X);
+                }
+            });
+        } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-battery-digit-font",error); }
     }
 
     private static void installBatteryPadding(ClassLoader loader) {
@@ -319,7 +346,7 @@ final class IosStatusBarHook {
         if (!enabled || id == 0) return null;
         try {
             String name = ResourceOverrides.name(resources, id);
-            if (name.equals("com.android.systemui:dimen/signal_cluster_battery_padding_new")) return ICON_SIDE_GAP_DP;
+            if (name.equals("com.android.systemui:dimen/signal_cluster_battery_padding_new")) return BATTERY_SEPARATOR_DP;
             Float dp = IosStatusResources.dimension(name);
             if (dp == null) return null;
             float scale = switch (name) {
@@ -327,6 +354,7 @@ final class IosStatusBarHook {
                      "com.android.systemui:dimen/status_bar_battery_horizontal_progress_start",
                      "com.android.systemui:dimen/status_bar_battery_horizontal_progress_end",
                      "com.android.systemui:dimen/battery_percent_in_text_offset_x" -> BATTERY_WIDTH_SCALE;
+                case "com.android.systemui:dimen/signal_cluster_battery_padding" -> 1f;
                 case "com.android.systemui:dimen/status_bar_battery_horizontal_height",
                      "com.android.systemui:dimen/status_bar_battery_horizontal_progress_top",
                      "com.android.systemui:dimen/status_bar_battery_horizontal_progress_bottom",
@@ -336,7 +364,7 @@ final class IosStatusBarHook {
                      "com.android.systemui:dimen/battery_percent_in_text_offset_y" -> BATTERY_HEIGHT_SCALE;
                 default -> ICON_SCALE;
             };
-            return dp * scale + (name.equals("com.android.systemui:dimen/signal_cluster_battery_padding") ? ICON_SIDE_GAP_DP : 0);
+            return dp * scale;
         }
         catch (Resources.NotFoundException ignored) { return null; }
     }
@@ -422,7 +450,7 @@ final class IosStatusBarHook {
     }
 
     static String state() {
-        return (enabled ? "style=ios;renderer=resources;signals=status-c16-c17-stacked;battery=status-c16;state=system;icons=112%;height=+4dp;gap=+2dp;battery-proportions=93:55;battery-width="+BATTERY_WIDTH_DP+"dp;battery-height="+BATTERY_HEIGHT_DP+"dp;battery-text=body-centered;battery-padding=0;network-text=hidden;wifi-offset=1px" : "style=system")
+        return (enabled ? "style=ios;renderer=resources;signals=status-c16-c17-stacked;battery=status-c16;state=system;icons=reference-14dp;native-containers=112%;height=+4dp;gap=~7.5dp;battery-proportions=93:55;battery-width="+BATTERY_WIDTH_DP+"dp;battery-height="+BATTERY_HEIGHT_DP+"dp;battery-text=body-centered;battery-text-size="+BATTERY_TEXT_SIZE_DP+"dp;battery-font=system-selected;battery-text-weight="+BATTERY_DIGIT_WEIGHT+";battery-text-scale-x="+BATTERY_DIGIT_SCALE_X+";battery-padding=0;network-text=hidden;wifi-offset=1px" : "style=system")
             + (enabled != IosStatusIcons.active(ShadeHook.snapshot()) ? ";restart-required=true" : "");
     }
     private IosStatusBarHook() { }

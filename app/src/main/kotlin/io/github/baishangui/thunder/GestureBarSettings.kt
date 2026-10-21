@@ -27,7 +27,7 @@ internal data class GestureBarSettings(
             "gesture_radius" to 0..200, "gesture_corner" to 0..64)
         val keys: Set<String> = Bundle().also { GestureBarSettings().write(it) }.keySet().toSet()
         fun from(b: Bundle): GestureBarSettings {
-            val c = HookConfig(b)
+            val c = HookConfig(b, false)
             val a = c.gestureArea
             return GestureBarSettings(c.gestureStyle, c.gestureLength, c.gestureThickness, c.gestureBottom,
                 Area(a.blur, a.radius, a.tint, a.color, a.cornerEnabled, a.corner),
@@ -37,10 +37,6 @@ internal data class GestureBarSettings(
 }
 
 @Composable internal fun GestureBarControls(value: GestureBarSettings, change: (GestureBarSettings) -> Unit) {
-    SettingsSection("外观开关") {
-        LiquidSwitchRow("修改手势条外观", "尺寸、材质与亮暗颜色", value.enabled) { change(value.copy(enabled = it)) }
-    }
-    if (!value.enabled) return
     SettingsSection("尺寸与位置") {
         LiquidValueSlider("长度", value.length, 40..320, " dp") { change(value.copy(length = it)) }
         NumberSetting("粗细", value.thickness, 1..16, " dp") { change(value.copy(thickness = it)) }

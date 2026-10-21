@@ -72,7 +72,9 @@ class GestureBarSettingsTest {
         val settings = Settings(statusIconStyle = 1,
             notificationArea = Area(tint = true, color = 0x55443322), hideGestureBar = true, removeGestureBarInset = true)
         val legacy = JSONObject(settings.json()).legacyVersion(12).removeV13Fields()
-        assertEquals(settings.copy(hideGestureBar = false, removeGestureBarInset = false), Settings.parse(legacy.toString()))
+        val migrated = Settings.parse(legacy.toString())
+        assertEquals(settings.copy(hideGestureBar = false, removeGestureBarInset = false), migrated.copy(styles = StyleSettings()))
+        assertEquals(settings.notificationArea.copy(corner = 20), migrated.styles.area(migrated, "cloud_notification"))
         assertFalse(HookConfig(Bundle()).removeGestureBarInset)
     }
     @Test fun importRequiresExplicitBooleanFields() {

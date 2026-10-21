@@ -28,6 +28,8 @@ public class CloudMorphCheck {
     }
     public static class Window {public Root g=new Root();public Secondary h=new Secondary();}
     public static class Secondary {public InstantContainer r=new InstantContainer();}
+    public static class TouchRoot {public TouchHandler b=new TouchHandler();}
+    public static class TouchHandler {public Object b=i.instance.c.container;}
     enum Kind {
         CAPSULE_TO_CARD,CARD_TO_CAPSULE,CARD_TO_CAPSULE_BY_INTERRUPT,
         CAPSULE_TO_LARGE_INSTANT_CARD,CAPSULE_TO_SMALL_INSTANT_CARD,CAPSULE_TO_SMALL_INSTANT_CARD_WITH_BLANK,
@@ -39,6 +41,7 @@ public class CloudMorphCheck {
         public android.content.Context a=new android.content.Context(),l=a,i=a;
         Kind kind;
         Runnable beforeClock;
+        com.oplus.systemui.plugins.seedling.animatorscenes.Z condition;
         public Kind f(){return kind;}
     }
     static HookCallback hook(String key){var h=Api102Runtime.callbacks.get(BASE+key);check(h!=null,"Missing native morph boundary: "+key);return h;}
@@ -53,12 +56,12 @@ public class CloudMorphCheck {
         };
         var graph=new com.oplus.systemui.plugins.seedling.engine.animatorengine.h();
         var builder=new com.oplus.systemui.plugins.seedling.animatorscenes.B0(scene,graph);
+        scene.condition=builder.condition;
         var c=hook("animatorscenes.B0#invoke");var p=CloudCheck.param(builder,null);c.before(p);
-        p.setResult(builder.invoke());c.after(p);
+        Object wrapper=builder.invoke();p.setResult(wrapper);c.after(p);
         if(scene.beforeClock!=null){Runnable ready=scene.beforeClock;scene.beforeClock=null;ready.run();}
-        var g=hook("engine.animatorengine.h#g");p=CloudCheck.param(graph,original,new Object());g.before(p);g.after(p);
-        if(p.getResult()!=original)check(builder.condition.d==300&&builder.condition.e==0,"native condition clock follows morph without a blank wait");
-        else check(builder.condition.d==250&&builder.condition.e==400,"fallback leaves the entire native timing intact");
+        var g=hook("engine.animatorengine.h#g");p=CloudCheck.param(wrapper,original,new Object());g.before(p);g.after(p);
+        check(builder.condition.d==250&&builder.condition.e==400,"native clock metadata is not mutated during construction");
         return (Animator)p.getResult();
     }
     static float radius(View v){Outline o=new Outline();v.getOutlineProvider().getOutline(v,o);return o.radius;}
@@ -146,7 +149,45 @@ public class CloudMorphCheck {
         check(build(scene,"t",original)==original,"disabled cloud keeps complete native animation");
         b.putBoolean("cloud_enabled",true);CloudCheck.config(b);ValueAnimator.durationScale=0;
         check(build(scene,"t",original)==original,"system animation-disabled setting retained");ValueAnimator.durationScale=1;
-        card.actualWidth=0;check(build(scene,"t",original)==original,"unmeasured card safely retains native animation");
+        var touch=hook("capsule.ui.view.CapsuleContainerRoot#onTouchEvent");
+        touch.before(CloudCheck.param(new TouchRoot(),null,new Object()));
+        capsule.actualWidth=0;capsule.actualHeight=0;
+        var anchorOpen=(ValueAnimator)build(scene,"t",new AnimatorSet());anchorOpen.start();
+        check(!anchorOpen.isPaused()&&width(card)==240,"a capsule hidden before card start still uses its pre-click anchor");anchorOpen.advance(1);
+        capsule.actualWidth=240;capsule.actualHeight=80;
+        Scene cold=new Scene();cold.j.g.instant.content=null;cold.j.h.r.content=null;
+        ValueAnimator coldOpen=(ValueAnimator)build(cold,"v",new AnimatorSet());coldOpen.start();
+        check(coldOpen.isPaused()&&capsule.getAlpha()==1,"cold opening keeps capsule visible while target is not mounted");
+        check(cold.condition.completed==0,"host condition cannot finish while the target is missing");
+        View first=new View();first.actualWidth=0;first.actualHeight=0;cold.j.g.instant.content=first;
+        java.lang.reflect.Field worker=CloudMorphHook.class.getDeclaredField("layoutHandler");worker.setAccessible(true);
+        android.os.Handler scheduler=(android.os.Handler)worker.get(null);scheduler.advance(16);
+        check(coldOpen.isPaused(),"zero-size first card waits instead of falling back to shrink animation");
+        first.actualWidth=640;first.actualHeight=300;first.setAlpha(0);first.getBackground().setAlpha(0);
+        cold.j.g.instant.setScaleX(.3f);cold.j.g.instant.setScaleY(.3f);cold.j.g.instant.setTranslationY(25f);
+        first.getBackground().setBounds(new android.graphics.Rect(0,0,1,1));scheduler.advance(16);
+        check(!coldOpen.isPaused()&&width(first)==240,"first completed layout starts at the capsule without interruption");
+        check(first.getAlpha()==1&&first.getBackground().getAlpha()==255,"cold card material is visible from its first morph frame");
+        check(cold.j.g.instant.getScaleX()==1&&cold.j.g.instant.getScaleY()==1&&cold.j.g.instant.getTranslationY()==0,
+            "cold owner's previous shrink transform cannot multiply the actual card morph");
+        coldOpen.advance(.25f);check(width(first)>240&&width(first)<640,"cold first opening grows immediately");coldOpen.advance(1);
+        check(first.getBackground().getBounds().width()==640,"opening leaves the full native material bounds");
+        check(cold.condition.completed==1,"host condition completes exactly once after full expansion");
+        ViewGroup freshRoot=new ViewGroup();View freshText=new View();freshText.setAlpha(0);freshRoot.addView(freshText);
+        freshRoot.actualWidth=660;freshRoot.actualHeight=300;cold.j.g.instant.content=freshRoot;
+        freshRoot.setOutlineProvider(new com.oplus.systemui.plugins.common.util.j(new android.graphics.Rect(200,100,400,180),new kotlin.Triple(2,40f,3f)));
+        freshRoot.setClipToOutline(true);
+        var fresh=(ValueAnimator)build(cold,"v",new AnimatorSet());fresh.start();fresh.advance(.5f);
+        check(freshText.getAlpha()>0,"initial zero-alpha content is revealed instead of multiplied by zero");fresh.advance(1);
+        check(freshText.getAlpha()==1,"cold content finishes fully visible");
+        Outline settled=new Outline();freshRoot.getOutlineProvider().getOutline(freshRoot,settled);
+        check(settled.left==0&&settled.top==0&&settled.right==660&&settled.bottom==300,
+            "completed opening cannot restore a stale compressed native outline");
+        cold.j.g.instant.content=null;cold.j.h.r.content=null;
+        var waiting=(ValueAnimator)build(cold,"v",new AnimatorSet());waiting.start();waiting.cancel();scheduler.advance(32);
+        check(scheduler.pending()==0&&cold.condition.completed==0,"cancelling during first layout removes its wait without completing a different scene");
+        var timedOut=(ValueAnimator)build(cold,"v",new AnimatorSet());timedOut.start();scheduler.advance(600);
+        check(timedOut.cancelled&&scheduler.pending()==0,"missing card is bounded and cannot leave an animation waiting forever");
         System.out.println("Verified "+checks+" continuous cloud morph checks.");
     }
 }

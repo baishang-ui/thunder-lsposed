@@ -57,7 +57,7 @@ final class AdaptiveTextHook {
                 // does not rebuild a child's hardware display list when a setting changes.
                 if (!knownTexts.containsKey(text) && candidate(text)) knownTexts.put(text, true);
                 HookConfig config = ShadeHook.snapshot();
-                if (!config.enabled || !(config.shade.tint || config.qsCards.tint || config.notificationCard.tint || config.banner.tint)) return;
+                if (!config.enabled || !(config.shade.tint || anyTileTint(config) || config.notificationCard.tint || config.banner.tint)) return;
                 Integer background = background(text, config);
                 if (background == null) { texts.remove(text); return; }
                 AdaptiveTextColor.Transition transition = texts.computeIfAbsent(text, key -> new AdaptiveTextColor.Transition());
@@ -124,13 +124,13 @@ final class AdaptiveTextHook {
             int card = QsCardHook.textSurface(drawable);
             // Some C17 tile views draw bgDrawable themselves instead of using View.background.
             if ((viewTypes.get(view.getClass()) & TILE) != 0) {
-                try { card = QsCardHook.textSurface((Drawable) Reflect.getObjectField(view, "bgDrawable")); }
+                try { drawable = (Drawable) Reflect.getObjectField(view, "bgDrawable"); card = QsCardHook.textSurface(drawable); }
                 catch (RuntimeException ignored) { return null; }
                 if (card == 0) return null;
             }
             if (card != 0) {
                 if (card == 2) return null; // Native active/unavailable/inoperable material.
-                material = config.qsCards;
+                material = QsCardHook.area(drawable);
                 surface = view;
                 break;
             }
@@ -207,6 +207,12 @@ final class AdaptiveTextHook {
         synchronized (knownTexts) { current = new ArrayList<>(knownTexts.keySet()); }
         for (TextView text : current) text.invalidate();
         HookConfig config = ShadeHook.snapshot();
-        if (!config.enabled || !(config.shade.tint || config.qsCards.tint || config.notificationCard.tint || config.banner.tint)) texts.clear();
+        if (!config.enabled || !(config.shade.tint || anyTileTint(config) || config.notificationCard.tint || config.banner.tint)) texts.clear();
     }
+    private static boolean anyTileTint(HookConfig config) {
+        if(!config.styleData.containsKey("style_qs_small"))return config.qsCards.tint;
+        for(String key:HookConfig.TILE_KEYS)if(key.startsWith("qs_")&&config.tileArea(key).tint)return true;
+        return false;
+    }
+
 }

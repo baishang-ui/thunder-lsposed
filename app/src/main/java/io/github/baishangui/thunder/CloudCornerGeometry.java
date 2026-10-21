@@ -8,7 +8,7 @@ import android.graphics.drawable.GradientDrawable;
 final class CloudCornerGeometry {
     static final float WEIGHT=3f;
     static boolean enabled() {
-        HookConfig c=ShadeHook.snapshot();return c.enabled&&c.cloud&&c.cloudCardArea.cornerEnabled;
+        HookConfig c=ShadeHook.snapshot();return c.enabled&&c.cloud&&(c.cloudCardArea.cornerEnabled||c.lockCardArea().cornerEnabled||c.cloudNotificationArea().cornerEnabled);
     }
     static Object stroke(Object original,float radius) {
         Object type=Reflect.callMethod(original,"getType");

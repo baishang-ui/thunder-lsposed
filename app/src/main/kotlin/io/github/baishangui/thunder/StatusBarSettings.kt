@@ -26,7 +26,7 @@ internal data class StatusBarSettings(
             "status_bar_center" to 0..80, "status_bar_clock_hour_format" to 0..2,
             "status_bar_clock_date" to 0..2, "status_bar_clock_size" to 8..24)
         fun from(b: Bundle): StatusBarSettings {
-            val c = HookConfig(b)
+            val c = HookConfig(b, false)
             return StatusBarSettings(c.statusBarMargins, c.statusBarLeft, c.statusBarRight,
                 c.statusBarCenterEnabled, c.statusBarCenter, c.statusBarCompressClock,
                 c.statusBarClock, c.statusBarClockSeconds, c.statusBarClockHourFormat,
@@ -54,29 +54,23 @@ internal data class StatusBarSettings(
 }
 
 @Composable internal fun StatusBarClockControls(value: StatusBarSettings, change: (StatusBarSettings) -> Unit) {
-    SettingsSection("时钟开关") {
-        LiquidSwitchRow("自定义时钟", "修改顶部状态栏的时间显示", value.clock) { change(value.copy(clock = it)) }
+    SettingsSection("显示内容") {
+        SettingsChoice("时间制式", listOf(
+            SettingOption("跟随系统", "使用系统设置中的时间制式"),
+            SettingOption("24 小时", "例如 14:30"),
+            SettingOption("12 小时", "例如 2:30")
+        ), value.hourFormat) { change(value.copy(hourFormat = it)) }
+        LiquidSwitchRow("显示秒数", "跟随系统息屏暂停刷新", value.seconds) { change(value.copy(seconds = it)) }
+        SettingsDivider()
+        SettingsChoice("日期格式", listOf(
+            SettingOption("不显示", "只显示时间"),
+            SettingOption("月/日", "例如 10/19"),
+            SettingOption("年/月/日", "例如 2026/10/19")
+        ), value.date) { change(value.copy(date = it)) }
+        LiquidSwitchRow("显示星期", "", value.weekday) { change(value.copy(weekday = it)) }
     }
-    if (value.clock) {
-        SettingsSection("显示内容") {
-            SettingsChoice("时间制式", listOf(
-                SettingOption("跟随系统", "使用系统设置中的时间制式"),
-                SettingOption("24 小时", "例如 14:30"),
-                SettingOption("12 小时", "例如 2:30")
-            ), value.hourFormat) { change(value.copy(hourFormat = it)) }
-            LiquidSwitchRow("显示秒数", "跟随系统息屏暂停刷新", value.seconds) { change(value.copy(seconds = it)) }
-            SettingsDivider()
-            SettingsChoice("日期格式", listOf(
-                SettingOption("不显示", "只显示时间"),
-                SettingOption("月/日", "例如 10/19"),
-                SettingOption("年/月/日", "例如 2026/10/19")
-            ), value.date) { change(value.copy(date = it)) }
-            LiquidSwitchRow("显示星期", "", value.weekday) { change(value.copy(weekday = it)) }
-        }
-        SettingsSection("文字样式") {
-            NumberSetting("时钟字号", value.size, 8..24, " sp") { change(value.copy(size = it)) }
-            LiquidSwitchRow("时钟加粗", "", value.bold) { change(value.copy(bold = it)) }
-            LiquidSwitchRow("长时钟自动压缩", "与状态栏布局中的开关共用，避免较长日期被截断", value.compressClock) { change(value.copy(compressClock = it)) }
-        }
+    SettingsSection("文字样式") {
+        NumberSetting("时钟字号", value.size, 8..24, " sp") { change(value.copy(size = it)) }
+        LiquidSwitchRow("时钟加粗", "", value.bold) { change(value.copy(bold = it)) }
     }
 }

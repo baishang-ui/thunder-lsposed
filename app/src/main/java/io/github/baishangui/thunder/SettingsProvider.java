@@ -115,6 +115,10 @@ public final class SettingsProvider extends ContentProvider {
             result.putInt("cloud_lock_radius",Math.max(0,Math.min(200,prefs.getInt("cloud_lock_radius",100))));
             result.putBoolean("cloud_lock_tint",prefs.getBoolean("cloud_lock_tint",false));
             result.putInt("cloud_lock_color",prefs.getInt("cloud_lock_color",0x3cd8d8d8));
+            if(prefs.contains("cloud_lock_corner_enabled")) {
+                result.putBoolean("cloud_lock_corner_enabled",prefs.getBoolean("cloud_lock_corner_enabled",false));
+                result.putInt("cloud_lock_corner",prefs.getInt("cloud_lock_corner",28));
+            }
             result.putBoolean("cloud_app_color",prefs.getBoolean("cloud_app_color",true));
             result.putBoolean("cloud_app_color_strength_enabled",prefs.getBoolean("cloud_app_color_strength_enabled",false));
             result.putInt("cloud_app_color_strength",Math.max(0,Math.min(200,prefs.getInt("cloud_app_color_strength",100))));
@@ -134,7 +138,15 @@ public final class SettingsProvider extends ContentProvider {
                 result.putBoolean("qs_card_blur",prefs.getBoolean("qs_card_blur",false));
                 result.putInt("qs_card_radius",prefs.getInt("qs_card_radius",100));
             }
-            HookConfig config = new HookConfig(result);
+            for (String key : HookConfig.STYLE_KEYS)
+                if (prefs.contains("style_"+key)) result.putBoolean("style_"+key,prefs.getBoolean("style_"+key,false));
+            for (String key : HookConfig.TILE_KEYS) if (prefs.contains(key+"_radius")) {
+                for (String suffix : new String[]{"blur","tint","corner_enabled"}) result.putBoolean(key+"_"+suffix,prefs.getBoolean(key+"_"+suffix,false));
+                result.putInt(key+"_radius",prefs.getInt(key+"_radius",100));
+                result.putInt(key+"_color",prefs.getInt(key+"_color",0x33ffffff));
+                result.putInt(key+"_corner",prefs.getInt(key+"_corner",28));
+            }
+            HookConfig config = new HookConfig(result, false);
             HookConfig.Area cards = config.qsCards;
             result.putBoolean("qs_card_blur",cards.blur); result.putInt("qs_card_radius",cards.radius);
             result.putBoolean("qs_card_tint",cards.tint); result.putInt("qs_card_color",cards.color);

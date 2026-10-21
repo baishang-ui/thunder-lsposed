@@ -87,7 +87,7 @@ final class CloudHook {
                 @Override protected void afterHookedMethod(Param p) throws Throwable {
                     endNativeCorners();
                     if(p.hasThrowable()||p.getResult()==null||readingNativeCorners())return;
-                    HookConfig c=ShadeHook.snapshot();if(!c.enabled||!c.cloud||!c.cloudCardArea.cornerEnabled)return;
+                    HookConfig c=ShadeHook.snapshot();if(c.styleData.containsKey("style_cloud")||!c.enabled||!c.cloud||!c.cloudCardArea.cornerEnabled)return;
                     Object context=Reflect.callMethod(Reflect.callMethod(companionField.get(null),"getInstance"),"getPluginCtx");
                     if(!(context instanceof Context))return;
                     float radius=c.cloudCardArea.corner*((Context)context).getResources().getDisplayMetrics().density;
@@ -110,7 +110,7 @@ final class CloudHook {
                 outlines.put(view,true);
                 Object saved=Reflect.getObjectField(p.thisObject,"b");
                 Object nativeCorners=nativeCorners(saved);
-                HookConfig c=ShadeHook.snapshot();HookConfig.Area area=c.cloudCardArea;
+                HookConfig c=ShadeHook.snapshot();HookConfig.Area area=cardArea(view,c);
                 Object scaleValue=Reflect.getAdditionalInstanceField(p.thisObject,"thunder.cloud-corner-scale");
                 float scale=scaleValue instanceof Number?((Number)scaleValue).floatValue():1f;
                 Float radius=page?CloudTemplateHook.pageRadius(view):
@@ -147,7 +147,7 @@ final class CloudHook {
                     if(saved==null)return;
                     p.setObjectExtra("corners",saved);
                     HookConfig c=ShadeHook.snapshot();Object value=nativeCorners(saved);
-                    if(c.enabled&&c.cloud&&c.cloudCardArea.cornerEnabled)value=cornerConfig(value,
+                    if(!c.styleData.containsKey("style_cloud")&&c.enabled&&c.cloud&&c.cloudCardArea.cornerEnabled)value=cornerConfig(value,
                         c.cloudCardArea.corner*android.content.res.Resources.getSystem().getDisplayMetrics().density);
                     Reflect.setObjectField(p.thisObject,"b",value);
                     ShadeHook.resourceHit("cloud-press-corners");
@@ -280,7 +280,12 @@ final class CloudHook {
         tint(view.getBackground(),area,nativeBlur);
         applyCorners(view,area,!nativeBlur);
     }
-    private static HookConfig.Area cardArea(View view,HookConfig c) {
+    static HookConfig.Area cardArea(View view,HookConfig c) {
+        if(c.styleData.containsKey("style_cloud")&&"cloud_notification".equals(CloudLockHook.scope(view)))return c.cloudNotificationArea();
+        if(c.styleData.containsKey("style_cloud")&&CloudLockHook.keyguard(view)) {
+            HookConfig.Area lock=c.lockCardArea();
+            return CloudLockHook.inNativeCapsule(view)?new HookConfig.Area(lock.blur,lock.radius,lock.tint,lock.color,false,lock.corner):lock;
+        }
         HookConfig.Area card=c.cloudCardArea;
         boolean capsule=CloudLockHook.inNativeCapsule(view);
         if(!CloudLockHook.pluginLock(view,c))return capsule?

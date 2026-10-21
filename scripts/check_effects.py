@@ -86,7 +86,7 @@ with tempfile.TemporaryDirectory(prefix='thunder-effects-') as folder:
             for _ in range(attributes): pos += 6 + u4(pos+2)
     bridge_class.write_bytes(bytecode)
     checks = ['StatusBarLayoutCheck', 'StatusBarClockTransitionCheck', 'ReflectCheck', 'AdaptiveTextPerformanceCheck', 'RuntimeReportCheck', 'ProviderVisibilityCheck', 'SettingsUiProviderCheck', 'VolumePanelCheck', 'VolumeLiquidEntranceCheck', 'GestureBarCheck', 'CardBlendCheck', 'PanelStartFrameCheck', 'HookCheck', 'ProviderCheck', 'CloudCheck', 'CloudLayerCheck', 'CloudLockCheck', 'CloudSdkCheck', 'CloudTemplateCheck', 'StatusBarIconCheck', 'IosStatusBarCheck', 'IosDrawSafetyCheck', 'IosRenderPathCheck', 'IosCoverageCheck', 'QsTintCheck', 'QsStateCheck', 'QsGeometryCheck', 'QsMediaGeometryCheck', 'NotificationStyleCheck', 'NotificationExpansionCheck', 'AdaptiveTextCheck']
-    checks.extend(['PanelSaturationCheck', 'PanelColorContinuityCheck', 'ShortcutPerformanceCheck', 'CloudGeometryCheck', 'CloudNotificationGeometryCheck', 'CloudTemplateReentryCheck', 'CloudCurveCheck', 'CloudCapsuleIsolationCheck', 'CloudMorphCheck'])
+    checks.extend(['StyleScopeCheck', 'PanelSaturationCheck', 'PanelColorContinuityCheck', 'ShortcutPerformanceCheck', 'CloudGeometryCheck', 'CloudNotificationGeometryCheck', 'CloudTemplateReentryCheck', 'CloudCurveCheck', 'CloudCapsuleIsolationCheck', 'CloudMorphCheck'])
     if args.only:
         unknown = set(args.only) - set(checks)
         if unknown: raise SystemExit('Unknown checks: ' + ', '.join(sorted(unknown)))

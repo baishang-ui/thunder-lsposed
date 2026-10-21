@@ -42,14 +42,14 @@ class SystemSettingsCatalogTest {
         SystemSettingsCatalog.validate("panel_color", 0xFF99AABB.toInt(), 0)
         SystemSettingsCatalog.validate("status_bar_hidden_icons", true, 512)
     }
-    @Test fun cloudMasterHidesEveryAdjustmentAndConsolidatesCapsule() {
+    @Test fun cloudStylesUsePeerSwitchesAndConsolidateCapsule() {
         val schema = SystemSettingsCatalog.schema()
         val off = SystemSettingsCatalog.presentationValues(Settings(cloud = false).bundle())
         val cloud = schema.filter { it.getString("page") == "cloud" }
-        assertEquals(listOf("cloud_enabled"), cloud.filter { SystemSettingsCatalog.visible(it, off) }.map { it.getString("key") })
+        assertEquals(listOf("style_cloud", "style_cloud_lock", "style_cloud_notification"), cloud.filter { SystemSettingsCatalog.visible(it, off) }.map { it.getString("key") })
         assertFalse(cloud.any { it.getString("key") in setOf("cloud_lock_style", "cloud_app_color", "cloud_app_color_strength_enabled") })
         val capsule = cloud.filter { it.getString("key") in setOf("cloud_height", "cloud_corner", "cloud_blur", "cloud_color") }
-        assertEquals(setOf("胶囊"), capsule.map { it.getString("section") }.toSet())
+        assertEquals(setOf("流体云样式"), capsule.map { it.getString("section") }.toSet())
     }
     @Test fun lockscreenControlsReflectEffectiveMaterialAndActivateItAtomically() {
         val original = Settings(cloudLock = CloudLockSettings(style = 0, area = Area(blur = true, tint = true)))
@@ -59,7 +59,7 @@ class SystemSettingsCatalogTest {
         val changed = SystemSettingsCatalog.patch(original, "cloud_lock_blur", true, 0)
         assertEquals(2, changed.cloudLock.style)
         assertTrue(changed.cloudLock.area.blur)
-        assertFalse(changed.cloudLock.area.tint)
+        assertTrue(changed.cloudLock.area.tint)
         assertEquals(original.cloudLock.area.color, changed.cloudLock.area.color)
     }
     @Test fun appColorStrengthHasOneEffectiveControlAcrossLegacyStates() {
@@ -82,7 +82,7 @@ class SystemSettingsCatalogTest {
         assertFalse(visible("status_bar_clock_date", Settings()))
         assertFalse(visible("gesture_blur", Settings()))
         val gesture = Settings().bundle().apply {
-            putBoolean("gesture_style", true); putBoolean("gesture_colors", true)
+            putBoolean("style_gesture", true); putBoolean("gesture_style", true); putBoolean("gesture_colors", true)
             putBoolean("gesture_bar_hidden", true)
         }
         assertFalse(visible("gesture_light_color", Settings.from(gesture)))

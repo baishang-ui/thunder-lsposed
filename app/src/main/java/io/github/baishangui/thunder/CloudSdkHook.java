@@ -80,7 +80,7 @@ final class CloudSdkHook {
                     Drawable drawable=background.getBackground();
                     Fill fill=read(drawable);
                     Reflect.setAdditionalInstanceField(p.thisObject,"thunder.sdk-fill",fill);
-                    apply(fill,ShadeHook.snapshot());
+                    apply(fill,ShadeHook.snapshot(),p.thisObject);
                     ShadeHook.resourceHit("cloud-sdk-app-color");
                 }
             }));
@@ -90,7 +90,7 @@ final class CloudSdkHook {
             android.graphics.Canvas.class,new HookCallback() {
                 @Override protected void beforeHookedMethod(Param p) {
                     flowing.put((View)p.thisObject,true);
-                    int strength=strength(ShadeHook.snapshot());
+                    int strength=ShadeHook.snapshot().appColorStrength(CloudLockHook.scope((View)p.thisObject));
                     if(strength==100)return;
                     for(String field:new String[]{"d","e"}) {
                         float value=((Number)Reflect.getObjectField(p.thisObject,field)).floatValue();
@@ -116,7 +116,13 @@ final class CloudSdkHook {
     private static HookConfig.Area cornerArea(Object card) {
         HookConfig c=ShadeHook.snapshot();
         // Entrance changes the host, not ownership of the card's geometry.
-        return c.enabled&&c.cloud&&expandedCloud(card)?c.cloudCardArea:null;
+        if(!c.enabled||!c.cloud||!expandedCloud(card))return null;
+        if(c.styleData.containsKey("style_cloud_notification")) {
+            String scope=scope(card);
+            if("cloud_notification".equals(scope))return c.cloudNotificationArea();
+            if("cloud_lock".equals(scope))return c.lockCardArea();
+        }
+        return CloudHook.cardArea((View)Reflect.getObjectField(card,"b"),c);
     }
     private static Object style(Object card,Object nativeStyle) {
         HookConfig.Area area=cornerArea(card);
@@ -181,12 +187,18 @@ final class CloudSdkHook {
         Object saved=Reflect.getAdditionalInstanceField(card,"thunder.sdk-fill");
         if(saved instanceof Fill)write((Fill)saved,((Fill)saved).colors);
     }
-    private static void apply(Fill fill,HookConfig config) {
-        if(fill!=null)write(fill,CloudLockHook.adjust(fill.colors,config));
+    private static String scope(Object card) {
+        String entrance=String.valueOf(Reflect.getObjectField(card,"d"));
+        if("Notification".equals(entrance))return "cloud_notification";
+        if("LockScreen".equals(entrance)||"SecondaryLockScreen".equals(entrance))return "cloud_lock";
+        View view=(View)Reflect.getObjectField(card,"b");
+        return CloudLockHook.keyguard(view)?"cloud_lock":"cloud";
     }
-    private static int strength(HookConfig c) {
-        if(!c.enabled||!c.cloud)return 100;
-        return !c.cloudAppColor?0:c.cloudAppColorStrengthEnabled?c.cloudAppColorStrength:100;
+    private static void apply(Fill fill,HookConfig config,Object card) {
+        String scope=scope(card);
+        Object root=Reflect.getObjectField(card,"b");
+        if(root instanceof View)Reflect.setAdditionalInstanceField(root,"thunder.cloud-scope",scope);
+        if(fill!=null)write(fill,CloudLockHook.adjust(fill.colors,config.appColorStrength(scope)));
     }
     static void refresh() {
         ArrayList<Object> shapes;synchronized(geometry){shapes=new ArrayList<>(geometry.keySet());}
@@ -195,7 +207,7 @@ final class CloudSdkHook {
         ArrayList<Object> current;synchronized(cards){current=new ArrayList<>(cards.keySet());}
         for(Object card:current) {
             Object saved=Reflect.getAdditionalInstanceField(card,"thunder.sdk-fill");
-            if(saved instanceof Fill)apply((Fill)saved,ShadeHook.snapshot());
+            if(saved instanceof Fill)apply((Fill)saved,ShadeHook.snapshot(),card);
         }
         ArrayList<View> animations;synchronized(flowing){animations=new ArrayList<>(flowing.keySet());}
         for(View view:animations)view.invalidate();

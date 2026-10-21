@@ -162,8 +162,9 @@ final class CloudTemplateHook {
         HookConfig c=ShadeHook.snapshot();
         HookConfig.Area notification=NotificationCardHook.containingArea(view);
         // These are flow-template background layers even when hosted by a row.
-        return c.enabled&&c.cloud&&c.cloudCardArea.cornerEnabled&&(notification!=null||CloudHook.inCard(view)||CloudLockHook.flowCapsule(view))?
-            c.cloudCardArea.corner*view.getResources().getDisplayMetrics().density:null;
+        HookConfig.Area selected=notification!=null?notification:CloudHook.cardArea(view,c);
+        return c.enabled&&c.cloud&&selected.cornerEnabled&&(notification!=null||CloudHook.inCard(view)||CloudLockHook.flowCapsule(view))?
+            selected.corner*view.getResources().getDisplayMetrics().density:null;
     }
     private static HookCallback mediaGeometry(boolean outline) {
         return new HookCallback() {
@@ -205,7 +206,7 @@ final class CloudTemplateHook {
     }
     private static int track(Drawable drawable) {
         HookConfig c=ShadeHook.snapshot();
-        int strength=!c.enabled||!c.cloud?100:!c.cloudAppColor?0:c.cloudAppColorStrengthEnabled?c.cloudAppColorStrength:100;
+        int strength=c.appColorStrength(CloudLockHook.scope(owner(drawable)));
         Integer previous=backgrounds.put(drawable,strength);
         if(previous==null||previous!=strength)ShadeHook.observed("cloud-template-app-color",drawable.getClass().getSimpleName()+" strength="+strength+"%");
         return strength;

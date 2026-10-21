@@ -56,5 +56,8 @@ public final class IosDrawSafetyCheck {
         battery.paddingTop=2f;battery.outPaddingTop=3f;
         call=IosStatusBarCheck.param(battery);Api102Runtime.callbacks.get("com.oplus.systemui.statusbar.pipeline.battery.ui.drawable.HorizontalBatteryContentDrawable#updatePadding").after(call);
         IosStatusBarCheck.check(battery.paddingTop==2f && battery.outPaddingTop==3f,"default style retains native battery padding");
+        var nativeFace=battery.percentInPaint.getTypeface();battery.percentInPaint.setTextScaleX(.95f);
+        call=IosStatusBarCheck.param(battery);Api102Runtime.callbacks.get("com.oplus.systemui.statusbar.pipeline.battery.ui.drawable.HorizontalBatteryContentDrawable#updatePercentInTextBounds").before(call);
+        IosStatusBarCheck.check(battery.percentInPaint.getTypeface()==nativeFace && battery.percentInPaint.getTextScaleX()==.95f,"default style retains native digit font and width");
     }
 }

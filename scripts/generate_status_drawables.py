@@ -20,7 +20,6 @@ SOURCE_ASSETS = ROOT / 'app/src/main/assets/icons/theme-reference'
 THEME = json.loads((SOURCE_ASSETS / 'manifest.json').read_text(encoding='utf-8'))
 NS = '{http://schemas.android.com/apk/res/android}'
 ET.register_namespace('android', NS[1:-1])
-ICON_SCALE = float(re.search(r'ICON_SCALE = ([0-9.]+)f', (SOURCE / 'IosStatusBarHook.java').read_text(encoding='utf-8'))[1])
 SIDE_GAP = float(re.search(r'ICON_SIDE_GAP_DP = ([0-9.]+)f', (SOURCE / 'IosStatusBarHook.java').read_text(encoding='utf-8'))[1])
 
 
@@ -29,7 +28,8 @@ def sized_original(source):
     if not source.startswith(('stat_battery_', 'stat_bt_battery_')):
         # C17's system ImageViews use wrap_content and CENTER. They measure the
         # drawable's intrinsic size, bypassing the status_bar_* dimension values.
-        # Grow the canvas for spacing as well as the image. Extend its viewport
+        # Imported assets already carry the reference-matched optical sizes.
+        # Grow only the canvas for spacing. Extend its viewport
         # by the same physical amount, so extra width does not stretch the ink.
         # Both SIM rows get the same translation and retain their shared frame.
         for vector in tree.iter('vector'):
@@ -37,7 +37,6 @@ def sized_original(source):
                 value = vector.get(NS + attr)
                 if not value or not value.endswith('dp'):
                     raise ValueError(f'{source}: expected literal intrinsic {attr}')
-                vector.set(NS + attr, f'{float(value[:-2]) * ICON_SCALE:.9g}dp')
             width = float(vector.get(NS+'width')[:-2])
             viewport = float(vector.get(NS+'viewportWidth'))
             inset = SIDE_GAP * viewport / width

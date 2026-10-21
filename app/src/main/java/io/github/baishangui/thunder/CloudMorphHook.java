@@ -7,6 +7,8 @@ import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Rect;
 import android.os.SystemClock;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
@@ -23,7 +25,10 @@ final class CloudMorphHook {
     private static final String MORPH="thunder.cloud-morph";
     private static final Map<View,Motion> active=new IdentityHashMap<>();
     private static final Map<View,Pending> interrupted=new WeakHashMap<>();
+    private static final Map<View,Frame> capsuleAnchors=new WeakHashMap<>();
     private static final Map<ViewGroup,ClipLease> clips=new IdentityHashMap<>();
+    private static final Map<Motion,Boolean> running=new IdentityHashMap<>();
+    private static final Handler layoutHandler=new Handler(Looper.getMainLooper());
     private static final PathInterpolator CURVE=new PathInterpolator(.32f,.72f,0f,1f);
     private record Frame(float x,float y,float width,float height,float radius,float progress) { }
     private record Pending(Frame frame,long time) { }
@@ -46,6 +51,18 @@ final class CloudMorphHook {
     }
 
     static void install(ClassLoader loader) {
+        bind("capsule-anchor",() -> Api102Runtime.findAndHookMethod(BASE+"capsule.ui.view.CapsuleContainerRoot",loader,"onTouchEvent",
+            android.view.MotionEvent.class,new HookCallback() {
+                @Override protected void beforeHookedMethod(Param p) {
+                    if(!enabled())return;
+                    Object handler=Reflect.getObjectField(p.thisObject,"b");
+                    if(handler==null)return;
+                    Object container=Reflect.getObjectField(handler,"b");
+                    if(container==null)return;
+                    Object capsule=Reflect.callMethod(container,"f",Reflect.getObjectField(container,"l"));
+                    if(capsule instanceof View view)captureCapsule(view);
+                }
+            }));
         // Every status-bar scene, including the blank variants y / J0, passes through B0.
         // Keep its outer fraction-condition fragment: it advances the host's event state.
         bind("builder",() -> Api102Runtime.findAndHookMethod(BASE+"animatorscenes.B0",loader,"invoke",new HookCallback() {
@@ -64,27 +81,19 @@ final class CloudMorphHook {
                     Object fragment=fragments.get(i);
                     if(fragment.getClass().getName().equals(BASE+"animatorscenes.Z"))request.conditions.add(fragment);
                 }
-                Reflect.setAdditionalInstanceField(scene,MORPH,request);
+                // Replace the outer scene too: its parallel condition clock must not
+                // complete the host transition while the first card is still laying out.
+                Reflect.setAdditionalInstanceField(p.getResult(),MORPH,request);
                 ShadeHook.observed("cloud-morph-entry",((Enum<?>)Reflect.callMethod(request.builder,"f")).name());
             }
         }));
         bind("clock",() -> Api102Runtime.findAndHookMethod(BASE+"engine.animatorengine.h",loader,"g",
             BASE+"engine.animatorengine.o",new HookCallback() {
-                @Override protected void beforeHookedMethod(Param p) {
-                    if(enabled()&&Reflect.getAdditionalInstanceField(p.thisObject,MORPH) instanceof Request request)
-                        p.setObjectExtra(MORPH,resolve(request));
-                }
                 @Override protected void afterHookedMethod(Param p) {
                     Object tagged=Reflect.getAdditionalInstanceField(p.thisObject,MORPH);
                     if(tagged instanceof Request)Reflect.removeAdditionalInstanceField(p.thisObject,MORPH);
-                    Object value=p.getObjectExtra(MORPH);
-                    if(p.hasThrowable()||!(value instanceof Spec spec)||!(p.getResult() instanceof Animator original)||!enabled())return;
-                    Motion motion=new Motion(spec,original);
-                    if(!motion.prepare())return;
-                    Request request=(Request)tagged;
-                    for(Object condition:request.conditions) {
-                        Reflect.setObjectField(condition,"d",300L);Reflect.setObjectField(condition,"e",0L);
-                    }
+                    if(p.hasThrowable()||!(tagged instanceof Request request)||!(p.getResult() instanceof Animator original)||!enabled())return;
+                    Motion motion=new Motion(request,original);
                     p.setResult(motion.animator);
                     ShadeHook.resourceHit("cloud-continuous-morph");
                 }
@@ -97,7 +106,7 @@ final class CloudMorphHook {
         catch(Throwable error){ShadeHook.frameworkFailure("cloud-morph-"+key,error);}
     }
     private static boolean enabled() {
-        HookConfig c=ShadeHook.snapshot();return c.enabled&&c.cloud&&ValueAnimator.getDurationScale()>0f;
+        HookConfig c=ShadeHook.snapshot();return c.enabled&&c.scopedCloud("cloud")&&ValueAnimator.getDurationScale()>0f;
     }
     private static Target instantTarget(Object owner) {
         return owner instanceof View parent&&Reflect.callMethod(owner,"getInstantView") instanceof View view?new Target(view,parent,true):null;
@@ -151,6 +160,13 @@ final class CloudMorphHook {
         return new float[]{xy[0]-view.getTranslationX()-view.getPivotX()*(1f-view.getScaleX()),
             xy[1]-view.getTranslationY()-view.getPivotY()*(1f-view.getScaleY())};
     }
+    static void captureCapsule(View view) {
+        if(view.getWidth()<=0||view.getHeight()<=0)return;
+        int width=((Number)Reflect.callMethod(view,"getCapsuleDrawableWidth")).intValue();
+        if(width<=0)return;
+        float[] xy=location(view);
+        capsuleAnchors.put(view,new Frame(xy[0]+(view.getWidth()-width)/2f,xy[1],width,view.getHeight(),view.getHeight()/2f,0f));
+    }
     private static final class ClipLease {
         final boolean children,padding;int owners;
         ClipLease(ViewGroup group){children=group.getClipChildren();padding=group.getClipToPadding();}
@@ -203,7 +219,14 @@ final class CloudMorphHook {
         }
         void acquire() {
             owner.setAlpha(1f);
+            if(owner!=view) {
+                owner.setScaleX(1f);owner.setScaleY(1f);owner.setTranslationX(0f);owner.setTranslationY(0f);
+            }
             view.setScaleX(1f);view.setScaleY(1f);
+            // Initial native cards can carry alpha=0 and a 1px background from
+            // disappearResetState. Their discarded property animators cannot reset it.
+            normalizeMaterial(view);
+            if(background instanceof View bg)normalizeMaterial(bg);
             view.setOutlineProvider((ViewOutlineProvider)provider);view.setClipToOutline(true);
             if(background instanceof View bg){bg.setOutlineProvider((ViewOutlineProvider)backgroundProvider);bg.setClipToOutline(true);}
             // The window has already been laid out; release parent clipping for the trip to the status bar.
@@ -227,7 +250,7 @@ final class CloudMorphHook {
                 ((View)background).invalidateOutline();
             }
             view.setAlpha(primary?1f:frame.progress);
-            for(int i=0;i<contents.size();i++)contents.get(i).setAlpha(contentAlphas.get(i)*frame.progress);
+            for(int i=0;i<contents.size();i++)contents.get(i).setAlpha((contentAlphas.get(i)>0?contentAlphas.get(i):1f)*frame.progress);
             if(view.getForeground()!=null)view.getForeground().setAlpha(0);
             if(background!=null)Reflect.callMethod(view,"setLeftTopRightBottomForBlur",bounds);
             if(material!=null)Reflect.callMethod(material,"setCornerRadius",frame.radius);
@@ -239,14 +262,20 @@ final class CloudMorphHook {
             if(cancelled&&current!=null)interrupted.put(view,new Pending(current,SystemClock.uptimeMillis()));else interrupted.remove(view);
             view.setTranslationX(0f);view.setTranslationY(0f);view.setScaleX(1f);view.setScaleY(1f);
             view.setOutlineProvider(outline);view.setClipToOutline(clip);
+            if(opening&&!cancelled) {
+                Object corners=Reflect.getObjectField(provider,"b");
+                view.setOutlineProvider((ViewOutlineProvider)Reflect.newInstance(provider.getClass(),null,corners));
+                view.setClipToOutline(true);
+            }
             if(background instanceof View bg){bg.setOutlineProvider(backgroundOutline);bg.setClipToOutline(backgroundClip);bg.invalidateOutline();}
             owner.setAlpha(opening?1f:0f);
             view.setAlpha(opening?1f:0f);
-            for(int i=0;i<contents.size();i++)contents.get(i).setAlpha(contentAlphas.get(i));
+            for(int i=0;i<contents.size();i++)contents.get(i).setAlpha(contentAlphas.get(i)>0?contentAlphas.get(i):1f);
             // H.k / z.k install an opaque entrance mask before the scene is built.
             // Its property animator normally fades to zero; it is no longer played.
             if(view.getForeground()!=null)view.getForeground().setAlpha(0);
             for(Runnable restore:restoreMaterial)restore.run();
+            if(opening){normalizeMaterial(view);if(background instanceof View bg)normalizeMaterial(bg);}
             if(material!=null)Reflect.callMethod(material,"setCornerRadius",expanded.radius);
             if(background!=null) {
                 Reflect.callMethod(background,"setBounds",backgroundBounds);
@@ -254,6 +283,12 @@ final class CloudMorphHook {
                 Reflect.callMethod(background,"setBounds",backgroundBounds);
             }
             view.invalidateOutline();view.invalidate();
+        }
+        private static void normalizeMaterial(View view) {
+            if(view.getBackground()!=null) {
+                view.getBackground().setAlpha(255);
+                view.getBackground().setBounds(0,0,view.getWidth(),view.getHeight());
+            }
         }
         void releaseClips() {
             for(ViewGroup group:parents) {
@@ -278,18 +313,31 @@ final class CloudMorphHook {
         if(reverse&&own!=null)for(var listener:own)result.add(new NativeListener(animator,listener));
     }
     private static final class Motion extends AnimatorListenerAdapter {
-        final Spec spec;
+        final Request request;
+        Spec spec;
         final Animator original;
         final ValueAnimator animator=ValueAnimator.ofFloat(0f,1f);
         final ArrayList<Surface> surfaces=new ArrayList<>();
-        boolean closed,cancelled;
-        Motion(Spec spec,Animator original){this.spec=spec;this.original=original;}
+        boolean closed,cancelled,started;
+        int layoutAttempts;
+        final Runnable awaitLayout=this::awaitLayout;
+        Motion(Request request,Animator original) {
+            this.request=request;this.original=original;
+            animator.setDuration(300L);animator.setInterpolator(CURVE);animator.addListener(this);
+            animator.addUpdateListener(a -> {
+                if(closed||!started)return;
+                if(!enabled()||!spec.capsule.isAttachedToWindow()){animator.cancel();return;}
+                render(((Number)a.getAnimatedValue()).floatValue());
+            });
+        }
         boolean prepare() {
-            if(!spec.capsule.isAttachedToWindow()||spec.capsule.getHeight()<=0){ShadeHook.observed("cloud-morph-skip","capsule not laid out/attached");return false;}
-            int width=((Number)Reflect.callMethod(spec.capsule,"getCapsuleDrawableWidth")).intValue();
-            if(width<=0){ShadeHook.observed("cloud-morph-skip","capsule width="+width);return false;}
-            float[] xy=location(spec.capsule);
-            Frame capsule=new Frame(xy[0]+(spec.capsule.getWidth()-width)/2f,xy[1],width,spec.capsule.getHeight(),spec.capsule.getHeight()/2f,0f);
+            spec=resolve(request);
+            if(spec==null)return false;
+            if(!spec.capsule.isAttachedToWindow()){ShadeHook.observed("cloud-morph-skip","capsule not attached");return false;}
+            if(spec.container.isShown())captureCapsule(spec.capsule);
+            Frame capsule=capsuleAnchors.get(spec.capsule);
+            if(capsule==null){captureCapsule(spec.capsule);capsule=capsuleAnchors.get(spec.capsule);}
+            if(capsule==null){ShadeHook.observed("cloud-morph-skip","capsule anchor not ready");return false;}
             for(Target target:spec.cards)if(!target.view.isAttachedToWindow()||target.view.getWidth()<=0||target.view.getHeight()<=0){
                 View card=target.view;ShadeHook.observed("cloud-morph-skip",card.getClass().getName()+" attached="+card.isAttachedToWindow()+" size="+card.getWidth()+"x"+card.getHeight());return false;
             }
@@ -298,22 +346,41 @@ final class CloudMorphHook {
                 surfaces.add(new Surface(target,spec,capsule));
             }}
             catch(ReflectiveOperationException error){throw new IllegalStateException("C17 morph geometry unavailable",error);}
-            animator.setDuration(300L);animator.setInterpolator(CURVE);animator.addListener(this);
-            animator.addUpdateListener(a -> {
-                if(closed)return;
-                if(!enabled()||!spec.capsule.isAttachedToWindow()){animator.cancel();return;}
-                try {
-                    float p=((Number)a.getAnimatedValue()).floatValue();
-                    for(int i=0;i<surfaces.size();i++) {
-                        Surface surface=surfaces.get(i);
-                        if(!surface.view.isAttachedToWindow()){animator.cancel();return;}
-                        surface.frame(mix(surface.start,spec.opening?surface.expanded:surface.capsule,p),i==0);
-                    }
-                } catch(Throwable error){ShadeHook.frameworkFailure("cloud-morph-frame",error);animator.cancel();}
-            });
             return true;
         }
+        void render(float p) {
+            try {
+                for(int i=0;i<surfaces.size();i++) {
+                    Surface surface=surfaces.get(i);
+                    if(!surface.view.isAttachedToWindow()){animator.cancel();return;}
+                    surface.frame(mix(surface.start,spec.opening?surface.expanded:surface.capsule,p),i==0);
+                }
+            } catch(Throwable error){ShadeHook.frameworkFailure("cloud-morph-frame",error);animator.cancel();}
+        }
         @Override public void onAnimationStart(Animator ignored) {
+            running.put(this,true);
+            try {
+                if(prepare()){begin();return;}
+                animator.pause();
+                ShadeHook.resourceHit("cloud-morph-await-layout");
+                layoutHandler.postDelayed(awaitLayout,16L);
+            } catch(Throwable error){ShadeHook.frameworkFailure("cloud-morph-start",error);animator.cancel();}
+        }
+        void awaitLayout() {
+            if(closed)return;
+            if(!enabled()){animator.cancel();return;}
+            try {
+                if(prepare()) {
+                    begin();animator.setCurrentPlayTime(0L);animator.resume();return;
+                }
+                if(++layoutAttempts>=32) {
+                    ShadeHook.observed("cloud-morph-skip","first layout timed out");animator.cancel();return;
+                }
+                layoutHandler.postDelayed(awaitLayout,16L);
+            } catch(Throwable error){ShadeHook.frameworkFailure("cloud-morph-layout",error);animator.cancel();}
+        }
+        void begin() {
+            started=true;
             ArrayList<NativeListener> callbacks=new ArrayList<>();listeners(original,callbacks,false);
             for(NativeListener callback:callbacks)dispatch(callback,0);
             for(Surface surface:surfaces) {
@@ -322,6 +389,8 @@ final class CloudMorphHook {
             }
             spec.capsule.setAlpha(0f);
             spec.container.setAlpha(0f); // Includes the native edge/moon siblings of CapsuleView.
+            render(0f);
+            if(!closed)ShadeHook.resourceHit("cloud-morph-started");
         }
         @Override public void onAnimationCancel(Animator ignored) {
             cancelled=true;
@@ -330,7 +399,16 @@ final class CloudMorphHook {
         }
         @Override public void onAnimationEnd(Animator ignored) {
             if(closed)return;closed=true;
+            running.remove(this);layoutHandler.removeCallbacks(awaitLayout);
             try {
+                if(!cancelled)for(Object condition:request.conditions) {
+                    try {
+                        if(!Reflect.getBooleanField(condition,"h")) {
+                            Reflect.setBooleanField(condition,"h",true);
+                            Reflect.callMethod(Reflect.getObjectField(condition,"g"),"invoke");
+                        }
+                    } catch(Throwable error){ShadeHook.frameworkFailure("cloud-morph-condition",error);}
+                }
                 // The host completion listeners update event state, remove windows and notify the status bar.
                 // Complete their lifecycle once; cancelled native monitors remove themselves in onAnimationCancel.
                 ArrayList<NativeListener> callbacks=new ArrayList<>();listeners(original,callbacks,true);
@@ -344,13 +422,13 @@ final class CloudMorphHook {
                 }
                 // Native end listeners own GONE/VISIBLE. Restore alpha for later native scenes,
                 // including a close that starts after this feature has been disabled.
-                spec.capsule.setAlpha(1f);spec.container.setAlpha(1f);
+                if(spec!=null){spec.capsule.setAlpha(1f);spec.container.setAlpha(1f);}
             }
         }
     }
     static void refresh() {
         if(enabled())return;
-        for(Motion motion:new ArrayList<>(active.values()))motion.animator.cancel();
+        for(Motion motion:new ArrayList<>(running.keySet()))motion.animator.cancel();
         interrupted.clear();
     }
 }

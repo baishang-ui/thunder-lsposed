@@ -25,7 +25,7 @@ internal data class VolumeSettings(
             listOf("volume_bar", "volume_panel").flatMap { k -> listOf(k+"_radius" to 0..200, k+"_corner" to 0..64) }.toMap()
         val keys: Set<String> = Bundle().also { VolumeSettings().write(it) }.keySet().toSet()
         fun from(b: Bundle): VolumeSettings {
-            val c = HookConfig(b)
+            val c = HookConfig(b, false)
             fun area(a: HookConfig.Area) = Area(a.blur,a.radius,a.tint,a.color,a.cornerEnabled,a.corner)
             return VolumeSettings(c.volumeSize,c.volumeWidth,c.volumeHeight,c.volumeCompact,
                 area(c.volumeBar),area(c.volumePanel),c.volumeLiquidEntrance)
@@ -34,23 +34,30 @@ internal data class VolumeSettings(
 }
 
 @Composable internal fun VolumeSettingsControls(value: VolumeSettings, change: (VolumeSettings) -> Unit) {
-    SettingsSection("动画与展开") {
-        SettingsChoice("入场动画", listOf(
-            SettingOption("系统动画", "跟随系统的音量面板入场效果"),
-            SettingOption("液态入场", "从屏幕边缘拉伸分离，弹性停稳")
-        ), if (value.liquidEntrance) 1 else 0) { change(value.copy(liquidEntrance = it == 1)) }
-        SettingsChoice("展开方式", listOf(
-            SettingOption("系统展开", "使用系统默认的展开面板"),
-            SettingOption("紧凑展开", "沿音量条横向展开，下方显示声音模式与勿扰")
-        ), if (value.compact) 1 else 0) { change(value.copy(compact = it == 1)) }
+    SettingsSectionTitle("动画与展开")
+    SettingsChoice("入场动画", listOf(
+        SettingOption("系统动画", "跟随系统的音量面板入场效果"),
+        SettingOption("液态入场", "从屏幕边缘拉伸分离，弹性停稳")
+    ), if (value.liquidEntrance) 1 else 0) { change(value.copy(liquidEntrance = it == 1)) }
+    SettingsChoice("展开方式", listOf(
+        SettingOption("系统展开", "使用系统默认的展开面板"),
+        SettingOption("紧凑展开", "沿音量条横向展开，下方显示声音模式与勿扰")
+    ), if (value.compact) 1 else 0) { change(value.copy(compact = it == 1)) }
+    SettingsDivider()
+    SettingsSectionTitle("音量条尺寸")
+    LiquidSwitchRow("自定义尺寸", "按钮边长跟随音量条宽度", value.size) { change(value.copy(size = it)) }
+    if (value.size) {
+        LiquidValueSlider("音量条宽度", value.width, 32..96, " dp") { change(value.copy(width = it)) }
+        LiquidValueSlider("音量条长度", value.height, 80..400, " dp") { change(value.copy(height = it)) }
     }
-    SettingsSection("音量条尺寸") {
-        LiquidSwitchRow("自定义尺寸", "按钮边长跟随音量条宽度", value.size) { change(value.copy(size = it)) }
-        if (value.size) {
-            LiquidValueSlider("音量条宽度", value.width, 32..96, " dp") { change(value.copy(width = it)) }
-            LiquidValueSlider("音量条长度", value.height, 80..400, " dp") { change(value.copy(height = it)) }
-        }
+    SettingsDivider()
+    SettingsSectionTitle("音量条与按钮材质")
+    androidx.compose.runtime.CompositionLocalProvider(LocalControlScope provides "style:volume:bar") {
+        MaterialOptions(value.bar) { change(value.copy(bar = it)) }
     }
-    AreaControls("音量条与按钮材质", value.bar) { change(value.copy(bar = it)) }
-    AreaControls("展开面板材质", value.panel) { change(value.copy(panel = it)) }
+    SettingsDivider()
+    SettingsSectionTitle("展开面板材质")
+    androidx.compose.runtime.CompositionLocalProvider(LocalControlScope provides "style:volume:panel") {
+        MaterialOptions(value.panel) { change(value.copy(panel = it)) }
+    }
 }

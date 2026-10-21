@@ -8,15 +8,15 @@
 
 普通状态图标、Wi-Fi、横向电池和蓝牙电池来自 C16。第一包没有的高性能、流量节省、竖向电池、独立电池装饰及 ADB 素材、映射已删除，相关系统资源正常回退。设置页也移除高性能和流量节省的样式示例。图标种类缺口不会用第二包或旧手绘图补足。保留的别名只适配同一图标在 C17 中的不同资源名称。
 
-C16 普通图标和蓝牙电池的外部 inset 被移除，路径与内部变换保留。普通图标、Wi-Fi 与信号固有宽高放大 12%，画布两侧各扩展 1dp 并等量移动路径，避免改变图形比例；相邻图标因此增加约 2dp 间距。横向电池独立按原图比例放大到总宽 34dp、总高约 20.11dp；保留原始 93 × 55 画布及上下留白，可见主体约 31.08 × 16.45dp。生成器不再重复放大电池。蓝牙动画仅在所有帧有来源时替换，帧时序沿用系统；animated-vector 保留系统实现。
+C16 普通图标和蓝牙电池的外部 inset 被移除，路径与内部变换保留。按用户参考截图的实际可见边界，普通图标与 Wi-Fi 统一为约 14dp 可见高度，各档 Wi-Fi 共用画布。画布两侧各留 3.25dp，相邻图标的可见间隙约 7–8dp。横向电池总宽 32dp、总高约 18.92dp，保留原始 93 × 55 画布及上下留白，可见主体约 29.25 × 15.48dp。原生容器的 1.12 倍尺寸仅用于承载，不再重复放大图形。参考截图的测量值、目标尺寸与各图形有效高度比例记录在 `status-icons-sizing.json`。蓝牙动画仅在所有帧有来源时替换，帧时序沿用系统；animated-vector 保留系统实现。
 
 ## 双卡与单卡信号
 
 C16 的 `stat_signal_signal_lte_single_0..4` 本身画了两排，上排是递增的圆角柱，下排是圆角短条。原包下排在部分状态下固定点亮一格或两格，不能直接复制到 C17 的每张卡上。
 
-导入器原样提取两排路径，生成 C17 的 `stat_signal_lte_signal_stacked_primary_0..4` 与 `secondary_0..4`，共用 19 × 16dp 画布。原 19 × 13 的两排图形垂直居中，上下排各自只包含四个路径；副卡透明度按自己的档位设置，未点亮格保留 C16 的 `0x35` 透明度。主、副卡的信号档位、排列与堆叠选择仍由系统决定，支持 25 种组合。soft、无语音与旧资源名复用相同图形。
+导入器原样提取两排路径，生成 C17 的 `stat_signal_lte_signal_stacked_primary_0..4` 与 `secondary_0..4`，共用 19 × 16 viewport；固有尺寸按两排图形总可见高度 14dp 调整。原 19 × 13 的两排图形垂直居中，上下排各自只包含四个路径；副卡透明度按自己的档位设置，未点亮格保留 C16 的 `0x35` 透明度。主、副卡的信号档位、排列与堆叠选择仍由系统决定，支持 25 种组合。soft、无语音与旧资源名复用相同图形。
 
-单卡 C17 资源只保留上排并垂直居中，避免出现固定的假副卡。堆叠无服务从 C16 的灰色短条提取；独立无服务使用第一包的单行灰色资源。SOS 保留系统图标。
+单卡 C17 资源只保留上排并垂直居中，使用 19 × 8 viewport 和 22.5 × 14.5dp 画布，使可见信号约 21.55 × 13.70dp，避免出现固定的假副卡。堆叠无服务从 C16 的灰色短条提取；独立无服务使用第一包的单行灰色资源。SOS 保留系统图标。
 
 ## 透明角标与系统状态
 
@@ -30,11 +30,11 @@ C17 的 Wi-Fi 4 / 5 / 6 / 6E / 7 可以由 `wifi_left_tv` 文字控件或 `wifi_
 
 ## 电池与窗口
 
-C16 横向电池的画布为 93 × 55，主体范围 x=0..85、y=5..50。C17 的 `BatteryBarDrawableBase.setDrawableBounds` 会把背景和进度都放到同一个矩形中；若把进度画布裁为主体大小，系统会将其重新拉伸，导致进度比背景大。现在背景与进度共同保留原始 93 × 55 画布及路径位置，宽高统一按原图比例放大到整体约 34 × 20.11dp，可见主体约 31.08 × 16.45dp。保持水平方向与垂直方向相同的缩放系数，不裁剪上下留白，也不把原图压成 28 × 17dp 的高胖主体。百分比外置及无 padding 分支复用同一画布。旧 ProgressBar 入口的四个进度边距及横向电池四个原生 padding 设为 0；另在 `BatteryBarDrawableBase.updatePadding` 和 `HorizontalBatteryContentDrawable.updatePadding` 完成后清除横向电池的内部 padding 与 `outPadding*`，覆盖系统默认四边各 2dp 及第三方主题计算的重复内缩。进度资源包含主体和右侧电池头两条原始路径，100% 时完整覆盖背景。保留 `LayerDrawable → ClipDrawable` 和 `android:id/progress`，系统继续处理电量、颜色、充电、百分比与 RTL。
+C16 横向电池的画布为 93 × 55，主体范围 x=0..85、y=5..50。C17 的 `BatteryBarDrawableBase.setDrawableBounds` 会把背景和进度都放到同一个矩形中；若把进度画布裁为主体大小，系统会将其重新拉伸，导致进度比背景大。现在背景与进度共同保留原始 93 × 55 画布及路径位置，宽高统一按原图比例调整到整体约 32 × 18.92dp，可见主体约 29.25 × 15.48dp。保持水平方向与垂直方向相同的缩放系数，不裁剪上下留白，也不把原图压成 28 × 17dp 的高胖主体。百分比外置及无 padding 分支复用同一画布。旧 ProgressBar 入口的四个进度边距及横向电池四个原生 padding 设为 0；另在 `BatteryBarDrawableBase.updatePadding` 和 `HorizontalBatteryContentDrawable.updatePadding` 完成后清除横向电池的内部 padding 与 `outPadding*`，覆盖系统默认四边各 2dp 及第三方主题计算的重复内缩。进度资源包含主体和右侧电池头两条原始路径，100% 时完整覆盖背景。保留 `LayerDrawable → ClipDrawable` 和 `android:id/progress`，系统继续处理电量、颜色、充电、百分比与 RTL。
 
-`getBodyRectForLayout(RectF)` 与 `getOffsetX()` 的现有百分比对齐适配到 85/93 主体比例，排除电池头，系统继续测量并居中一位、两位、三位数字。蓝牙电池使用第一包的耳机及电量图形。竖向电池保持系统资源。
+`getBodyRectForLayout(RectF)` 与 `getOffsetX()` 的现有百分比对齐适配到 85/93 主体比例，排除电池头，系统继续测量并居中一位、两位、三位数字。内部数字直接继承系统 `setFontTypeface` 提供的字体，在同一字体家族上调整到字重 900，字号 14dp、水平宽度系数 1.08；不内置、加载或指定另一套字体。系统更换字体后，在 `updatePercentInTextBounds` 原生测量前重新适配当前字体，保留斜体设置、颜色、充电和数字镂空绘制，默认样式不干预。蓝牙电池使用第一包的耳机及电量图形。竖向电池保持系统资源。
 
-状态栏仍通过 `SystemBarUtils.getStatusBarHeight` 和 `getStatusBarHeightForRotation` 在系统结果上增加 4dp，同步窗口高度与应用避让，保留挖孔、旋转、嵌套调用与异常恢复处理。电池前原生 separator 继续额外增加 1dp。
+状态栏仍通过 `SystemBarUtils.getStatusBarHeight` 和 `getStatusBarHeightForRotation` 在系统结果上增加 4dp，同步窗口高度与应用避让，保留挖孔、旋转、嵌套调用与异常恢复处理。电池前两种原生 separator 统一为 4dp，配合 Wi-Fi 右侧留白形成约 7–8dp 可见间距。
 
 ## 加载与验证
 
@@ -55,6 +55,6 @@ python3 scripts/check_effects.py --only IosStatusBarCheck IosDrawSafetyCheck Ios
 ./gradlew :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease
 ```
 
-资源检查验证每条可见路径确实来自第一包、来源哈希、过期图标删除、透明角标、原生类型、别名引用、25 种双卡组合、电池同画布进度、满电电池头及打包尺寸。Hook 检查覆盖 XML / Compose / TypedArray 加载、默认样式、密度、尺寸、Wi-Fi 数字与网络文字的初次绑定和重复更新隐藏、状态栏高度、异常回退、RTL 与百分比居中。
+资源检查验证每条可见路径确实来自第一包、来源哈希、过期图标删除、透明角标、原生类型、别名引用、25 种双卡组合、电池同画布进度、满电电池头及打包尺寸。Hook 检查覆盖 XML / Compose / TypedArray 加载、默认样式、密度、尺寸、Wi-Fi 数字与网络文字的初次绑定和重复更新隐藏、状态栏高度、异常回退、RTL、百分比居中、系统字体切换与默认字体保留。
 
-`scripts/render_theme_icons.py` 生成的 [预览图](status-icons-preview.png) 是实际资源的离线渲染，不是真机截图。设备上仍需检查浅深色、双卡强弱变化、SIM 无服务、充电和状态栏避让。
+`scripts/render_theme_icons.py` 生成的 [预览图](status-icons-preview.png) 是实际资源的离线渲染，不是真机截图；数字使用本机字体示例，设置 `STATUS_ICONS_BATTERY_FONT` 可指定本地系统字体副本用于离线校验，该字体不会打包。设备上仍需检查浅深色、双卡强弱变化、SIM 无服务、充电和状态栏避让。

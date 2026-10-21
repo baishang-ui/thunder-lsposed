@@ -79,7 +79,7 @@ final class QsCornerHook {
                     return;
                 }
                 outlines.put(view,true);
-                if(!enabled()) {
+                if(!enabled(geometryOwner(p.thisObject))) {
                     Reflect.callMethod(nativeProvider,"getOutline",p.args);
                     p.setResult(null);
                     return;
@@ -124,7 +124,7 @@ final class QsCornerHook {
         bind("media-light",() -> Api102Runtime.findAndHookMethod(MEDIA+"multilight.OplusQsMediaBackgroundDrawable",loader,
             "draw",android.graphics.Canvas.class,new HookCallback() {
                 @Override protected void beforeHookedMethod(Param p) {
-                    if(!enabled())return;
+                    if(!enabled(p.thisObject))return;
                     Drawable background=(Drawable)p.thisObject;
                     Object light=Reflect.getObjectField(background,"mediaLightDrawable");if(light==null)return;
                     Object params=Reflect.getObjectField(light,"params");
@@ -154,19 +154,21 @@ final class QsCornerHook {
             TILE+"TileDrawableWrapper",loader,"setDrawable",Drawable.class,new HookCallback() {
                 @Override protected void afterHookedMethod(Param p) {
                     if(!p.hasThrowable()&&Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(p.thisObject,CARD))) {
+                        Object style=Reflect.getAdditionalInstanceField(p.thisObject,"thunder.qs-style");
+                        if(style instanceof String)QsCardHook.markStyle((Drawable)p.args[0],(String)style);
                         trackCard((Drawable)p.args[0]);
                         invalidateSurface((Drawable)p.thisObject);
                     }
                 }
             }));
         bind("slider-press-radius",() -> Api102Runtime.findAndHookMethod("com.oplus.systemui.qs.base.seek.OplusQsVerticalSeekBar",loader,"getBackgroundRadius",new HookCallback() {
-            @Override protected void afterHookedMethod(Param p){if(!p.hasThrowable()&&enabled())p.setResult(sliderBackgroundRadius(p.thisObject));}
+            @Override protected void afterHookedMethod(Param p){if(!p.hasThrowable()&&enabled(p.thisObject))p.setResult(sliderBackgroundRadius(p.thisObject));}
         }));
         bind("slider-press-path",() -> Api102Runtime.findAndHookMethod(
             "com.oplus.systemui.qs.base.seek.OplusQsVerticalSeekBar",loader,"updateSpotLightPath",
             android.graphics.Path.class,Object.class,new HookCallback() {
                 @Override protected void beforeHookedMethod(Param p) {
-                    if(!enabled())return;
+                    if(!enabled(p.thisObject))return;
                     pressViews.put((View)p.thisObject,true);
                     // The stock overload uses the adapter's default weight; use the track's G2 weight explicitly.
                     Drawable bounds=(Drawable)Reflect.getAdditionalInstanceField(p.thisObject,PRESS_BOUNDS);
@@ -253,8 +255,11 @@ final class QsCornerHook {
     }
     private static void trackMedia(View view) {
         mediaViews.put(view,true);
-        for(String field:new String[]{"bgDrawable","themeBgDrawable","transitionDrawable"})
-            trackCard((Drawable)Reflect.getObjectField(view,field));
+        for(String field:new String[]{"bgDrawable","themeBgDrawable","transitionDrawable"}) {
+            Drawable drawable=(Drawable)Reflect.getObjectField(view,field);
+            QsCardHook.markStyle(drawable,"qs_music");
+            trackCard(drawable);
+        }
         View background=(View)Reflect.callMethod(view,"getBg");
         if(background!=null){outlines.put(background,true);background.invalidateOutline();}
         view.invalidate();view.invalidateOutline();
@@ -276,8 +281,14 @@ final class QsCornerHook {
         return original;
     }
     static void trackTile(Object tile) {
-        for(String field:new String[]{"bgDrawable","themeDrawable","transitionDrawable"})
-            trackCard((Drawable)Reflect.getObjectField(tile,field));
+        String style="qs_small";
+        for(Class<?> type=tile.getClass();type!=null;type=type.getSuperclass())
+            if(type.getName().contains("TwoXOne")||type.getName().contains("ThreeStage"))style="qs_wide";
+        for(String field:new String[]{"bgDrawable","themeDrawable","transitionDrawable"}) {
+            Drawable drawable=(Drawable)Reflect.getObjectField(tile,field);
+            QsCardHook.markStyle(drawable,style);
+            trackCard(drawable);
+        }
     }
     static void trackCard(Drawable drawable) {
         if(drawable==null)return;
@@ -304,7 +315,15 @@ final class QsCornerHook {
         if(isCardBackground(drawable))Reflect.callMethod(drawable,"invalidatePath");
         drawable.invalidateSelf();
     }
-    static boolean enabled(){HookConfig c=ShadeHook.snapshot();return c.enabled&&c.qsCards.cornerEnabled;}
+    static boolean enabled(){
+        HookConfig c=ShadeHook.snapshot();
+        if(!c.enabled)return false;
+        if(!c.styleData.containsKey("style_qs_small"))return c.qsCards.cornerEnabled;
+        for(String key:HookConfig.TILE_KEYS)if(key.startsWith("qs_")&&c.tileArea(key).cornerEnabled)return true;
+        return false;
+    }
+    private static boolean enabled(Object owner){return ShadeHook.snapshot().enabled&&QsCardHook.area(owner).cornerEnabled;}
+    private static float radius(Object owner){return QsCardHook.area(owner).corner*Resources.getSystem().getDisplayMetrics().density;}
     // Use the same dp unit as notification cards; only small containers clamp the radius.
     static float radius(){return ShadeHook.snapshot().qsCards.corner*Resources.getSystem().getDisplayMetrics().density;}
     private static void rememberPluginOwner(Object shape,Drawable owner) {
@@ -351,18 +370,18 @@ final class QsCornerHook {
         Object owner=ref instanceof WeakReference?((WeakReference<?>)ref).get():null;
         return owner instanceof Drawable?(Drawable)owner:null;
     }
-    private static float selectedRadius(android.graphics.Rect bounds) {
-        if(bounds==null||bounds.isEmpty())return radius(); // Native construction can precede layout.
-        return Math.min(radius(),Math.min(bounds.width(),bounds.height())*.5f);
+    private static float selectedRadius(android.graphics.Rect bounds,Object owner) {
+        if(bounds==null||bounds.isEmpty())return radius(owner);
+        return Math.min(radius(owner),Math.min(bounds.width(),bounds.height())*.5f);
     }
     private static float sliderRadius(Object view) {
-        return selectedRadius((android.graphics.Rect)Reflect.callMethod(view,"getBackgroundRect"));
+        return selectedRadius((android.graphics.Rect)Reflect.callMethod(view,"getBackgroundRect"),view);
     }
     private static Object provider(Object original,boolean card,Drawable owner) {
         if(original==null||roundRect==null)return original;
         Object source=Reflect.getAdditionalInstanceField(original,NATIVE);
         if(source!=null) {
-            if(!enabled())return source;
+            if(!enabled(owner))return source;
             if(owner==null||owner==geometryOwner(original)) {
                 update(original,source);
                 return original;
@@ -371,14 +390,14 @@ final class QsCornerHook {
         }
         boolean oval=card&&original.getClass().getName().equals("com.oplusos.systemui.common.outline.OvalOutlineProvider");
         if(!roundRect.isInstance(original)&&!oval)return original;
-        if(!enabled())return original;
+        if(!enabled(owner))return original;
         // Firmware providers (including OvalOutlineProvider.INSTANCE) are shared across sizes.
         // Cache the selected geometry on the drawable so one card cannot resize another's path.
         Object cache=owner==null?original:owner;
         Object ref=Reflect.getAdditionalInstanceField(cache,COPY);
         Object copy=ref instanceof WeakReference?((WeakReference<?>)ref).get():null;
         if(copy==null||Reflect.getAdditionalInstanceField(copy,NATIVE)!=original) {
-            copy=Reflect.newInstance(roundRect,radius(),SMOOTH_WEIGHT);
+            copy=Reflect.newInstance(roundRect,radius(owner),SMOOTH_WEIGHT);
             Reflect.setAdditionalInstanceField(copy,NATIVE,original);
             if(owner!=null)Reflect.setAdditionalInstanceField(copy,GEOMETRY_OWNER,new WeakReference<>(owner));
             Reflect.setAdditionalInstanceField(cache,COPY,new WeakReference<>(copy));
@@ -388,11 +407,11 @@ final class QsCornerHook {
         return copy;
     }
     private static void update(Object copy,Object original) {
-        if(!enabled()&&!roundRect.isInstance(original))return;
         Drawable owner=geometryOwner(copy);
-        float selected=enabled()?selectedRadius(owner==null?null:owner.getBounds()):
+        if(!enabled(owner)&&!roundRect.isInstance(original))return;
+        float selected=enabled(owner)?selectedRadius(owner==null?null:owner.getBounds(),owner):
             ((Number)Reflect.callMethod(original,"getCornerRadius")).floatValue();
-        Object weight=enabled()?SMOOTH_WEIGHT:Reflect.callMethod(original,"getCornerWeight");
+        Object weight=enabled(owner)?SMOOTH_WEIGHT:Reflect.callMethod(original,"getCornerWeight");
         if(((Number)Reflect.callMethod(copy,"getCornerRadius")).floatValue()!=selected||
                 !java.util.Objects.equals(Reflect.callMethod(copy,"getCornerWeight"),weight))
             Reflect.callMethod(copy,"update",selected,weight);
@@ -401,7 +420,7 @@ final class QsCornerHook {
         Drawable owner=geometryOwner(blur);
         Object shape=provider(original,owner==null||Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(owner,CARD)),owner);
         if(shape!=null&&Reflect.getAdditionalInstanceField(blur,SLIDER)==null)return shape;
-        if(owner!=null)selected=selectedRadius(owner.getBounds());
+        if(owner!=null)selected=selectedRadius(owner.getBounds(),owner);
         // Seekbar configs normally have no provider and otherwise fall back to ordinary rounding.
         shape=Reflect.getAdditionalInstanceField(blur,BLUR_PROVIDER);
         if(shape==null) {
@@ -426,7 +445,7 @@ final class QsCornerHook {
     // must switch with it: G2 stroke corners at that limit cut away the outer rim.
     static float blurWeight(Object shape) {return fullCorners(shape)?1f:SMOOTH_WEIGHT;}
     static void beforeSlider(HookCallback.Param p) {
-        if(!enabled()||Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(p.thisObject,DRAWING)))return;
+        if(!enabled(p.thisObject)||Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(p.thisObject,DRAWING)))return;
         p.setObjectExtra(DRAWING,new Object[]{Reflect.getAdditionalInstanceField(p.thisObject,DRAWING)});
         Reflect.setAdditionalInstanceField(p.thisObject,DRAWING,true);
         Reflect.setAdditionalInstanceField(p.thisObject,NATIVE_RADIUS,number(p.thisObject,"mCurProgressRadius"));
@@ -458,6 +477,7 @@ final class QsCornerHook {
     static void trackSlider(Object proxy,View view) {
         Object blur=Reflect.callMethod(proxy,"getBlurConfig");
         Reflect.setAdditionalInstanceField(blur,SLIDER,new WeakReference<>(view));
+        Reflect.setAdditionalInstanceField(blur,"thunder.qs-style","qs_slider");
     }
     static float nativeSliderRadius(View view,float fallback) {
         Object nativeRadius=Reflect.getAdditionalInstanceField(view,NATIVE_RADIUS);
@@ -472,8 +492,8 @@ final class QsCornerHook {
         if(!"qs-card".equals(role)&&!"qs-progress".equals(role))return fallback;
         Object ref=Reflect.getAdditionalInstanceField(blur,SLIDER);
         Object view=ref instanceof WeakReference?((WeakReference<?>)ref).get():null;
-        if(!enabled())return fallback;
-        if(view==null)return selectedRadius(geometryOwner(blur)==null?null:geometryOwner(blur).getBounds());
+        if(!enabled(view==null?blur:view))return fallback;
+        if(view==null)return selectedRadius(geometryOwner(blur)==null?null:geometryOwner(blur).getBounds(),blur);
         if(Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(view,DRAWING)))return number(view,"mCurProgressRadius");
         float base=number(view,"mBackgroundRadius"),progress=number(view,"mProgressRadius");
         return Math.max(0f,sliderRadius(view)-Math.max(0f,base-progress))*scale(number(view,"mCurProgressRadius"),progress);

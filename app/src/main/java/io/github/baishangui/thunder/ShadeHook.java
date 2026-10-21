@@ -434,7 +434,7 @@ public final class ShadeHook {
         if ("volume-buttons".equals(role)) return snapshot.volumeBar;
         if ("volume-panel".equals(role)) return snapshot.volumePanel;
         if ("banner".equals(role)) return snapshot.banner;
-        if ("qs-card".equals(role)) return snapshot.qsCards;
+        if ("qs-card".equals(role)) return QsCardHook.area(blur);
         if ("qs-progress".equals(role)) return snapshot.qsProgress;
         if ("notification-card".equals(role)) return snapshot.notificationCard;
         if (!"panel".equals(role)) return null;

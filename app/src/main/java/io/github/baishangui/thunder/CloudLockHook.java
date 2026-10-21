@@ -83,8 +83,9 @@ final class CloudLockHook {
             // its shape always belongs to the flow card, including when disabled.
             HookConfig.Area material="banner".equals(Reflect.getAdditionalInstanceField(blur,"thunder.role"))?c.banner:c.notificationCard;
             Object manager=referent(blur,"thunder.cloud-manager");
-            if(c.cloud&&c.cloudLockStyle!=0&&manager!=null&&Boolean.TRUE.equals(Reflect.callMethod(manager,"isKeyguardMaterialColorState")))
-                material=c.cloudLockArea;
+            boolean lock=c.cloud&&(c.styleData.containsKey("style_cloud_notification")||c.cloudLockStyle!=0)&&manager!=null&&Boolean.TRUE.equals(Reflect.callMethod(manager,"isKeyguardMaterialColorState"));
+            if(c.styleData.containsKey("style_cloud_notification"))return lock?c.lockCardArea():c.cloudNotificationArea();
+            if(c.cloud&&c.cloudLockStyle!=0&&lock) material=c.cloudLockArea;
             return cardCorners(material,c);
         } else if("CAPSULE".equals(type)) {
             Object view=referent(blur,"thunder.cloud-view");
@@ -105,7 +106,22 @@ final class CloudLockHook {
     }
     static boolean pluginLock(View view,HookConfig c) {
         if(!c.enabled||!c.cloud||c.cloudLockStyle==0)return false;
-        Object service=Reflect.callMethod(view.getContext(),"getSystemService","keyguard");
+        return keyguard(view);
+    }
+    static String scope(View view) {
+        if(keyguard(view))return "cloud_lock";
+        for(View owner=view;owner!=null;) {
+            Object marker=Reflect.getAdditionalInstanceField(owner,"thunder.cloud-scope");
+            if(marker instanceof String)return (String)marker;
+            if(areaForView(owner,ShadeHook.snapshot())!=null)return "cloud_notification";
+            Object parent=owner.getParent();owner=parent instanceof View?(View)parent:null;
+        }
+        return "cloud";
+    }
+    static boolean keyguard(View view) {return view!=null&&keyguard(view.getContext());}
+    private static boolean keyguard(Context context) {
+        if(context==null)return false;
+        Object service=Reflect.callMethod(context,"getSystemService","keyguard");
         return service!=null&&Boolean.TRUE.equals(Reflect.callMethod(service,"isKeyguardLocked"));
     }
     private static void prepareCapsule(Object proxy,View view,HookConfig c,boolean flow) {
@@ -154,6 +170,7 @@ final class CloudLockHook {
             Context.class,"com.android.systemui.plugins.custom.CustomRowEntry",META,new HookCallback() {
                 @Override protected void beforeHookedMethod(Param p) {
                     p.setObjectExtra("cloud-color-target",colorTarget.get());colorTarget.set(p.args[2]);
+                    Reflect.setAdditionalInstanceField(p.args[2],"thunder.cloud-color-context",new WeakReference<>((Context)p.args[0]));
                 }
                 @Override protected void afterHookedMethod(Param p) {
                     Object previous=p.getObjectExtra("cloud-color-target");
@@ -187,7 +204,7 @@ final class CloudLockHook {
                 // setter consume the adjusted value without scaling or saving it again.
                 p.setObjectExtra("cloud-setter-target",colorTarget.get());colorTarget.remove();
                 p.setObjectExtra("cloud-writing-target",writingTarget.get());writingTarget.set(p.thisObject);
-                int[] adjusted=adjust(colors,ShadeHook.snapshot());
+                int[] adjusted=adjust(colors,maskStrength(p.thisObject,ShadeHook.snapshot()));
                 if(gradient)p.args[1]=adjusted;else p.args[0]=adjusted[0];
             }
             @Override protected void afterHookedMethod(Param p) {
@@ -205,9 +222,15 @@ final class CloudLockHook {
         };
     }
     static int[] adjust(int[] colors,HookConfig c) {
+        return adjust(colors,c.appColorStrength("cloud"));
+    }
+    private static int maskStrength(Object target,HookConfig c) {
+        Object ref=Reflect.getAdditionalInstanceField(target,"thunder.cloud-color-context");
+        Object context=ref instanceof WeakReference?((WeakReference<?>)ref).get():null;
+        return c.appColorStrength(context instanceof Context&&keyguard((Context)context)?"cloud_lock":"cloud_notification");
+    }
+    static int[] adjust(int[] colors,int strength) {
         int[] result=colors.clone();
-        if(!c.enabled||!c.cloud)return result;
-        int strength=!c.cloudAppColor?0:c.cloudAppColorStrengthEnabled?c.cloudAppColorStrength:100;
         for(int i=0;i<result.length;i++) {
             int alpha=Math.min(255,((result[i]>>>24)*strength+50)/100);
             result[i]=(result[i]&0xffffff)|(alpha<<24);
@@ -220,7 +243,7 @@ final class CloudLockHook {
         for(Map.Entry<Object,Mask> entry:current) {
             Object previous=writingTarget.get();writingTarget.set(entry.getKey());
             try {
-                Mask mask=entry.getValue();int[] colors=adjust(mask.colors,ShadeHook.snapshot());
+                Mask mask=entry.getValue();int[] colors=adjust(mask.colors,maskStrength(entry.getKey(),ShadeHook.snapshot()));
                 if(mask.orientation==null)Reflect.callMethod(entry.getKey(),"setMetaColor",colors[0]);
                 else Reflect.callMethod(entry.getKey(),"setGradientColors",mask.orientation,colors);
             } catch(Throwable error){ShadeHook.frameworkFailure("cloud-lock-mask-refresh",error);}

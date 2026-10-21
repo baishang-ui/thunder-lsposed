@@ -6,7 +6,9 @@ NODE_PATH when using a bundled Node runtime. STATUS_ICONS_FONT can select a CJK 
 from pathlib import Path
 from io import BytesIO
 import html
+import json
 import os
+import re
 import shutil
 import subprocess
 import xml.etree.ElementTree as ET
@@ -17,7 +19,7 @@ RES = ROOT / 'app/src/main/res/drawable'
 NS = '{http://schemas.android.com/apk/res/android}'
 
 
-def vector(name, color, width=100, height=80):
+def vector(name, color, width=100, height=80, *, native_bounds=False):
     tree = ET.parse(RES / ('thunder_ios_' + name + '.xml')).getroot()
     if tree.tag == 'inset':
         tree = tree.find('vector')
@@ -37,7 +39,8 @@ def vector(name, color, width=100, height=80):
                 result += f'<path d="{html.escape(node.get(NS+"pathData"), quote=True)}" fill="{color}" fill-opacity="{fa*float(node.get(NS+"fillAlpha",1))}" fill-rule="{rule}" stroke="{color}" stroke-opacity="{sa*float(node.get(NS+"strokeAlpha",1))}" stroke-width="{node.get(NS+"strokeWidth",0)}" stroke-linecap="{node.get(NS+"strokeLineCap","butt")}" stroke-linejoin="{node.get(NS+"strokeLineJoin","miter")}"/>'
         return result
 
-    svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" preserveAspectRatio="xMidYMid meet" viewBox="0 0 {tree.get(NS+"viewportWidth")} {tree.get(NS+"viewportHeight")}">{nodes(tree)}</svg>'
+    aspect='none' if native_bounds else 'xMidYMid meet'
+    svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" preserveAspectRatio="{aspect}" viewBox="0 0 {tree.get(NS+"viewportWidth")} {tree.get(NS+"viewportHeight")}">{nodes(tree)}</svg>'
     try:
         import cairosvg
     except ImportError:
@@ -56,6 +59,34 @@ def font(size):
              'C:/Windows/Fonts/msyh.ttc', '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc']
     path = next((p for p in paths if p and Path(p).exists()), None)
     return ImageFont.truetype(path, size) if path else ImageFont.load_default(size=size)
+
+
+def battery_digit_mask(text, size):
+    """Preview a local system-font copy; no font is included in the module."""
+    hook = (ROOT / 'app/src/main/java/io/github/baishangui/thunder/IosStatusBarHook.java').read_text()
+    weight = int(re.search(r'BATTERY_DIGIT_WEIGHT = (\d+)', hook)[1])
+    scale_x = float(re.search(r'BATTERY_DIGIT_SCALE_X = ([\d.]+)', hook)[1])
+    path = os.environ.get('STATUS_ICONS_BATTERY_FONT')
+    face = ImageFont.truetype(path, size) if path else font(size)
+    try:
+        axes = face.get_variation_axes()
+        face.set_variation_by_axes([min(weight, axis['maximum']) if axis['name'] == b'Weight'
+                                   else axis['default'] for axis in axes])
+    except OSError:
+        pass  # Static/local fallback fonts are only illustrative.
+    left, top, right, bottom = face.getbbox(text)
+    mask = Image.new('L', (right-left+4, bottom-top+4))
+    ImageDraw.Draw(mask).text((2-left, 2-top), text, font=face, fill=255)
+    # Native C17 centers the actual path bounds rather than font advance widths.
+    mask = mask.crop(mask.getbbox())
+    return mask.resize((round(mask.width*scale_x), mask.height), Image.Resampling.LANCZOS)
+
+
+def paste_battery_digits(image, text, size, x, y, width, height, color):
+    mask = battery_digit_mask(text, size)
+    position = (round(x+width*(85/93)/2-mask.width/2), round(y+height/2-mask.height/2))
+    image.paste(color, position, mask)
+    return mask
 
 
 def main():
@@ -87,7 +118,8 @@ def main():
         icon = vector(f'stat_signal_wifi_signal_{level}_os17', '#15171b', 64, 48)
         im.paste(icon, (36+level*90, 850), icon)
         draw.text((68+level*90,910), str(level), anchor='mt', fill='#636975', font=small)
-    draw.text((574, 812), 'C16 横向电池 · 等比放大至 34dp', fill='#30343b', font=body)
+    theme=json.loads((ROOT/'app/src/main/assets/icons/theme-reference/manifest.json').read_text())
+    draw.text((574, 812), f'C16 横向电池 · {theme["dimensions"]["status_bar_battery_horizontal_width"]:g}dp', fill='#30343b', font=body)
     battery_tree=ET.parse(RES/'thunder_ios_stat_battery_horizontal_bg.xml').getroot()
     battery_width=round(float(battery_tree.get(NS+'width')[:-2])*3)
     battery_height=round(float(battery_tree.get(NS+'height')[:-2])*3)
@@ -95,10 +127,9 @@ def main():
     for index, text in enumerate(['7', '75', '100']):
         x, y = 584+index*140, 856
         im.paste(battery, (x, y), battery)
-        digits = font(26)
-        left, top, right, bottom = draw.textbbox((0, 0), text, font=digits)
-        draw.text((x+battery_width*(85/93)/2-(left+right)/2, y+battery_height/2-(top+bottom)/2), text, fill='white', font=digits)
-    draw.text((36, 960), '离线资源预览；电量、充电状态、双卡排列与亮暗颜色由系统控制。', fill='#636975', font=small)
+        paste_battery_digits(im, text, round(theme['dimensions']['battery_percent_in_text_size']*3),
+                             x, y, battery_width, battery_height, 'white')
+    draw.text((36, 960), '离线资源预览；数字字体仅为本机示例，实机跟随系统字体设置。', fill='#636975', font=small)
     im.save(ROOT / 'docs/status-icons-preview.png')
 
 

@@ -82,7 +82,7 @@ public final class IosRenderPathCheck {
         check(Math.abs((Float)call.getResult())<.001f,"background and progress share the full original canvas");
         host=new Resources(); host.full="com.android.systemui:dimen/battery_percent_in_text_size";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
-        check(Math.abs((Float)call.getResult()-10f*host.getDisplayMetrics().density)<.001f,"internal percentage returns to the 17dp battery height scale");
+        check(Math.abs((Float)call.getResult()-14f*host.getDisplayMetrics().density)<.001f,"internal battery percentage matches the reference text proportions");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_battery_horizontal_height";
         value=new android.util.TypedValue(); call=IosStatusBarCheck.param(host,1,value,true); getValue.after(call);
         check(Math.abs((value.data>>8)/32768f-IosStatusBarHook.BATTERY_HEIGHT_DP)<.0001f,"raw and getter battery heights agree");
@@ -90,6 +90,28 @@ public final class IosRenderPathCheck {
         HookCallback bodyLayout=Api102Runtime.callbacks.get(batteryType+"#getBodyRectForLayout");
         HookCallback fallbackOffset=Api102Runtime.callbacks.get(batteryType+"#getOffsetX");
         var battery=new com.oplus.systemui.statusbar.pipeline.battery.ui.drawable.HorizontalBatteryContentDrawable();
+        HookCallback digitFont=Api102Runtime.callbacks.get(batteryType+"#updatePercentInTextBounds");
+        check(digitFont!=null,"battery font must be applied before native glyph measurement");
+        var baseFont=battery.paint.getTypeface();
+        battery.percentInPaint.getTypeface().family="system-selected-A";
+        battery.percentInPaint.getTypeface().italic=true;
+        battery.percentInPaint.setColor(0xff123456);
+        call=IosStatusBarCheck.param(battery);digitFont.before(call);
+        check("system-selected-A".equals(battery.percentInPaint.getTypeface().family)
+            && battery.percentInPaint.getTypeface().weight==900 && battery.percentInPaint.getTypeface().isItalic(),"heavy digits retain the family and italic choice supplied by system font settings");
+        check(Math.abs(battery.percentInPaint.getTextScaleX()-1.08f)<.00001f,"digit width follows the reference proportions");
+        check(battery.paint.getTypeface()==baseFont && battery.percentInPaint.getColor()==0xff123456,"font styling only changes internal digit metrics, preserving battery paints and colors");
+        var updatedFont=new android.graphics.Typeface();updatedFont.family="system-selected-B";
+        battery.percentInPaint.setTypeface(updatedFont);
+        battery.percentInPaint.setTextScaleX(.8f);
+        call=IosStatusBarCheck.param(battery);digitFont.before(call);
+        check("system-selected-B".equals(battery.percentInPaint.getTypeface().family)
+            && battery.percentInPaint.getTypeface().weight==900 && battery.percentInPaint.getTextScaleX()==1.08f,"switching the system font keeps the newly selected family and reapplies digit metrics");
+        var weightedFont=battery.percentInPaint.getTypeface();digitFont.before(call);
+        check(battery.percentInPaint.getTypeface()==weightedFont,"repeated measurements reuse an already weighted system face");
+        battery.percentInPaint.setTypeface(null);digitFont.before(call);
+        check(battery.percentInPaint.getTypeface()!=null && battery.percentInPaint.getTypeface().weight==900
+            && "system".equals(battery.percentInPaint.getTypeface().family),"a native null face means the system default, which must also receive the requested weight");
         for (float density : new float[]{1f, 2.75f, 3.5f}) for (boolean rtl : new boolean[]{false,true}) {
             battery.rtl=rtl;
             var content=new android.graphics.RectF(3f*density,2f*density,
@@ -102,7 +124,10 @@ public final class IosRenderPathCheck {
             check(body.top==content.top && body.bottom==content.bottom,"text centering preserves vertical layout");
             for (String digits : new String[]{"7","75","100"}) {
                 // C17 centers each freshly measured glyph's ink pixels inside this body.
-                int inkWidth=Math.round(digits.length()*5.5f*density);
+                battery.percentInPaint.setTextSize(IosStatusBarHook.BATTERY_TEXT_SIZE_DP*density);
+                var ink=new android.graphics.Rect();battery.percentInPaint.getTextBounds(digits,0,digits.length(),ink);
+                int inkWidth=ink.width();
+                check(inkWidth+2<=body.width() && ink.height()+2<=body.height()*45f/55f,"larger digits fit the smaller battery without clipping: "+digits);
                 int left=(int)body.left+(((int)body.right-(int)body.left-inkWidth)/2);
                 float inkCenter=left+(inkWidth-1)/2f;
                 check(Math.abs(inkCenter-(((int)body.left+(int)body.right-1f)/2f))<=.51f,"native ink centering remains stable for "+digits);
@@ -114,8 +139,7 @@ public final class IosRenderPathCheck {
         for (String suffix : new String[]{"", "_new"}) {
             host=new Resources(); host.full="com.android.systemui:dimen/signal_cluster_battery_padding"+suffix;
             call=IosStatusBarCheck.param(host,1); call.setResult(0f); dimension.after(call);
-            float expected=suffix.isEmpty()?2.344f:1f;
-            check(Math.abs((Float)call.getResult()-expected*host.getDisplayMetrics().density)<.001f,"battery separator adds the missing 1dp side gap: "+suffix);
+            check(Math.abs((Float)call.getResult()-4f*host.getDisplayMetrics().density)<.001f,"battery separator matches the reference gap in both native paths: "+suffix);
         }
         HookCallback label=Api102Runtime.callbacks.get("com.oplus.systemui.statusbar.pipeline.mobile.ui.view.OplusStatusBarMobileViewBinder$Os17Binding#bindNetworkTypeText");
         call=IosStatusBarCheck.param(null,new Object()); label.before(call);

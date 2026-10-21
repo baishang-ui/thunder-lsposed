@@ -378,6 +378,7 @@ final class SystemSettingsHook {
             controls.clear(); actions.clear(); sections.clear(); status = null;
             Context context = context(host);
             page = ((Bundle)Reflect.callMethod(host, "getArguments")).getString(MARKER, "home");
+            if (java.util.Arrays.asList("panel", "cards", "notifications", "banner").contains(page)) page = "center";
             Object screen = Reflect.callMethod(Reflect.callMethod(host, "getPreferenceManager"), "createPreferenceScreen", context);
             Bundle pages = snapshot.getBundle("pages");
             // Show the module status row only on the home page. Deep category pages start
@@ -402,7 +403,7 @@ final class SystemSettingsHook {
                 String section = field.getString("section", "");
                 Object group = groups.get(section);
                 if (group == null) {
-                    group = category(loader, context, screen, "thunder:section:" + groups.size(), section);
+                    group = category(loader, context, screen, "thunder:section:" + groups.size(), field.containsKey("style_group") ? "" : section);
                     groups.put(section, group); sections.add(group);
                 }
                 Reflect.callMethod(pref, "setSummary", field.getString("description"));
@@ -457,20 +458,12 @@ final class SystemSettingsHook {
                 }
             }
             if ("home".equals(page)) {
-                Object controlNotify = category(loader, context, screen, "thunder:appearance", "控制与通知");
-                Object statusNav = category(loader, context, screen, "thunder:status_nav", "状态栏与导航");
-                Object cloudCat = category(loader, context, screen, "thunder:cloud_cat", "流体云");
-                Object sound = category(loader, context, screen, "thunder:sound", "声音");
+                Object appearance = category(loader, context, screen, "thunder:appearance", "功能样式");
                 Object maintenance = category(loader, context, screen, "thunder:maintenance", "维护");
-                for (String key : new String[]{"panel", "cards", "notifications", "banner", "volume", "cloud", "status", "gesture"}) {
+                for (String key : new String[]{"cloud", "center", "volume", "status", "gesture"}) {
                     Object pref = jump(loader, context, "thunder:page:" + key, pages.getString(key), false);
                     click(pref, loader, () -> open(context, key, pages.getString(key)));
-                    Object group;
-                    if ("status".equals(key) || "gesture".equals(key)) group = statusNav;
-                    else if ("cloud".equals(key)) group = cloudCat;
-                    else if ("volume".equals(key)) group = sound;
-                    else group = controlNotify;
-                    Reflect.callMethod(group, "addPreference", pref);
+                    Reflect.callMethod(appearance, "addPreference", pref);
                 }
                 Object tools = jump(loader, context, "thunder:tools", "配置与维护", false);
                 click(tools, loader, () -> open(context, "tools", "配置与维护"));
@@ -709,6 +702,7 @@ final class SystemSettingsHook {
                     Reflect.callMethod(pref, "setAssignment", value +
                         (field.getString("unit", "").isEmpty() ? "" : " " + field.getString("unit")));
                 }
+                if (key.startsWith("style_")) Reflect.callMethod(pref, "setSummary", values.getBoolean(key) ? "自定义样式" : "系统默认样式");
                 Reflect.callMethod(pref, "setVisible", SystemSettingsCatalog.INSTANCE.visible(field, values));
                 Reflect.callMethod(pref, "setEnabled", loaded && ("enabled".equals(key) || values.getBoolean("enabled")));
             }

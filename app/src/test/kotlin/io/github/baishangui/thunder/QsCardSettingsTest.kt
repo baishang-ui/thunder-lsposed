@@ -27,6 +27,7 @@ class QsCardSettingsTest {
 
     @Test fun restoringControlCardsPreservesIndependentNotificationOverrides() {
         val b=Settings().bundle().apply {
+            putBoolean("style_notification",true)
             putBoolean("notification_card_tint",true);putInt("notification_card_color",0x55667788)
             putBoolean("notification_card_blur",true);putInt("notification_card_radius",177)
             putBoolean("notification_card_corner_enabled",true);putInt("notification_card_corner",59)
@@ -45,7 +46,7 @@ class QsCardSettingsTest {
             notificationArea=Area(true,121,true,0x55667788,true,36))
         assertEquals(settings,Settings.from(settings.bundle()))
         assertEquals(settings,Settings.parse(settings.json()))
-        assertEquals(22,JSONObject(settings.json()).getInt("version"))
+        assertEquals(23,JSONObject(settings.json()).getInt("version"))
         val runtime=HookConfig(settings.bundle())
         assertSame(runtime.shade,runtime.qs)
         assertEquals(0x55443322,runtime.shade.color)

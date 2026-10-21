@@ -110,20 +110,20 @@ final class ResourceOverrides {
         if(c.margins && ("com.android.systemui:dimen/notification_side_paddings_single".equals(name)
                 || "com.android.systemui:dimen/notification_side_paddings_dual".equals(name)
                 || "com.android.systemui:dimen/notification_side_paddings_split".equals(name))) return c.margin;
-        if(c.cloud && name.startsWith("com.oplus.systemui.plugins:dimen/")) {
+        if(c.cloud && c.scopedCloud("cloud") && name.startsWith("com.oplus.systemui.plugins:dimen/")) {
             String key=name.substring("com.oplus.systemui.plugins:dimen/".length());
             if(c.cloudHeightEnabled && (key.equals("capsule_height") || key.equals("capsule_max_height_size")
                 || key.equals("capsule_max_height_size_high") || key.equals("capsule_layout_max_height")
                 || key.equals("capsule_layout_max_height_high") || key.equals("capsule_layout_max_height_small")))return c.cloudHeight;
             if(c.cloudArea.cornerEnabled && key.equals("capsule_corner_radius"))return c.cloudArea.corner;
-            if(c.cloudCardArea.cornerEnabled && !CloudHook.readingNativeCorners() && (key.equals("capsule_card_corner_radius")
+            if(!c.styleData.containsKey("style_cloud") && c.cloudCardArea.cornerEnabled && !CloudHook.readingNativeCorners() && (key.equals("capsule_card_corner_radius")
                 || key.equals("round_corner_radius_fluid_cloud") || key.equals("round_corner_radius_fluid_cloud_lite")))return c.cloudCardArea.corner;
             if(key.equals("capsule_layout_max_height"))return 34;
         }
         return null;
     }
     static Integer color(String name,HookConfig c) {
-        if(!c.enabled||!c.cloud||!name.startsWith("com.oplus.systemui.plugins:color/"))return null;
+        if(!c.enabled||!c.cloud||c.styleData.containsKey("style_cloud")||!name.startsWith("com.oplus.systemui.plugins:color/"))return null;
         String key=name.substring("com.oplus.systemui.plugins:color/".length());
         // Background fills and material inputs remain native here. Runtime hooks
         // replace the selected color once after the producer chooses its backend.

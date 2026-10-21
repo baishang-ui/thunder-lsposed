@@ -70,6 +70,7 @@ internal data class GlassStyle(val source: Backdrop, val dark: Boolean, val sett
     val surface get() = colors.surface
     val background get() = if (settings.colorMode == 0 && !dark) Color(settings.backdropColor) else colors.background
 }
+internal val LocalInlineSettings = staticCompositionLocalOf { false }
 internal val LocalGlass = staticCompositionLocalOf<GlassStyle> { error("Missing UI style") }
 
 // Kyant0's official Progressive Blur tutorial; keep the original header tint.
@@ -133,7 +134,8 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
 @Composable internal fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SettingsSectionTitle(title)
-        SettingsGroup(content = content)
+        if (LocalInlineSettings.current) Column(verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+        else SettingsGroup(content = content)
     }
 }
 

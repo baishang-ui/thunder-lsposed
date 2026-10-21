@@ -1,0 +1,55 @@
+{
+  "reference": {
+    "image_width_px": 1290,
+    "image_height_px": 2796,
+    "logical_scale": 3,
+    "visible_cellular_dp": [
+      21.667,
+      13.667
+    ],
+    "visible_wifi_dp": [
+      19.0,
+      14.0
+    ],
+    "visible_battery_dp": [
+      31.0,
+      15.0
+    ],
+    "gap_dp": 7.67
+  },
+  "targets": {
+    "status_visible_height_dp": 14.0,
+    "single_signal_width_dp": 22.5,
+    "single_signal_height_dp": 14.5,
+    "stacked_visible_height_dp": 14.0,
+    "side_padding_dp": 3.25,
+    "battery_separator_dp": 4.0,
+    "battery_width_dp": 32.0,
+    "battery_text_size_dp": 14.0,
+    "battery_digit_weight": 900,
+    "battery_digit_scale_x": 1.08,
+    "battery_digit_font": "system-selected"
+  },
+  "optical_height_fractions": {
+    "stat_sys_airplane_mode": 1.0,
+    "stat_sys_alarm": 0.834167,
+    "stat_sys_data_bluetooth": 0.834167,
+    "stat_sys_data_bluetooth_connected_ing": 0.834167,
+    "stat_sys_data_bluetooth_connected_stop": 0.834167,
+    "stat_sys_dnd": 1.0,
+    "stat_sys_flavor_one_ringer_vibrate": 1.0,
+    "stat_sys_headset": 0.999167,
+    "stat_sys_headset_mic": 0.999167,
+    "stat_sys_location": 0.999167,
+    "stat_sys_nfc": 0.641667,
+    "stat_sys_ringer_silent": 1.0,
+    "stat_sys_ringer_vibrate": 1.0,
+    "stat_sys_vpn_ic": 0.5,
+    "stat_signal_wifi_signal_0_os17": 0.948,
+    "stat_signal_wifi_signal_1_os17": 0.948,
+    "stat_signal_wifi_signal_2_os17": 0.948,
+    "stat_signal_wifi_signal_3_os17": 0.948,
+    "stat_signal_wifi_signal_4_os17": 0.948
+  },
+  "measurement": "C16 path alpha bounds at high resolution, including native viewport transforms; shared Wi-Fi canvas across levels."
+}

@@ -58,7 +58,7 @@ final class QsCardHook {
         }
         bind("mask",() -> Api102Runtime.findAndHookMethod(TILE+"MixColorTileDrawable",loader,"draw",Canvas.class,new HookCallback() {
             @Override protected void beforeHookedMethod(Param p) {
-                HookConfig c=ShadeHook.snapshot();if(!c.enabled||!c.qsCards.tint||preserveNativeState((Drawable)p.thisObject))return;
+                HookConfig c=ShadeHook.snapshot();if(!c.enabled||!area(p.thisObject).tint||preserveNativeState((Drawable)p.thisObject))return;
                 p.setObjectExtra("mask",Reflect.getIntField(p.thisObject,"maskColor"));
                 Reflect.setIntField(p.thisObject,"maskColor",0);
             }
@@ -74,7 +74,7 @@ final class QsCardHook {
         }));
         bind("flat-color",() -> Api102Runtime.findAndHookMethod(TILE+"GradientTileDrawable",loader,"draw",Canvas.class,new HookCallback() {
             @Override protected void beforeHookedMethod(Param p) {
-                HookConfig c=ShadeHook.snapshot();if(!c.enabled||!c.qsCards.tint||preserveNativeState((Drawable)p.thisObject))return;
+                HookConfig c=ShadeHook.snapshot();if(!c.enabled||!area(p.thisObject).tint||preserveNativeState((Drawable)p.thisObject))return;
                 ColorDrawable fill=(ColorDrawable)Reflect.getObjectField(p.thisObject,"colorDrawable");
                 p.setObjectExtra("fill",fill);p.setObjectExtra("color",fill.getColor());
                 p.setObjectExtra("filter",fill.getColorFilter());
@@ -83,8 +83,8 @@ final class QsCardHook {
                 fill.setCallback(null);
                 fill.clearColorFilter();
                 int opacity=Math.max(0,Math.min(255,(Integer)Reflect.callMethod(p.thisObject,"getAlpha")));
-                int alpha=Math.round((c.qsCards.color>>>24)*opacity/255f);
-                fill.setColor((c.qsCards.color&0xffffff)|(alpha<<24));
+                int alpha=Math.round((area(p.thisObject).color>>>24)*opacity/255f);
+                fill.setColor((area(p.thisObject).color&0xffffff)|(alpha<<24));
                 ShadeHook.resourceHit("qs-card-flat");
             }
             @Override protected void afterHookedMethod(Param p) {
@@ -114,6 +114,7 @@ final class QsCardHook {
         // not a MixColorTileDrawable directly. trackCardSurface walks DrawableWrapper chains
         // to reach the inner drawable and mark the blur proxy; call it on both drawables.
         Drawable bg = (Drawable)Reflect.getObjectField(tile,"mBgDrawable");
+        markStyle(bg,"qs_wide");
         QsCornerHook.trackCard(bg);
         trackCardSurface(bg);
     }
@@ -202,11 +203,11 @@ final class QsCardHook {
             @Override protected void beforeHookedMethod(Param p) {
                 sliders.put((View)p.thisObject,true);
                 QsCornerHook.beforeSlider(p);
-                HookConfig c=ShadeHook.snapshot();if(!c.enabled||!c.qsCards.tint||Reflect.getBooleanField(p.thisObject,"isDrawingWithMixColor"))return;
+                HookConfig c=ShadeHook.snapshot();if(!c.enabled||!area(p.thisObject).tint||Reflect.getBooleanField(p.thisObject,"isDrawingWithMixColor"))return;
                 p.setObjectExtra("background",Reflect.getIntField(p.thisObject,"mBackgroundColor"));
                 p.setObjectExtra("track",new Object[]{Reflect.getObjectField(p.thisObject,"mInactiveTrackDrawable")});
                 // Preserve native geometry, progress fill and icon; replace only the base track color.
-                Reflect.setIntField(p.thisObject,"mBackgroundColor",c.qsCards.color);
+                Reflect.setIntField(p.thisObject,"mBackgroundColor",area(p.thisObject).color);
                 Reflect.setObjectField(p.thisObject,"mInactiveTrackDrawable",null);
                 ShadeHook.resourceHit("qs-slider-flat");
             }
@@ -221,7 +222,39 @@ final class QsCardHook {
     }
     private static void trackSliderBackground(Object drawable) {
         drawables.put((Drawable)drawable,true);
-        ShadeHook.trackQsCard(Reflect.callMethod(drawable,"getViewBlurProxy"));
+        Object proxy=Reflect.callMethod(drawable,"getViewBlurProxy");
+        Reflect.setAdditionalInstanceField(Reflect.callMethod(proxy,"getBlurConfig"),"thunder.qs-style","qs_slider");
+        ShadeHook.trackQsCard(proxy);
+    }
+    static void markStyle(Drawable drawable,String style) {
+        if(drawable==null)return;
+        Reflect.setAdditionalInstanceField(drawable,"thunder.qs-style",style);
+        String name=drawable.getClass().getName();
+        if(name.endsWith("MixColorTileDrawable")||name.endsWith("MixColorPluginDrawable")) {
+            Object proxy=Reflect.callMethod(Reflect.getObjectField(drawable,"autoBlurDrawable"),"getViewBlurProxy");
+            Reflect.setAdditionalInstanceField(Reflect.callMethod(proxy,"getBlurConfig"),"thunder.qs-style",style);
+        }
+        if(drawable instanceof DrawableWrapper)markStyle(((DrawableWrapper)drawable).getDrawable(),style);
+        else if(drawable instanceof android.graphics.drawable.LayerDrawable) {
+            android.graphics.drawable.LayerDrawable layers=(android.graphics.drawable.LayerDrawable)drawable;
+            for(int i=0;i<layers.getNumberOfLayers();i++)markStyle(layers.getDrawable(i),style);
+        }
+    }
+    static HookConfig.Area area(Object owner) {
+        HookConfig c=ShadeHook.snapshot();
+        if(!c.styleData.containsKey("style_qs_small"))return c.qsCards;
+        Object key=owner==null?null:Reflect.getAdditionalInstanceField(owner,"thunder.qs-style");
+        if(key==null&&owner!=null) {
+            Object ref=Reflect.getAdditionalInstanceField(owner,"thunder.qs-corner-owner");
+            Object drawable=ref instanceof WeakReference?((WeakReference<?>)ref).get():null;
+            if(drawable!=null)key=Reflect.getAdditionalInstanceField(drawable,"thunder.qs-style");
+        }
+        if(key==null&&owner!=null) {
+            String name=owner.getClass().getName();
+            if(name.contains("VerticalSeekBar"))key="qs_slider";
+            else if(name.contains("Media"))key="qs_music";
+        }
+        return c.tileArea(key instanceof String?(String)key:"qs_small");
     }
     private static boolean preserveNativeState(Drawable drawable) {
         if(Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(drawable,CARD_SURFACE)))return false;
