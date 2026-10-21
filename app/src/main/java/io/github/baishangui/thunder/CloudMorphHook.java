@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.WeakHashMap;
 
 /** Native scenes supply business lifecycle; one independent persistent body owns the visual form. */
@@ -31,6 +32,8 @@ final class CloudMorphHook {
     private static final Map<View,CapsuleEndpoint> capsuleEndpoints=new WeakHashMap<>();
     private static final Map<View,Frame> velocities=new WeakHashMap<>();
     private static final Map<View,Frame> capsuleAnchors=new WeakHashMap<>();
+    private static final Map<View,Object> nativeContentRevisions=new WeakHashMap<>();
+    private static final Map<View,Object> pendingContentRevisions=new IdentityHashMap<>();
     private static final Map<Motion,Boolean> running=new IdentityHashMap<>();
     private static final Map<Object,Boolean> windowTargets=new IdentityHashMap<>();
     private static final Map<Object,View> windowOwners=new IdentityHashMap<>();
@@ -43,6 +46,8 @@ final class CloudMorphHook {
     private record CapsuleEndpoint(View capsule,String key,String previousKey,int width,int measuredWidth) { }
     private record Request(Object builder,Mode mode,ClassLoader loader,CapsuleGoal goal) { }
     private record Target(View view,View owner,boolean instant) { }
+    private record ContentSnapshot(Object revision) { }
+    private record EngineRevision(Object model,int fingerprint) { }
     private record Spec(View capsule,View container,List<Target> cards,boolean opening,ClassLoader loader) { }
 
     private static Mode mode(Object builder) {
@@ -88,6 +93,7 @@ final class CloudMorphHook {
     }
 
     static void install(ClassLoader loader) {
+        installContentRevisions(loader);
         for(String method:new String[]{"j","e"})bind("window-"+method,() -> {
             HookCallback callback=new HookCallback() {
                 @Override protected void beforeHookedMethod(Param p) {
@@ -222,6 +228,64 @@ final class CloudMorphHook {
         }));
         bind("clock-deopt",() -> Api102Runtime.deoptimizeCallers(Reflect.findClass(BASE+"engine.animatorengine.h",loader),"s","g"));
         bind("builder-deopt",() -> Api102Runtime.deoptimizeCallers(Reflect.findClass(BASE+"animatorscenes.B0",loader),"invoke"));
+    }
+    private static void installContentRevisions(ClassLoader loader) {
+        String template="com.oplus.systemui.plugins.shared.template.wrapper.impl.u";
+        // o commits new data; p also emits the cached data when native update
+        // blocking ends. Compare the emitted StateFlow, not the cached model:
+        // a blocked update has not changed the live content yet.
+        for(String method:new String[]{"o","p"})bind("content-template-"+method,()->
+            Api102Runtime.findAndHookMethod(template,loader,method,
+                method.equals("o")?"com.oplus.systemui.plugins.shared.api.d":"kotlin.jvm.functions.Function1",new HookCallback(){
+                    @Override protected void beforeHookedMethod(Param p){
+                        if(!enabled())return;
+                        try{p.setObjectExtra(MORPH+"-content",new ContentSnapshot(templateRevision(p.thisObject)));}
+                        catch(Throwable error){ShadeHook.frameworkFailure("cloud-content-template-before",error);}
+                    }
+                    @Override protected void afterHookedMethod(Param p){
+                        if(p.hasThrowable()||!enabled()||!(p.getObjectExtra(MORPH+"-content") instanceof ContentSnapshot before))return;
+                        try{
+                            Object revision=templateRevision(p.thisObject);
+                            if(!Objects.equals(before.revision,revision)&&Reflect.getObjectField(p.thisObject,"j") instanceof View source)
+                                layoutHandler.post(()->queueContentRevision(source,revision));
+                        }catch(Throwable error){ShadeHook.frameworkFailure("cloud-content-template-after",error);}
+                    }
+                }));
+        bind("content-seedling-finish",()->Api102Runtime.findAndHookMethod("com.oplus.systemui.livealert.seedling.origin.F",loader,
+            "onStatusChanged",String.class,android.os.Bundle.class,new HookCallback(){
+                @Override protected void afterHookedMethod(Param p){
+                    if(p.hasThrowable()||!enabled()||!"EngineUpdateDataFinish".equals(p.args[0])||p.args[1]==null)return;
+                    // The native callback also posts its final UI bookkeeping.
+                    // Resolve this source on the same UI queue, after the engine
+                    // has applied its data, rather than scanning descendant text.
+                    layoutHandler.post(()->{
+                        if(!enabled())return;
+                        try{
+                            Object model=Reflect.getObjectField(p.thisObject,"b");
+                            Object revision=Reflect.getObjectField(model,"G");
+                            // SeedlingUIData is mutable. Its native hash includes
+                            // data bytes, rootNode, rawDataMap and remoteViewUIData;
+                            // freeze that value so in-place updates remain visible.
+                            if(revision!=null&&Reflect.callMethod(p.thisObject,"f",false) instanceof View source)
+                                queueContentRevision(source,new EngineRevision(revision,revision.hashCode()));
+                        }catch(Throwable error){ShadeHook.frameworkFailure("cloud-content-seedling-finish",error);}
+                    });
+                }
+            }));
+    }
+    private static Object templateRevision(Object wrapper){return Reflect.callMethod(Reflect.getObjectField(wrapper,"m"),"getValue");}
+    private static void queueContentRevision(View source,Object revision) {
+        if(revision==null)return;
+        if(Objects.equals(nativeContentRevisions.get(source),revision)){pendingContentRevisions.remove(source);return;}
+        boolean scheduled=pendingContentRevisions.containsKey(source);pendingContentRevisions.put(source,revision);
+        if(scheduled)return;
+        layoutHandler.post(()->{
+            Object latest=pendingContentRevisions.remove(source);
+            if(latest==null||!enabled()||Objects.equals(nativeContentRevisions.get(source),latest))return;
+            boolean matched=false;
+            for(CloudMorphSurface shared:new ArrayList<>(sessions.values()))matched=shared.contentChangedForSource(source,latest)||matched;
+            if(matched){nativeContentRevisions.put(source,latest);ShadeHook.resourceHit("cloud-content-native-revision");}
+        });
     }
     private static void bind(String key,Runnable action) {
         try {action.run();ShadeHook.hookRegistered("cloud-morph-"+key);}
@@ -481,6 +545,7 @@ final class CloudMorphHook {
             shared.capsuleEntryPresentation(mode==Mode.CAPSULE_ENTER&&presentationHandoff);
             shared.capsuleHideOwned(mode==Mode.CAPSULE_HIDE);
             shared.capsuleMotionOwned(mode==Mode.CAPSULE_ENTER||mode==Mode.CAPSULE_HIDE);
+            shared.contentMotionOwned(mode!=Mode.CAPSULE_HIDE);
             Frame enter=entrance(capsule);
             Frame behind=expanded;
             if(index>0){
@@ -500,6 +565,7 @@ final class CloudMorphHook {
             if(!cancelled){
                 shared.capsuleMotionOwned(false);
                 shared.capsuleHideOwned(false);
+                shared.contentMotionOwned(false);
                 if(index==0||opening)shared.settle(opening);
             }
         }
@@ -513,9 +579,11 @@ final class CloudMorphHook {
         final ArrayList<Surface> surfaces=new ArrayList<>();
         final Map<ViewTreeObserver,Boolean> observers=new IdentityHashMap<>();
         final Runnable awaitLayout=this::awaitLayout;
+        final Object contentRevision=new Object();
         final Object window;
         final java.util.LinkedHashMap<String,Object[]> deferred=new java.util.LinkedHashMap<>();
         final int curve,bounce,duration;
+        final boolean appArrival;
         CloudMotion trajectory;
         Spec spec;
         boolean closed,started,nativeEnded,visualEnded,retargeting,inheritPhase;
@@ -523,6 +591,8 @@ final class CloudMorphHook {
         float progress;
         Motion(Request request,Animator original) {
             this.request=request;this.original=original;
+            Object scene=Reflect.callMethod(request.builder,"f");
+            appArrival=scene instanceof Enum<?> type&&(type.name().equals("APP_TO_CAPSULE")||type.name().equals("APP_TO_CAPSULE_WITH_NONE"));
             boolean normal=request.mode==Mode.NORMAL_OPEN||request.mode==Mode.NORMAL_CLOSE;
             window=capsuleOnly(request.mode)?request.builder:Reflect.getObjectField(request.builder,normal?"j":"k");
             HookConfig config=ShadeHook.snapshot();duration=config.cloudAnimationDuration;curve=config.cloudAnimationCurve;bounce=config.cloudAnimationBounce;
@@ -591,6 +661,7 @@ final class CloudMorphHook {
             }
             for(Surface surface:surfaces) {
                 if(surface.view!=null){active.put(surface.view,this);watch(surface.view);}surface.acquire(spec.opening);
+                if(request.mode==Mode.CAPSULE_ENTER||request.mode==Mode.CAPSULE_UPDATE)surface.shared.contentChanged(contentRevision);
             }
             Surface primary=surfaces.get(0);
             primary.shared.retainCards(spec.cards.stream().skip(1).map(Target::view).toList());
@@ -603,8 +674,7 @@ final class CloudMorphHook {
                 Frame velocity=surface.shared.transitionVelocity(surface.start,surface.startVelocity);
                 if(request.mode==Mode.CAPSULE_HIDE&&velocity!=null)
                     velocity=CloudVisibilityState.velocityForWidth(surface.start,surface.start,velocity);
-                surface.trajectory=new CloudMotion(from,to,velocity,Math.max(1,Math.round(duration*span)),curve,bounce,
-                    0,surface.shared.capsuleEntryClosedHandoff());
+                surface.trajectory=createTrajectory(from,to,velocity,Math.max(1,Math.round(duration*span)),surface.shared.capsuleEntryClosedHandoff());
             }
             trajectory=primary.trajectory;
             started=true;clock.start();
@@ -613,6 +683,10 @@ final class CloudMorphHook {
             ShadeHook.resourceHit("cloud-continuous-morph");
             ShadeHook.resourceHit("cloud-morph-started");
             return true;
+        }
+        private CloudMotion createTrajectory(Frame from,Frame to,Frame velocity,int remaining,boolean preserveZeroVelocity) {
+            return appArrival?CloudMotion.arrival(from,to,velocity,remaining,curve,bounce,preserveZeroVelocity):
+                new CloudMotion(from,to,velocity,remaining,curve,bounce,0,preserveZeroVelocity);
         }
         void retargetCapsule(Frame goal){
             if(!started||spec.opening||request.mode==Mode.CAPSULE_HIDE||surfaces.isEmpty())return;
@@ -629,8 +703,7 @@ final class CloudMorphHook {
                 item.startOpacity=item.shared.opacity();
                 Frame from=item.index==0?presented:withProgress(presented,item.startOpacity);
                 Frame to=item.index==0?item.target:withProgress(item.target,item.targetOpacity);
-                item.trajectory=new CloudMotion(from,to,velocities.get(item.index==0?spec.container:item.view),remaining,curve,bounce,
-                    0,item.shared.capsuleEntryClosedHandoff());
+                item.trajectory=createTrajectory(from,to,velocities.get(item.index==0?spec.container:item.view),remaining,item.shared.capsuleEntryClosedHandoff());
                 item.phaseStart=phaseStart;item.phaseEnd=1;
             }
             trajectory=surface.trajectory;
@@ -775,5 +848,6 @@ final class CloudMorphHook {
         for(Motion motion:new ArrayList<>(running.keySet()))motion.finish(true);
         for(CloudMorphSurface shared:new ArrayList<>(sessions.values()))shared.dispose();
         sessions.clear();pendingEntries.clear();capsuleEndpoints.clear();windowTargets.clear();windowOwners.clear();
+        pendingContentRevisions.clear();nativeContentRevisions.clear();
     }
 }

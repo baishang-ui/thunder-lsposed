@@ -26,6 +26,14 @@ final class CloudCapsuleContent {
     }
     static void draw(Canvas canvas,ViewGroup container,View anchor,float width,float height,float alpha,
             boolean accessories,Predicate<View> capsule,Function<View,View> content,boolean ownAnchorMotion) {
+        draw(canvas,container,anchor,width,height,alpha,accessories,capsule,content,ownAnchorMotion,false);
+    }
+    static void draw(Canvas canvas,ViewGroup container,View anchor,float width,float height,float alpha,
+            boolean accessories,Predicate<View> capsule,Function<View,View> content,boolean ownAnchorMotion,boolean ownContentMotion) {
+        draw(canvas,container,anchor,width,height,alpha,accessories,capsule,content,ownAnchorMotion,ownContentMotion,null);
+    }
+    static void draw(Canvas canvas,ViewGroup container,View anchor,float width,float height,float alpha,
+            boolean accessories,Predicate<View> capsule,Function<View,View> content,boolean ownAnchorMotion,boolean ownContentMotion,View miniView) {
         if(alpha<=0||anchor.getWidth()<=0||anchor.getHeight()<=0)return;
         CloudContentTransform fit=placement(container,anchor,width,height);
         // Accessories deliberately have no anchor-bounded layer: native moons
@@ -34,11 +42,16 @@ final class CloudCapsuleContent {
         canvas.translate(fit.x(),fit.y());canvas.scale(fit.scale(),fit.scale());
         for(int i=0;i<container.getChildCount();i++) {
             View child=container.getChildAt(i);
-            boolean owned=ownAnchorMotion&&child==anchor;
-            if(!owned&&(child.getVisibility()!=View.VISIBLE||child.getAlpha()<=0))continue;
             boolean capsuleChild=capsule.test(child);
+            boolean miniChild=child==miniView;
+            // An explicit content revision replaces the old native side slide
+            // with a centered blur-in. Other capsule items are the outgoing
+            // native switch tree, not another copy of the incoming content.
+            if(ownContentMotion&&(capsuleChild||miniChild)&&child!=anchor)continue;
+            boolean owned=(ownAnchorMotion||ownContentMotion)&&child==anchor;
+            if(!owned&&(child.getVisibility()!=View.VISIBLE||child.getAlpha()<=0))continue;
             View item=capsuleChild?content.apply(child):null;
-            boolean accessory=!capsuleChild&&child!=anchor;
+            boolean accessory=!capsuleChild&&!miniChild&&child!=anchor;
             if(accessory!=accessories)continue;
             int childSave=canvas.save();
             canvas.translate(child.getLeft()-container.getScrollX(),child.getTop()-container.getScrollY());
@@ -59,7 +72,7 @@ final class CloudCapsuleContent {
                     item.draw(canvas);canvas.restoreToCount(contentSave);
                 }
             }else if(!capsuleChild) {
-                if(child==anchor&&child instanceof ViewGroup mini)drawMiniContent(canvas,mini);
+                if((child==anchor||miniChild)&&child instanceof ViewGroup mini)drawMiniContent(canvas,mini);
                 else child.draw(canvas);
             }
             canvas.restoreToCount(childSave);

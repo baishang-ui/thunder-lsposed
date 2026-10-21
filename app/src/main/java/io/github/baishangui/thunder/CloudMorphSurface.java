@@ -21,6 +21,7 @@ import android.graphics.drawable.Drawable;
 import android.graphics.drawable.DrawableWrapper;
 import android.graphics.drawable.LayerDrawable;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -72,9 +73,17 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     private boolean nativeInputHeld,nativeInputSyncPosted,expandedWindowInput,expandedRegionSubmitted;
     private final Object outline;
     private Object material,insetsListener;
-    private View capsule,card,owner,capsuleContent,cardContent,capsuleRoot,cardRoot;
+    private View capsule,card,owner,capsuleContent,cardContent,capsuleRoot,cardRoot,nativeMini;
     private boolean instant,attached,expanded,disposed,materialReady,settled,scaleListenerRegistered,capsuleMotionOwned,capsuleHideOwned,capsuleEntryPresentation;
     private boolean closingCapsuleGesture;
+    private boolean contentMotionOwned;
+    private final CloudContentTransition capsuleContentTransition=new CloudContentTransition();
+    private final CloudContentTransition cardContentTransition=new CloudContentTransition();
+    private final CloudContentLayer capsuleContentLayer=new CloudContentLayer("Thunder capsule content");
+    private final CloudContentLayer cardContentLayer=new CloudContentLayer("Thunder card content");
+    private final CloudContentLayer accessoryContentLayer=new CloudContentLayer("Thunder capsule accessories");
+    private record ContentSources(View capsule,View card) { }
+    private ContentSources contentSources;
     private int outlineWidth=-1,outlineHeight=-1;
     private float outlineRadius=-1;
     private boolean outlineSmooth;
@@ -290,6 +299,7 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     /** Service/mini replacement does not replace the independent Body or move any business View. */
     void syncCapsule(View capsule) {
         if(disposed)return;
+        if(nativeMini==null&&Reflect.callMethod(container,"getMiniView") instanceof View view)nativeMini=view;
         View content=capsule;
         if(capsule!=null)try {
             Object item=Reflect.callMethod(capsule,"getViewItem");
@@ -309,8 +319,48 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
             styledCapsule=null;body.nodesChanged();
             unwatch();watch(container);watch(card);watch(owner);
         }
-        watch(capsule);suppressNative();updateStyle();shape.invalidate();
+        contentSourcesChanged();watch(capsule);suppressNative();updateStyle();shape.invalidate();
     }
+    private void contentSourcesChanged() {
+        ContentSources next=new ContentSources(capsuleContent,cardContent);
+        if(next.equals(contentSources))return;
+        ContentSources previous=contentSources;contentSources=next;
+        if(previous==null||previous.capsule()!=capsuleContent)beginContent(capsuleContentTransition,capsuleContent);
+        if(previous==null||previous.card()!=cardContent)beginContent(cardContentTransition,cardContent);
+    }
+    /** Explicit revisions, rather than pre-draw notifications, start content motion. */
+    void contentChanged(Object revision){beginContent(capsuleContentTransition,revision);}
+    private void beginContent(CloudContentTransition transition,Object revision) {
+        if(disposed)return;
+        HookConfig config=ShadeHook.snapshot();
+        if(transition.begin(revision,SystemClock.uptimeMillis(),config.cloudAnimationDuration)) {
+            shape.invalidate();body.invalidate();
+        }
+    }
+    boolean contentChangedForSource(View source,Object revision) {
+        if(disposed||source==null)return false;
+        boolean capsuleMatch=relatedContent(source,capsuleContent),cardMatch=relatedContent(source,cardContent);
+        if(capsuleMatch)beginContent(capsuleContentTransition,revision);
+        if(cardMatch)beginContent(cardContentTransition,revision);
+        boolean matched=capsuleMatch||cardMatch;
+        for(CloudMorphSurface layer:layers.values())matched=layer.contentChangedForSource(source,revision)||matched;
+        return matched;
+    }
+    private static boolean relatedContent(View source,View content) {
+        if(content==null)return false;
+        for(Object parent=source;parent instanceof View view;parent=view.getParent())if(view==content)return true;
+        for(Object parent=content;parent instanceof View view;parent=view.getParent())if(view==source)return true;
+        return false;
+    }
+    void contentMotionOwned(boolean owned){contentMotionOwned=owned;shape.invalidate();body.invalidate();}
+    private float contentPhase(boolean card) {
+        CloudContentTransition transition=card?cardContentTransition:capsuleContentTransition;
+        long now=SystemClock.uptimeMillis();float amount=transition.sample(now);
+        if(transition.running(now)){shape.postInvalidateOnAnimation();body.postInvalidateOnAnimation();}
+        return amount;
+    }
+    private boolean ownsContentMotion(){return contentMotionOwned||capsuleContentTransition.running(SystemClock.uptimeMillis());}
+    private float contentBlurRadius(){return Math.min(32f,10f*container.getResources().getDisplayMetrics().density);}
     private View findRoot(View source,String nativeName,String readableName,View fallback) {
         for(Object parent=source;parent instanceof View view;parent=view.getParent()) {
             String name=view.getClass().getName();
@@ -519,7 +569,7 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         shape.invalidate();
     }
     private Drawable fallbackCapsuleBackground() {
-        Object mini=Reflect.callMethod(container,"getMiniView");
+        Object mini=nativeMini!=null?nativeMini:Reflect.callMethod(container,"getMiniView");
         if(mini instanceof View view&&view.getBackground()!=null)return view.getBackground();
         if(container instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++) {
             View child=group.getChildAt(i);
@@ -581,7 +631,7 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
             body.bringChildToFront(shape);body.nodesChanged();updateInputRegion();
             ShadeHook.resourceHit("cloud-unified-native-card-roster");
         }else if(card!=null&&cardContent!=nativeCardContent(card)) {
-            cancelGesture();cardContent=(View)nativeCardContent(card);body.nodesChanged();
+            cancelGesture();cardContent=(View)nativeCardContent(card);body.nodesChanged();contentSourcesChanged();
         }
     }
     @Override public boolean onPreDraw() {
@@ -634,6 +684,8 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         if(parent==null)container.getContext().unregisterReceiver(screenLifetime);
         if(scaleListenerRegistered){ValueAnimator.unregisterDurationScaleChangeListener(durationScaleChanged);scaleListenerRegistered=false;}
         if(parent==null)CloudMorphHook.forget(container,this);current=null;
+        capsuleContentTransition.reset();cardContentTransition.reset();
+        capsuleContentLayer.clear();cardContentLayer.clear();accessoryContentLayer.clear();
         if(parent!=null&&!parent.disposed){parent.body.nodesChanged();parent.updateInputRegion();}
     }
     private void installInsets() {
@@ -789,10 +841,14 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         @Override protected void dispatchDraw(Canvas canvas) {
             super.dispatchDraw(canvas);
             if(current==null||capsule==null||!(container instanceof ViewGroup group))return;
-            float alpha=Math.max(0,1-current.progress()*2.5f);if(alpha<=0)return;
+            CloudContentTransition.Layer state=CloudContentTransition.layer(current.progress(),false,contentPhase(false));
+            float alpha=state.alpha();if(alpha<=0)return;
             int save=canvas.save();canvas.concat(shape.getMatrix());
-            CloudCapsuleContent.draw(canvas,group,capsule,shape.getWidth(),shape.getHeight(),alpha,true,
-                CloudMorphSurface::isNativeCapsule,CloudMorphSurface.this::capsuleItemContent);
+            // Native moons sit outside the capsule. Their effect layer must
+            // include that exterior area instead of becoming another clip.
+            accessoryContentLayer.draw(canvas,shape.getWidth(),shape.getHeight(),shape.getHeight(),alpha,state.blur(),contentBlurRadius(),
+                content->CloudCapsuleContent.draw(content,group,capsule,shape.getWidth(),shape.getHeight(),1,true,
+                    CloudMorphSurface::isNativeCapsule,CloudMorphSurface.this::capsuleItemContent,capsuleMotionOwned,ownsContentMotion(),nativeMini));
             canvas.restoreToCount(save);
         }
         @Override protected void onAttachedToWindow(){super.onAttachedToWindow();if(parent==null)installInsets();updateInputRegion();}
@@ -885,9 +941,15 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
                 cardDecoration.setBounds(0,0,getWidth(),getHeight());drawDecoration(canvas,cardDecoration);
                 canvas.restoreToCount(decoration);
             }
-            // Capsule exits early; the card enters only after there is usable space.
-            drawCapsule(canvas,Math.max(0,1-form*2.5f));
-            drawContent(canvas,cardContent,Math.max(0,(form-.35f)/.65f),instant);
+            // Only the live content is blurred. Native fill and stroke keep the
+            // same sharp geometry while capsule/card content crosses over.
+            float blurRadius=contentBlurRadius();
+            CloudContentTransition.Layer capsuleState=CloudContentTransition.layer(form,false,contentPhase(false));
+            CloudContentTransition.Layer cardState=CloudContentTransition.layer(form,true,contentPhase(true));
+            capsuleContentLayer.draw(canvas,getWidth(),getHeight(),capsuleState.alpha(),capsuleState.blur(),blurRadius,
+                content->drawCapsule(content,1));
+            cardContentLayer.draw(canvas,getWidth(),getHeight(),cardState.alpha(),cardState.blur(),blurRadius,
+                content->drawContent(content,cardContent,1,instant));
             if(form<1&&capsuleForeground!=null) {
                 int foreground=canvas.saveLayerAlpha(0,0,getWidth(),getHeight(),Math.round(255*(1-form)));
                 capsuleForeground.drawable.draw(canvas);canvas.restoreToCount(foreground);
@@ -896,7 +958,7 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         private void drawCapsule(Canvas canvas,float alpha) {
             if(capsule==null||!(container instanceof ViewGroup group))return;
             CloudCapsuleContent.draw(canvas,group,capsule,getWidth(),getHeight(),alpha,false,
-                CloudMorphSurface::isNativeCapsule,CloudMorphSurface.this::capsuleItemContent,capsuleMotionOwned);
+                CloudMorphSurface::isNativeCapsule,CloudMorphSurface.this::capsuleItemContent,capsuleMotionOwned,ownsContentMotion(),nativeMini);
         }
         private void drawDecoration(Canvas canvas,Drawable drawable) {
             if(nativeMaterial!=null&&drawable==nativeMaterial.blur)return;

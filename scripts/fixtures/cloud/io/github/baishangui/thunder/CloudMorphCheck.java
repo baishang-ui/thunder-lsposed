@@ -39,6 +39,59 @@ public class CloudMorphCheck {
         boolean unsupportedWrite;
         @Override public void setColorFilter(android.graphics.ColorFilter filter){unsupportedWrite=true;throw new IllegalArgumentException("not implemented");}
     }
+    public static class DataFlow {public Object value;public Object getValue(){return value;}}
+    public static class TemplateWrapper {public View j;public final DataFlow m=new DataFlow();TemplateWrapper(View source,Object revision){j=source;m.value=revision;}}
+    public static class SeedlingData {public Object G;}
+    public static class MutableSeedlingData {int version;@Override public int hashCode(){return version;}}
+    public static class SeedlingWrapper {public final SeedlingData b=new SeedlingData();public View source;public View f(boolean create){return source;}}
+    static void flushContentPosts()throws Exception{
+        var field=CloudMorphHook.class.getDeclaredField("layoutHandler");field.setAccessible(true);((android.os.Handler)field.get(null)).advance(0);
+    }
+    static void verifyNativeContentRevisions(CloudMorphSurface body)throws Throwable{
+        String template="com.oplus.systemui.plugins.shared.template.wrapper.impl.u";
+        String seedling="com.oplus.systemui.livealert.seedling.origin.F";
+        var update=Api102Runtime.callbacks.get(template+"#o");var unblock=Api102Runtime.callbacks.get(template+"#p");
+        var finish=Api102Runtime.callbacks.get(seedling+"#onStatusChanged");
+        check(update!=null&&unblock!=null&&finish!=null,"native data emit, deferred unblock, and engine finish boundaries are registered");
+        View source=new View();source.parent=body.capsule;Object first=new Object(),second=new Object();
+        var wrapper=new TemplateWrapper(source,first);int changes=body.contentChanges;
+        var p=CloudCheck.param(wrapper,null,new Object());update.before(p);update.after(p);flushContentPosts();
+        check(body.contentChanges==changes,"unchanged native model cannot restart the content animation");
+        p=CloudCheck.param(wrapper,null,new Object());update.before(p);wrapper.m.value=second;update.after(p);
+        check(body.contentChanges==changes,"data delivery schedules one main-thread content update");flushContentPosts();
+        check(body.contentChanges==++changes,"same View with a genuinely new native model starts content blur");
+        p=CloudCheck.param(wrapper,null,new Object());update.before(p);update.after(p);flushContentPosts();
+        check(body.contentChanges==changes,"duplicate native revisions do not replay content blur");
+        p=CloudCheck.param(wrapper,null,new Object());update.before(p);update.after(p);flushContentPosts();
+        check(body.contentChanges==changes,"blocked updates which only cache data do not begin before native emission");
+        p=CloudCheck.param(wrapper,null,new Object());unblock.before(p);wrapper.m.value=new Object();unblock.after(p);flushContentPosts();
+        check(body.contentChanges==++changes,"unblocking a queued native data revision starts its content blur");
+        wrapper.j=new View();p=CloudCheck.param(wrapper,null,new Object());update.before(p);wrapper.m.value=new Object();update.after(p);flushContentPosts();
+        check(body.contentChanges==changes,"unrelated template source cannot reset the active capsule content");
+        wrapper.j=source;p=CloudCheck.param(wrapper,null,new Object());update.before(p);wrapper.m.value=new Object();p.failure=new IllegalStateException();update.after(p);flushContentPosts();
+        check(body.contentChanges==changes,"failed native data dispatch cannot create a content revision");
+        var engine=new SeedlingWrapper();engine.source=source;engine.b.G=new Object();
+        finish.after(CloudCheck.param(engine,null,"SizeChangeAnimationProcessing",new Bundle()));flushContentPosts();
+        check(body.contentChanges==changes,"native size progress does not restart content blur");
+        finish.after(CloudCheck.param(engine,null,"EngineUpdateDataFinish",new Bundle()));flushContentPosts();
+        check(body.contentChanges==++changes,"explicit engine data finish updates only its matching source");
+        finish.after(CloudCheck.param(engine,null,"EngineUpdateDataFinish",new Bundle()));flushContentPosts();
+        check(body.contentChanges==changes,"repeated engine completion for the same model is deduplicated");
+        engine.b.G=new Object();finish.after(CloudCheck.param(engine,null,"EngineUpdateDataFinish",new Bundle()));flushContentPosts();
+        check(body.contentChanges==++changes,"a later engine model revision updates the same source View again");
+        var mutable=new MutableSeedlingData();engine.b.G=mutable;
+        finish.after(CloudCheck.param(engine,null,"EngineUpdateDataFinish",new Bundle()));flushContentPosts();changes=body.contentChanges;
+        mutable.version++;
+        finish.after(CloudCheck.param(engine,null,"EngineUpdateDataFinish",new Bundle()));flushContentPosts();
+        check(body.contentChanges==++changes,"in-place native engine model updates retain an immutable revision fingerprint");
+        wrapper.j=source;p=CloudCheck.param(wrapper,null,new Object());update.before(p);wrapper.m.value=new Object();update.after(p);
+        p=CloudCheck.param(wrapper,null,new Object());update.before(p);wrapper.m.value=new Object();update.after(p);flushContentPosts();
+        check(body.contentChanges==++changes,"same-frame data bursts coalesce to the final native revision");
+        Object unchanged=wrapper.m.value;
+        p=CloudCheck.param(wrapper,null,new Object());update.before(p);wrapper.m.value=new Object();update.after(p);
+        p=CloudCheck.param(wrapper,null,new Object());update.before(p);wrapper.m.value=unchanged;update.after(p);flushContentPosts();
+        check(body.contentChanges==changes,"same-frame revisions returning to the displayed data cancel the pending content animation");
+    }
     enum Kind {
         CAPSULE_TO_CARD,CARD_TO_CAPSULE,CARD_TO_CAPSULE_BY_INTERRUPT,
         CAPSULE_TO_LARGE_INSTANT_CARD,CAPSULE_TO_SMALL_INSTANT_CARD,CAPSULE_TO_SMALL_INSTANT_CARD_WITH_BLANK,
@@ -281,12 +334,16 @@ public class CloudMorphCheck {
         check(!CloudMorphSurface.created.isEmpty(),"first app entrance must create independent capsule before any card exists");
         var entering=surface();
         check(entering.capsuleMotionOwned,"app entry owns capsule movement instead of multiplying native wrapper alpha and scale");
+        check(entering.contentMotionOwned&&entering.contentChanges>0,"app entry starts a content revision and suppresses native directional content transforms");
+        int entryContentChanges=entering.contentChanges;
         check(entering.frame.width()<40&&entering.frame.height()<40&&entering.opacity==0,"first reliable native start presents the retracted dot instead of a nearly complete capsule");
         clock().advance(.3f);check(entering.frame.width()>40&&entering.frame.width()<240&&entering.opacity>0&&entering.opacity<1,"first direct entry morphs into a capsule and reveals content on the configured clock");
         clock().end();
         check(entering.capsuleMotionOwned,"early visual completion keeps native entry transforms suppressed until its graph ends");
+        check(entering.contentMotionOwned&&entering.contentChanges==entryContentChanges,"content ownership survives early visual completion without restarting its blur");
         first.end();var initialBody=surface();
         check(!initialBody.capsuleMotionOwned,"settled entry returns native swipe transforms to the host");
+        check(!initialBody.contentMotionOwned,"native lifecycle completion releases content motion ownership");
         check(initialBody.attached&&!initialBody.expanded&&initialBody.frame.width()==240,"first app entrance settles as capsule");
         check(!initialBody.visible(),"entry created after w(false) must inherit the hidden host gate");
         nativeBusinessVisibility(true);
@@ -297,6 +354,7 @@ public class CloudMorphCheck {
         check(!initialBody.visible(),"a real collapsed business hide still hides the capsule");
         nativeBusinessVisibility(true);
         check(initialBody.visible(),"business appearance restores the capsule while the host allows it");
+        verifyNativeContentRevisions(initialBody);
         verifyWrappedGraphOwnership(entry);
         Animator sameSizeEntry=new Animator();directBuild(entry,"e","APP_TO_CAPSULE",sameSizeEntry).start();
         check(surface()==initialBody&&initialBody.frame.width()==240&&initialBody.opacity==1,"service replacement inherits the full presented body without resetting it");
@@ -320,8 +378,14 @@ public class CloudMorphCheck {
         check(initialBody.visible(),"replacement pre-hide cannot close the existing body business gate before native entry starts");
         Animator replacement=new Animator();directBuild(entry,"e","APP_TO_CAPSULE",replacement).start();
         check(initialBody.capsule==incoming&&initialBody.frame.width()==240&&initialBody.opacity==1,"incoming service inherits the existing visible body at native start while current key is still old");
+        var replacementStart=initialBody.frame;
+        var replacementVelocity=logicalVelocity(initialBody);
         clock().advance(.45f);
         check(initialBody.frame.width()>240&&initialBody.frame.width()<360&&initialBody.opacity==1,"existing capsule begins its continuous measured-size transition with the incoming content");
+        var entryConfig=ShadeHook.snapshot();
+        var plainEntry=new CloudMotion(replacementStart,new CloudMorphHook.Frame(300,10,360,80,40,0),replacementVelocity,
+            entryConfig.cloudAnimationDuration,entryConfig.cloudAnimationCurve,entryConfig.cloudAnimationBounce).frame(.45f);
+        check(initialBody.frame.width()<plainEntry.width(),"app arrival applies velocity-driven counter-deformation to an already visible capsule");
         float replacementMid=initialBody.frame.width();
         hook("capsule.ui.view.CapsuleContainer#onLayout").after(CloudCheck.param(container,null,false,0,0,240,80));
         check(initialBody.frame.width()==replacementMid&&initialBody.capsule==incoming,"old container key and stale incoming layout cannot retarget the new service back to the previous width");
@@ -331,10 +395,12 @@ public class CloudMorphCheck {
         check(initialBody.frame.width()==360&&ValueAnimator.running.isEmpty(),"native-end old-key layout cannot send a completed incoming service back to the previous service size");
         Animator measuredRetarget=new Animator();directBuild(entry,"e","APP_TO_CAPSULE",measuredRetarget).start();
         var retargetClock=clock();retargetClock.advance(.4f);var beforeRetarget=initialBody.frame;
+        int beforeRetargetContent=initialBody.contentChanges;
         incoming.targetWidth=380;
         hook("capsule.ui.view.CapsuleContainer#onLayout").after(CloudCheck.param(container,null,false,0,0,240,80));
         check(clock()==retargetClock&&!retargetClock.cancelled,"late native measurement retargets within the original entry clock instead of restarting a full duration");
         checkFrame(beforeRetarget,initialBody.frame,.0001f,"late measurement retains the current entry geometry");
+        check(initialBody.contentChanges==beforeRetargetContent,"measurement-only retarget cannot restart the content blur");
         retargetClock.advance(.8f);var beforeSecondRetarget=initialBody.frame;var beforeSecondVelocity=logicalVelocity(initialBody);incoming.targetWidth=360;
         hook("capsule.ui.view.CapsuleContainer#onLayout").after(CloudCheck.param(container,null,false,0,0,240,80));
         check(clock()==retargetClock&&!retargetClock.cancelled,"repeated native layouts cannot keep extending the service switch deadline");
@@ -356,6 +422,7 @@ public class CloudMorphCheck {
         entry.state=new com.oplus.systemui.plugins.seedling.statemachine.fluid.d("current");
         Animator slide=new Animator();directBuild(entry,"m","CAPSULE_SEIZE",slide).start();
         check(initialBody.frame.width()==320,"swipe inherits its currently presented shape");
+        check(initialBody.contentMotionOwned,"service swipe uses centered content blur while native swipe business still runs");
         clock().advance(.5f);check(initialBody.frame.width()>240&&initialBody.frame.width()<320,"native swipe changes the capsule shape along with text and moons");
         complete(slide);check(initialBody.frame.width()==240,"swipe settles at the selected service width");
         entry.state=new com.oplus.systemui.plugins.seedling.statemachine.fluid.i(240,360);

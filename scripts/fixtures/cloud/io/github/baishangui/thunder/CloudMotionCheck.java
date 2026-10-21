@@ -133,6 +133,71 @@ public final class CloudMotionCheck {
             check(Float.isFinite(f.width())&&f.width()>0&&f.radius()<=f.height()/2f,"finite legal dimensions at maximum bounce");
         }
         check(overshoot,"positive bounce has spring overshoot");
+        verifyArrivalFeedback();
         System.out.println("Verified "+checks+" continuous cloud trajectory checks.");
+    }
+    private static void verifyArrivalFeedback(){
+        var capsule=new CloudMorphHook.Frame(360,10,240,80,40,0);
+        var point=CloudVisibilityState.entrance(capsule);
+        for(int curve=0;curve<4;curve++)for(int bounce:new int[]{0,100}){
+            var base=new CloudMotion(point,capsule,null,500,curve,bounce);
+            var arrival=CloudMotion.arrival(point,capsule,null,500,curve,bounce);
+            check(arrival.frame(0).equals(base.frame(0))&&arrival.frame(1).equals(base.frame(1)),"speed feedback preserves exact entry endpoint frames");
+            check(arrival.velocity(0).equals(base.velocity(0))&&arrival.velocity(1).equals(base.velocity(1)),"speed feedback preserves both endpoint velocities");
+            var still=CloudMotion.arrival(capsule,capsule,null,500,curve,bounce);
+            for(int i=0;i<=100;i++){
+                float at=i/100f;
+                var frame=arrival.frame(at);var unmodified=base.frame(at);
+                check(still.frame(at).equals(capsule),"a stationary arrival never invents a compression pulse");
+                check(frame.width()>=unmodified.width()*.8999f&&frame.width()<=unmodified.width()*1.1001f&&
+                    frame.height()>=unmodified.height()*.8999f&&frame.height()<=unmodified.height()*1.1001f,"speed feedback stays bounded at every configured curve and bounce");
+                check(Math.abs(frame.x()+frame.width()/2-unmodified.x()-unmodified.width()/2)<.001f&&
+                    Math.abs(frame.y()+frame.height()/2-unmodified.y()-unmodified.height()/2)<.001f,"reverse deformation retains the actual trajectory center");
+                check(Math.abs(frame.radius()-Math.min(frame.width(),frame.height())/2)<.001f,"speed deformation retains native semicircular capsule ends");
+                if(i>0&&i<100){
+                    float epsilon=.00005f,dt=epsilon*.5f;
+                    closeVelocity(arrival.velocity(at),delta(frame,arrival.frame(at+epsilon),dt),15,"published feedback velocity matches the actual deformed microstep");
+                }
+            }
+            for(float at:new float[]{.12f,.3f,.7f,.82f}){
+                var frame=arrival.frame(at);var speed=arrival.velocity(at);
+                var retarget=CloudMotion.arrival(frame,capsule,speed,350,curve,bounce);
+                check(retarget.frame(0).equals(frame)&&retarget.velocity(0).equals(speed),"retargeting a speed deformation preserves its actual frame and velocity");
+                var expected=arrival.frame(at+.00005f);
+                var continued=retarget.frame(.00005f*.5f/.35f);
+                check(Math.abs(expected.x()-continued.x())<.01f&&Math.abs(expected.y()-continued.y())<.01f&&
+                    Math.abs(expected.width()-continued.width())<.01f&&Math.abs(expected.height()-continued.height())<.01f&&
+                    Math.abs(expected.radius()-continued.radius())<.01f,"restarting the feedback boundary window does not reset the presented deformation");
+            }
+        }
+        for(int curve=0;curve<4;curve++){
+            var fast=CloudMotion.arrival(point,capsule,null,400,curve,0);
+            var slow=CloudMotion.arrival(point,capsule,null,800,curve,0);
+            var base=new CloudMotion(point,capsule,null,400,curve,0);
+            check(base.frame(.15f).width()-fast.frame(.15f).width()>base.frame(.15f).width()-slow.frame(.15f).width()+.01f,
+                "the same trajectory deforms more at higher actual pixel speed");
+        }
+        var smaller=new CloudMorphHook.Frame(400,20,160,60,30,0);
+        var shrinkBase=new CloudMotion(capsule,smaller,null,500,0,0);
+        var shrink=CloudMotion.arrival(capsule,smaller,null,500,0,0);
+        check(shrink.frame(.15f).width()>shrinkBase.frame(.15f).width(),"a shrinking arrival deforms against its own direction instead of always compressing");
+        var translated=new CloudMorphHook.Frame(560,10,240,80,40,0);
+        var travelBase=new CloudMotion(capsule,translated,null,500,0,0);
+        var travel=CloudMotion.arrival(capsule,translated,null,500,0,0);
+        check(travel.frame(.15f).width()<travelBase.frame(.15f).width(),"real center travel also produces bounded inertial deformation");
+        var mini=new CloudMorphHook.Frame(457.5f,10,45,45,22.5f,0);
+        var zero=new CloudMorphHook.Frame(0,0,0,0,0,0);
+        var miniArrival=CloudMotion.arrival(mini,capsule,zero,500,3,0,true);
+        check(miniArrival.velocity(0).equals(zero),"arrival feedback preserves an explicitly compensated zero handoff");
+    }
+    private static CloudMorphHook.Frame delta(CloudMorphHook.Frame from,CloudMorphHook.Frame to,float seconds){
+        return new CloudMorphHook.Frame((to.x()-from.x())/seconds,(to.y()-from.y())/seconds,
+            (to.width()-from.width())/seconds,(to.height()-from.height())/seconds,
+            (to.radius()-from.radius())/seconds,(to.progress()-from.progress())/seconds);
+    }
+    private static void closeVelocity(CloudMorphHook.Frame expected,CloudMorphHook.Frame actual,float tolerance,String message){
+        float[] a={expected.x(),expected.y(),expected.width(),expected.height(),expected.radius(),expected.progress()};
+        float[] b={actual.x(),actual.y(),actual.width(),actual.height(),actual.radius(),actual.progress()};
+        for(int i=0;i<a.length;i++)check(Float.isFinite(a[i])&&Math.abs(a[i]-b[i])<tolerance,message+" channel="+i+" expected="+a[i]+" actual="+b[i]);
     }
 }

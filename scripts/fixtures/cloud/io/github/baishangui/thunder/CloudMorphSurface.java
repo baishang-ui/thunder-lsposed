@@ -25,6 +25,22 @@ final class CloudMorphSurface {
     void bind(View capsule,View card,View owner,boolean instant){this.capsule=capsule;this.card=card;this.owner=owner;inputOwnership.bind(card);}
     void syncCapsule(View capsule){this.capsule=capsule;}
     void capsuleMotionOwned(boolean owned){capsuleMotionOwned=owned;}
+    boolean contentMotionOwned;Object contentRevision;int contentChanges;
+    void contentMotionOwned(boolean owned){contentMotionOwned=owned;}
+    void contentChanged(Object revision){if(!java.util.Objects.equals(contentRevision,revision)){contentRevision=revision;contentChanges++;}}
+    boolean contentChangedForSource(View source,Object revision){
+        if(disposed||source==null)return false;
+        boolean matched=related(source,capsule)||related(source,card);
+        if(matched)contentChanged(revision);
+        for(CloudMorphSurface layer:layers.values())matched=layer.contentChangedForSource(source,revision)||matched;
+        return matched;
+    }
+    private static boolean related(View source,View content){
+        if(content==null)return false;
+        for(Object node=source;node instanceof View view;node=view.getParent())if(view==content)return true;
+        for(Object node=content;node instanceof View view;node=view.getParent())if(view==source)return true;
+        return false;
+    }
     void capsuleHideOwned(boolean owned){capsuleHideOwned=owned;}
     boolean capsuleHideOwned(){return capsuleHideOwned;}
     boolean capsuleEntryHandoff(){return hostAllowed||capsuleHideOwned;}

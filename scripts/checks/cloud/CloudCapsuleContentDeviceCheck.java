@@ -63,13 +63,51 @@ public final class CloudCapsuleContentDeviceCheck {
         CloudCapsuleContent.draw(canvas,container,incoming,200,40,1,false,content::containsKey,content::get,true);
         check(pixels.getPixel(25,20)==Color.RED,"owned app entry must suppress native wrapper/item entry alpha and matrix");
         check(Color.alpha(pixels.getPixel(90,20))==0,"owned entry must not draw a second native-shifted capsule");
+        outgoing.setVisibility(View.VISIBLE);pixels.eraseColor(Color.TRANSPARENT);
+        CloudCapsuleContent.draw(canvas,container,incoming,200,40,1,false,content::containsKey,content::get,false,true);
+        check(pixels.getPixel(25,20)==Color.RED,"owned content revision must draw incoming content at its centered anchor");
+        check(Color.alpha(pixels.getPixel(55,20))==0&&Color.alpha(pixels.getPixel(90,20))==0,
+            "owned revision must omit outgoing/native-right-slide duplicates");
+        CloudCapsuleContent.draw(canvas,container,incoming,200,40,1,true,content::containsKey,content::get,false,true);
+        check(pixels.getPixel(11,20)==Color.BLUE&&pixels.getPixel(228,20)==Color.YELLOW,
+            "centered content ownership must preserve exterior native moons");
+        check(incoming.getTranslationX()==60&&red.getTranslationX()==5&&incoming.getAlpha()==.5f&&red.getAlpha()==.5f,
+            "centered blur transition must not mutate native source animation properties");
+        FrameLayout oldMini=frame(context,30,0,200,40);oldMini.setBackgroundColor(Color.MAGENTA);
+        View staleMiniItem=fill(context,Color.CYAN,60,0,20,40);oldMini.addView(staleMiniItem);
+        container.addView(oldMini);oldMini.layout(30,0,230,40);staleMiniItem.layout(60,0,80,40);
+        // The native Expand listener hides mini only at graph end. It remains
+        // visible during the new capsule's independent content transition.
+        pixels.eraseColor(Color.TRANSPARENT);
+        CloudCapsuleContent.draw(canvas,container,incoming,200,40,1,false,content::containsKey,content::get,false,true,oldMini);
+        CloudCapsuleContent.draw(canvas,container,incoming,200,40,1,true,content::containsKey,content::get,false,true,oldMini);
+        check(pixels.getPixel(25,20)==Color.RED&&Color.alpha(pixels.getPixel(85,20))==0&&Color.alpha(pixels.getPixel(120,20))==0,
+            "visible outgoing mini must not be reclassified as an accessory or draw its old plate/content");
+        check(pixels.getPixel(11,20)==Color.BLUE&&pixels.getPixel(228,20)==Color.YELLOW,
+            "excluding outgoing mini must retain both native moon accessories");
+        container.removeView(oldMini);
+        CloudContentLayer contentLayer=new CloudContentLayer("Content probe");pixels.eraseColor(Color.TRANSPARENT);
+        contentLayer.draw(canvas,200,40,40,.5f,1f,12f,layer->{
+            CloudCapsuleContent.draw(layer,container,incoming,200,40,1,false,content::containsKey,content::get,false,true);
+            CloudCapsuleContent.draw(layer,container,incoming,200,40,1,true,content::containsKey,content::get,false,true);
+        });
+        check(Color.red(pixels.getPixel(25,20))>240&&Color.alpha(pixels.getPixel(25,20))>=126&&Color.alpha(pixels.getPixel(25,20))<=129,
+            "software canvas fallback must retain the content fade even without hardware RenderEffect");
+        check(Color.blue(pixels.getPixel(11,20))>240&&Color.alpha(pixels.getPixel(11,20))>=126&&
+                Color.red(pixels.getPixel(228,20))>240&&Color.alpha(pixels.getPixel(228,20))>=126,
+            "effect fallback must preserve exterior moons instead of clipping them to the anchor");
+        pixels.eraseColor(Color.TRANSPARENT);
+        contentLayer.draw(canvas,200,40,1,0,12f,layer->
+            CloudCapsuleContent.draw(layer,container,incoming,200,40,1,false,content::containsKey,content::get,false,true));
+        check(pixels.getPixel(25,20)==Color.RED,"completed content transition must draw sharp live content without residual alpha");
+        contentLayer.clear();
         FrameLayout miniContainer=frame(context,0,0,300,60),mini=frame(context,30,0,200,40);
         ColorDrawable nativeBackground=new ColorDrawable(Color.MAGENTA),nativeForeground=new ColorDrawable(Color.CYAN);
         mini.setBackground(nativeBackground);mini.setForeground(nativeForeground);
         View miniItem=fill(context,Color.GREEN,0,0,20,40);
         mini.addView(miniItem);miniItem.layout(0,0,20,40);miniItem.setTranslationX(10);miniItem.setAlpha(.5f);
         miniContainer.addView(mini);mini.layout(30,0,230,40);pixels.eraseColor(Color.TRANSPARENT);
-        CloudCapsuleContent.draw(canvas,miniContainer,mini,200,40,1,false,view->false,view->null);
+        CloudCapsuleContent.draw(canvas,miniContainer,mini,200,40,1,false,view->false,view->null,false,false,mini);
         int miniPixel=pixels.getPixel(35,20);
         check(Color.green(miniPixel)>240&&Color.alpha(miniPixel)>=126&&Color.alpha(miniPixel)<=129,
             "mini content must retain its native item matrix and alpha");
