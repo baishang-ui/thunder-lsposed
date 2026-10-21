@@ -12,6 +12,13 @@ final class CloudMorphSurface {
     float hostOpacityLimit=1,entryAlpha,initialLimit=1;boolean hostGateRunning,hostGateShowing;
     CloudMorphSurface(View container,ClassLoader loader){this.container=container;created.add(this);}
     boolean disposed(){return disposed;}
+    boolean ownsContentSource(View source){
+        if(disposed)return false;
+        for(Object node=source;node instanceof View view;node=view.getParent())
+            if(view==container||view==capsule||view==card||view==owner)return true;
+        for(CloudMorphSurface layer:layers.values())if(layer.ownsContentSource(source))return true;
+        return false;
+    }
     CloudMorphHook.Frame current(){return frame;}
     CloudMorphHook.Frame presentation(){return CloudVisibilityState.presentation(frame,capsuleHideOwned?1:hostAmount);}
     float presentationOpacity(){return capsuleHideOwned?opacity:Math.min(opacity,hostOpacityLimit)*Math.min(1,hostAmount*4);}

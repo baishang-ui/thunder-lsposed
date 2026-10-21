@@ -21,7 +21,7 @@ public final class ValueAnimator extends Animator {
     public void removeAllUpdateListeners(){listeners.clear();}
     public void cancel(){cancelled=true;running.remove(this);super.cancel();}
     public void end(){paused=false;value=to;for(var l:new ArrayList<>(listeners))l.onAnimationUpdate(this);running.remove(this);dispatchEnd();}
-    public void start(){running.add(this);dispatchStart();advance(0);}
+    public void start(){cancelled=false;paused=false;running.add(this);dispatchStart();advance(0);}
     public void advance(float t){
         if(paused||cancelled)return;
         value=from+(to-from)*(t==0||t==1?t:interpolator.getInterpolation(t));

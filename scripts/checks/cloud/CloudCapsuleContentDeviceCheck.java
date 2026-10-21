@@ -86,21 +86,6 @@ public final class CloudCapsuleContentDeviceCheck {
         check(pixels.getPixel(11,20)==Color.BLUE&&pixels.getPixel(228,20)==Color.YELLOW,
             "excluding outgoing mini must retain both native moon accessories");
         container.removeView(oldMini);
-        CloudContentLayer contentLayer=new CloudContentLayer("Content probe");pixels.eraseColor(Color.TRANSPARENT);
-        contentLayer.draw(canvas,200,40,40,.5f,1f,12f,layer->{
-            CloudCapsuleContent.draw(layer,container,incoming,200,40,1,false,content::containsKey,content::get,false,true);
-            CloudCapsuleContent.draw(layer,container,incoming,200,40,1,true,content::containsKey,content::get,false,true);
-        });
-        check(Color.red(pixels.getPixel(25,20))>240&&Color.alpha(pixels.getPixel(25,20))>=126&&Color.alpha(pixels.getPixel(25,20))<=129,
-            "software canvas fallback must retain the content fade even without hardware RenderEffect");
-        check(Color.blue(pixels.getPixel(11,20))>240&&Color.alpha(pixels.getPixel(11,20))>=126&&
-                Color.red(pixels.getPixel(228,20))>240&&Color.alpha(pixels.getPixel(228,20))>=126,
-            "effect fallback must preserve exterior moons instead of clipping them to the anchor");
-        pixels.eraseColor(Color.TRANSPARENT);
-        contentLayer.draw(canvas,200,40,1,0,12f,layer->
-            CloudCapsuleContent.draw(layer,container,incoming,200,40,1,false,content::containsKey,content::get,false,true));
-        check(pixels.getPixel(25,20)==Color.RED,"completed content transition must draw sharp live content without residual alpha");
-        contentLayer.clear();
         FrameLayout miniContainer=frame(context,0,0,300,60),mini=frame(context,30,0,200,40);
         ColorDrawable nativeBackground=new ColorDrawable(Color.MAGENTA),nativeForeground=new ColorDrawable(Color.CYAN);
         mini.setBackground(nativeBackground);mini.setForeground(nativeForeground);

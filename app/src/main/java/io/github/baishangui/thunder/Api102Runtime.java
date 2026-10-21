@@ -4,6 +4,7 @@ import android.content.SharedPreferences;
 import android.util.Log;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
+import java.lang.reflect.InvocationTargetException;
 import io.github.libxposed.api.XposedInterface;
 
 /** Registers real API 102 interceptor chains, with invocation-local state. */
@@ -34,6 +35,11 @@ public final class Api102Runtime {
             }
             if (!found) throw new IllegalStateException("Missing caller: "+type.getName()+"."+name);
         }
+    }
+    /** Replay this exact framework implementation, bypassing hooks and subclass overrides. */
+    static Object invokeOriginal(Method method,Object receiver,Object... args)throws Throwable {
+        try{return api.getInvoker(method).setType(XposedInterface.Invoker.Type.ORIGIN).invokeSpecial(receiver,args);}
+        catch(InvocationTargetException error){throw error.getCause();}
     }
     private static void install(Executable member, HookCallback callback) {
         // Registration is synchronous: failed hooks must not count as installed.

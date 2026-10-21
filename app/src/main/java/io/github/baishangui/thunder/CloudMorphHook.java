@@ -93,6 +93,8 @@ final class CloudMorphHook {
     }
 
     static void install(ClassLoader loader) {
+        CloudTextHook.install(loader);
+        bind("text-renderer",CloudTextRenderer::install);
         installContentRevisions(loader);
         for(String method:new String[]{"j","e"})bind("window-"+method,() -> {
             HookCallback callback=new HookCallback() {
@@ -293,6 +295,14 @@ final class CloudMorphHook {
     }
     private static boolean enabled() {
         HookConfig c=ShadeHook.snapshot();return c.enabled&&c.scopedCloud("cloud")&&c.cloudAnimationEnabled&&ValueAnimator.getDurationScale()>0f;
+    }
+    static boolean ownsContentSource(View source) {
+        if(source==null||!enabled())return false;
+        for(CloudMorphSurface shared:sessions.values())if(shared.ownsContentSource(source))return true;
+        // App entry reserves the container before the new capsule is bound.
+        for(Object node=source;node instanceof View view;node=view.getParent())
+            if(pendingEntries.containsKey(view))return true;
+        return false;
     }
     private static boolean capsuleOnly(Mode mode){return mode==Mode.CAPSULE_ENTER||mode==Mode.CAPSULE_UPDATE||mode==Mode.CAPSULE_HIDE;}
     private static Target instantTarget(Object owner) {
@@ -588,7 +598,7 @@ final class CloudMorphHook {
         Spec spec;
         boolean closed,started,nativeEnded,visualEnded,retargeting,inheritPhase;
         int attempts;
-        float progress;
+        float progress,nativeExcursionWidth;
         Motion(Request request,Animator original) {
             this.request=request;this.original=original;
             Object scene=Reflect.callMethod(request.builder,"f");
@@ -637,6 +647,13 @@ final class CloudMorphHook {
             for(Target target:spec.cards)if(!target.view.isAttachedToWindow()||target.view.getWidth()<=0||target.view.getHeight()<=0){
                 ShadeHook.observed("cloud-morph-block","card not ready;attached="+target.view.isAttachedToWindow()+";size="+target.view.getWidth()+"x"+target.view.getHeight());return false;
             }
+            if(appArrival) {
+                var resources=spec.capsule.getResources();
+                nativeExcursionWidth=16f*resources.getDisplayMetrics().density;
+                int id=resources.getIdentifier("capsule_appear_extra_expansion_width","dimen","com.oplus.systemui.plugins");
+                if(id!=0)try{nativeExcursionWidth=resources.getDimensionPixelSize(id);}
+                catch(android.content.res.Resources.NotFoundException ignored){ }
+            }
             stopCapsuleClock(spec.container);
             if(capsuleOnly(request.mode)){
                 if(request.goal!=null)capsuleEndpoints.put(spec.container,new CapsuleEndpoint(spec.capsule,request.goal.key,
@@ -674,7 +691,7 @@ final class CloudMorphHook {
                 Frame velocity=surface.shared.transitionVelocity(surface.start,surface.startVelocity);
                 if(request.mode==Mode.CAPSULE_HIDE&&velocity!=null)
                     velocity=CloudVisibilityState.velocityForWidth(surface.start,surface.start,velocity);
-                surface.trajectory=createTrajectory(from,to,velocity,Math.max(1,Math.round(duration*span)),surface.shared.capsuleEntryClosedHandoff());
+                surface.trajectory=createTrajectory(from,to,velocity,Math.max(1,Math.round(duration*span)),surface.shared.capsuleEntryClosedHandoff(),0);
             }
             trajectory=primary.trajectory;
             started=true;clock.start();
@@ -684,8 +701,8 @@ final class CloudMorphHook {
             ShadeHook.resourceHit("cloud-morph-started");
             return true;
         }
-        private CloudMotion createTrajectory(Frame from,Frame to,Frame velocity,int remaining,boolean preserveZeroVelocity) {
-            return appArrival?CloudMotion.arrival(from,to,velocity,remaining,curve,bounce,preserveZeroVelocity):
+        private CloudMotion createTrajectory(Frame from,Frame to,Frame velocity,int remaining,boolean preserveZeroVelocity,float eventStart) {
+            return appArrival?CloudMotion.arrival(from,to,velocity,remaining,curve,bounce,preserveZeroVelocity,nativeExcursionWidth,eventStart):
                 new CloudMotion(from,to,velocity,remaining,curve,bounce,0,preserveZeroVelocity);
         }
         void retargetCapsule(Frame goal){
@@ -703,7 +720,9 @@ final class CloudMorphHook {
                 item.startOpacity=item.shared.opacity();
                 Frame from=item.index==0?presented:withProgress(presented,item.startOpacity);
                 Frame to=item.index==0?item.target:withProgress(item.target,item.targetOpacity);
-                item.trajectory=createTrajectory(from,to,velocities.get(item.index==0?spec.container:item.view),remaining,item.shared.capsuleEntryClosedHandoff());
+                // A late measurement after arrival settles must not replay that
+                // event. During arrival, keep its original clock through retargets.
+                item.trajectory=createTrajectory(from,to,velocities.get(item.index==0?spec.container:item.view),remaining,item.shared.capsuleEntryClosedHandoff(),restart?1:progress);
                 item.phaseStart=phaseStart;item.phaseEnd=1;
             }
             trajectory=surface.trajectory;

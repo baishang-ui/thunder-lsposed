@@ -134,7 +134,53 @@ public final class CloudMotionCheck {
         }
         check(overshoot,"positive bounce has spring overshoot");
         verifyArrivalFeedback();
+        verifyNativeArrivalExcursion();
         System.out.println("Verified "+checks+" continuous cloud trajectory checks.");
+    }
+    private static void verifyNativeArrivalExcursion(){
+        var capsule=new CloudMorphHook.Frame(360,10,240,80,40,0);
+        var point=CloudVisibilityState.entrance(capsule);
+        var near=new CloudMorphHook.Frame(361,10,238,80,40,0);
+        for(int curve=0;curve<4;curve++)for(int bounce:new int[]{0,100})for(var from:new CloudMorphHook.Frame[]{capsule,near,point}){
+            var base=CloudMotion.arrival(from,capsule,null,500,curve,bounce);
+            var arrival=CloudMotion.arrival(from,capsule,null,500,curve,bounce,false,16,0);
+            check(arrival.frame(0).equals(from)&&arrival.frame(1).equals(capsule),"actual app excursion preserves both native endpoint frames");
+            check(arrival.velocity(0).equals(base.velocity(0))&&arrival.velocity(1).equals(base.velocity(1)),"actual app excursion retains native entry boundary velocities");
+            check(arrival.frame(.5f).width()>base.frame(.5f).width()+8,"an actual app event retains a visible native width excursion for matching, nearby, and first-entry sizes");
+            for(int i=1;i<100;i++){
+                float at=i/100f;var sample=arrival.frame(at);var plain=base.frame(at);
+                check(Float.isFinite(sample.width())&&sample.width()>=1&&sample.height()>=1&&sample.radius()<=Math.min(sample.width(),sample.height())/2+.00001f,
+                    "native app excursion has finite, legal capsule dimensions: curve="+curve+";at="+at+";frame="+sample);
+                check(Math.abs(sample.x()+sample.width()/2-plain.x()-plain.width()/2)<.001f&&
+                    Math.abs(sample.y()+sample.height()/2-plain.y()-plain.height()/2)<.001f,"native app excursion preserves the actual entry center");
+                check(Math.abs(sample.height()-plain.height())<.001f,"native width excursion does not invent vertical entry movement");
+                closeVelocity(arrival.velocity(at),delta(sample,arrival.frame(at+.00005f),.000025f),20,"native app excursion publishes its full visible velocity");
+            }
+            for(float at:new float[]{.12f,.3f,.5f,.7f,.9f}){
+                var current=arrival.frame(at);var speed=arrival.velocity(at);
+                int remaining=Math.round(500*(1-at));
+                var retarget=CloudMotion.arrival(current,capsule,speed,remaining,curve,bounce,false,16,at);
+                check(retarget.frame(0).equals(current)&&retarget.velocity(0).equals(speed),"same-event layout retarget inherits the complete excursion state");
+                float step=.00005f*500/remaining;
+                closeVelocity(speed,delta(current,retarget.frame(step),.000025f),20,"same-event retarget preserves its visible tangent without repeating an entry impulse curve="+curve+";bounce="+bounce+";at="+at+";from="+from+";current="+current);
+                check(retarget.frame(1).equals(capsule),"same-event retarget completes at the actual native destination");
+            }
+            var closed=CloudMotion.arrival(from,capsule,base.velocity(0),500,curve,bounce,true,16,0);
+            var closedBase=CloudMotion.arrival(from,capsule,base.velocity(0),500,curve,bounce,true);
+            for(int i=0;i<=100;i++)check(closed.frame(i/100f).equals(closedBase.frame(i/100f)),"closed-host handoff does not add an independent visible app excursion");
+        }
+        var zero=new CloudMorphHook.Frame(0,0,0,0,0,0);
+        var pastPeak=new CloudMorphHook.Frame(352,10,256,80,40,0);
+        var linearRetarget=CloudMotion.arrival(pastPeak,capsule,zero,250,3,0,false,16,.5f);
+        check(linearRetarget.velocity(0).equals(zero),"a linear same-event retarget preserves an explicit zero at the native excursion turning point");
+        var remaining=CloudMotion.arrival(pastPeak,capsule,zero,250,0,0,false,16,.5f);
+        var replayed=CloudMotion.arrival(pastPeak,capsule,zero,250,0,0,false,16,0);
+        check(remaining.frame(.5f).width()<replayed.frame(.5f).width()-8,"same-event retarget carries the original event phase instead of breathing through a second full excursion");
+        var finished=CloudMotion.arrival(capsule,capsule,null,500,0,0,false,16,1);
+        for(int i=0;i<=100;i++)check(finished.frame(i/100f).equals(capsule),"completed app event layout changes cannot replay its width excursion");
+        var fast=CloudMotion.arrival(capsule,capsule,null,400,0,0,false,16,0);
+        var slow=CloudMotion.arrival(capsule,capsule,null,800,0,0,false,16,0);
+        check(fast.frame(.15f).width()<slow.frame(.15f).width()-.01f,"faster native event travel produces stronger reverse deformation without app gesture velocity");
     }
     private static void verifyArrivalFeedback(){
         var capsule=new CloudMorphHook.Frame(360,10,240,80,40,0);
@@ -148,7 +194,7 @@ public final class CloudMotionCheck {
             for(int i=0;i<=100;i++){
                 float at=i/100f;
                 var frame=arrival.frame(at);var unmodified=base.frame(at);
-                check(still.frame(at).equals(capsule),"a stationary arrival never invents a compression pulse");
+                check(still.frame(at).equals(capsule),"a stationary velocity-only trajectory does not create a separate app event");
                 check(frame.width()>=unmodified.width()*.8999f&&frame.width()<=unmodified.width()*1.1001f&&
                     frame.height()>=unmodified.height()*.8999f&&frame.height()<=unmodified.height()*1.1001f,"speed feedback stays bounded at every configured curve and bounce");
                 check(Math.abs(frame.x()+frame.width()/2-unmodified.x()-unmodified.width()/2)<.001f&&

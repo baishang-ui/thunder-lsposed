@@ -10,6 +10,7 @@ final class CloudMotion {
     private final boolean linear;
     private final boolean arrival;
     private final float arrivalWidth,arrivalHeight;
+    private final float arrivalExcursion,arrivalEventStart;
 
     CloudMotion(CloudMorphHook.Frame from,CloudMorphHook.Frame to,CloudMorphHook.Frame velocity,int duration,int curve,int bounce) {
         this(from,to,velocity,duration,curve,bounce,0);
@@ -26,20 +27,28 @@ final class CloudMotion {
     static CloudMotion arrival(CloudMorphHook.Frame from,CloudMorphHook.Frame to,CloudMorphHook.Frame velocity,int duration,int curve,int bounce,boolean preserveZeroVelocity) {
         return new CloudMotion(from,to,velocity,duration,curve,bounce,0,preserveZeroVelocity,true);
     }
+    static CloudMotion arrival(CloudMorphHook.Frame from,CloudMorphHook.Frame to,CloudMorphHook.Frame velocity,int duration,int curve,int bounce,boolean preserveZeroVelocity,float nativeExcursionWidthPx,float eventStart) {
+        return new CloudMotion(from,to,velocity,duration,curve,bounce,0,preserveZeroVelocity,true,nativeExcursionWidthPx,eventStart);
+    }
     private CloudMotion(CloudMorphHook.Frame from,CloudMorphHook.Frame to,CloudMorphHook.Frame velocity,int duration,int curve,int bounce,float compressionScale,boolean preserveZeroVelocity,boolean arrival) {
+        this(from,to,velocity,duration,curve,bounce,compressionScale,preserveZeroVelocity,arrival,0,0);
+    }
+    private CloudMotion(CloudMorphHook.Frame from,CloudMorphHook.Frame to,CloudMorphHook.Frame velocity,int duration,int curve,int bounce,float compressionScale,boolean preserveZeroVelocity,boolean arrival,float nativeExcursionWidthPx,float eventStart) {
         start=values(from);end=values(to);initial=velocity==null?new float[6]:values(velocity);
         this.arrival=arrival;arrivalWidth=Math.max(1,Math.max(from.width(),to.width()));arrivalHeight=Math.max(1,Math.max(from.height(),to.height()));
+        arrivalExcursion=arrival&&!preserveZeroVelocity&&Float.isFinite(nativeExcursionWidthPx)?Math.max(0,Math.min(nativeExcursionWidthPx,arrivalWidth*.25f)):0;
+        arrivalEventStart=Float.isFinite(eventStart)?Math.max(0,Math.min(1,eventStart)):0;
         float scale=Math.max(0,Math.min(.03f,compressionScale));
         compression=new float[]{to.width()*scale*.5f,to.height()*scale*.5f,-to.width()*scale,-to.height()*scale,-to.radius()*scale,0};
         seconds=Math.max(1,duration)/1000f;linear=curve==3&&bounce==0;
-        // Ordinary linear transitions restart at constant speed. A presentation
-        // handoff can explicitly cancel an independent gate down to zero;
-        // replacing that supplied zero would add the gate's motion back.
-        if(linear&&(velocity==null||!preserveZeroVelocity&&stopped(initial)))for(int i=0;i<6;i++)initial[i]=(end[i]-start[i])/seconds;
+        // Ordinary linear transitions restart at constant speed. App events
+        // and presentation handoffs supply their actual visible tangent, even
+        // at a zero-speed turning point or after cancelling an independent gate.
+        if(linear&&(velocity==null||!preserveZeroVelocity&&arrivalExcursion==0&&stopped(initial)))for(int i=0;i<6;i++)initial[i]=(end[i]-start[i])/seconds;
         damping=1f-.5f*Math.max(0,Math.min(100,bounce))/100f;
         float response=switch(curve){case 1 -> 8f;case 2 -> 10f;case 3 -> 7f;default -> 9f;};
         omega=response/(damping*seconds);
-        closingCapsule=to.progress()==0&&(from.progress()>0||from.width()>to.width()+.001f||from.height()>to.height()+.001f);
+        closingCapsule=!arrival&&to.progress()==0&&(from.progress()>0||from.width()>to.width()+.001f||from.height()>to.height()+.001f);
         boolean safeLinear=true;
         float geometricResponse=response/seconds;
         if(closingCapsule)for(int i=0;i<6;i++){
@@ -65,12 +74,31 @@ final class CloudMotion {
     }
     private float sample(int i,float fraction,int derivative) {
         float base=sampleBase(i,fraction,derivative);
-        if(fraction<=0||fraction>=1||compression[i]==0)return base;
+        if(fraction<=0||fraction>=1)return base;
         float u=fraction,v=1-u;
         // Same-size service replacement still visibly arrives without jumping
         // to a fabricated starting rectangle. Both endpoint derivatives are zero.
         float pulse=derivative==2?32*(1-6*u+6*u*u)/(seconds*seconds):derivative==1?32*u*v*(1-2*u)/seconds:16*u*u*v*v;
-        return base+compression[i]*pulse;
+        float value=base+compression[i]*pulse;
+        // Native APP_TO_CAPSULE expands past its destination even when old and
+        // new services have the same measured width. Retain that actual event
+        // travel before deriving inertial feedback; endpoint interpolation alone
+        // would otherwise turn the whole event into a stationary rectangle.
+        if(arrivalExcursion!=0&&(i==0||i==2))value+=arrivalExcursion*(i==0?-.5f:1)*arrivalExcursion(fraction,derivative);
+        return value;
+    }
+    private float arrivalExcursion(float fraction,int derivative) {
+        float u=fraction,v=1-u,span=1-arrivalEventStart,at=arrivalEventStart+span*u;
+        float carry=pulse(arrivalEventStart,0),tangent=span*pulse(arrivalEventStart,1);
+        // A layout retarget inherits the already presented excursion in from
+        // and velocity. Subtract its Hermite carry so this remaining event adds
+        // neither a position jump nor another starting impulse.
+        if(derivative==2)return (span*span*pulse(at,2)-carry*(12*u-6)-tangent*(6*u-4))/(seconds*seconds);
+        if(derivative==1)return (span*pulse(at,1)-carry*6*u*(u-1)-tangent*v*(1-3*u))/seconds;
+        return pulse(at,0)-carry*(1+2*u)*v*v-tangent*u*v*v;
+    }
+    private static float pulse(float u,int derivative) {
+        return derivative==2?32*(1-6*u+6*u*u):derivative==1?32*u*(1-u)*(1-2*u):16*u*u*(1-u)*(1-u);
     }
     private float sampleBase(int i,float fraction,int derivative) {
         if(fraction<=0)return derivative==0?start[i]:derivative==1?initial[i]:0;
