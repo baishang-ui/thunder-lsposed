@@ -34,6 +34,18 @@ final class CloudVisibilityState {
         return new CloudMorphHook.Frame(goal.x()+(goal.width()-1)/2,goal.y()+(goal.height()-1)/2,1,1,.5f,goal.progress());
     }
     static CloudMorphHook.Frame hidden(CloudMorphHook.Frame frame){return presentation(frame,0);}
+    static CloudMorphHook.Frame shapeForWidth(CloudMorphHook.Frame start,CloudMorphHook.Frame sampled) {
+        // A disappearing capsule changes width, keeping its original rounded
+        // ends until the new short side itself limits the native radius.
+        float radius=Math.min(start.radius(),Math.min(sampled.width(),sampled.height())/2f);
+        return new CloudMorphHook.Frame(sampled.x(),sampled.y(),sampled.width(),sampled.height(),radius,sampled.progress());
+    }
+    static CloudMorphHook.Frame velocityForWidth(CloudMorphHook.Frame start,CloudMorphHook.Frame sampled,CloudMorphHook.Frame velocity) {
+        float limit=Math.min(sampled.width(),sampled.height())/2f;
+        float limitSpeed=minVelocity(sampled.width(),sampled.height(),velocity.width(),velocity.height())/2f;
+        float radiusSpeed=minVelocity(start.radius(),limit,0,limitSpeed);
+        return new CloudMorphHook.Frame(velocity.x(),velocity.y(),velocity.width(),velocity.height(),radiusSpeed,velocity.progress());
+    }
     static CloudMorphHook.Frame presentation(CloudMorphHook.Frame logical,float amount) {
         if(logical==null)return null;
         float p=clamp(amount);

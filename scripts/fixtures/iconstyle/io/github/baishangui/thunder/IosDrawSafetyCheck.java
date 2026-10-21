@@ -59,5 +59,17 @@ public final class IosDrawSafetyCheck {
         var nativeFace=battery.percentInPaint.getTypeface();battery.percentInPaint.setTextScaleX(.95f);
         call=IosStatusBarCheck.param(battery);Api102Runtime.callbacks.get("com.oplus.systemui.statusbar.pipeline.battery.ui.drawable.HorizontalBatteryContentDrawable#updatePercentInTextBounds").before(call);
         IosStatusBarCheck.check(battery.percentInPaint.getTypeface()==nativeFace && battery.percentInPaint.getTextScaleX()==.95f,"default style retains native digit font and width");
+        var icons=new com.android.systemui.statusbar.phone.StatusIconContainer();
+        icons.id=701;icons.res.names.put(701,"com.android.systemui:id/statusIcons");icons.setPaddingRelative(5,2,0,3);
+        call=IosStatusBarCheck.param(icons,0,0);Api102Runtime.callbacks.get("com.android.systemui.statusbar.phone.StatusIconContainer#onMeasure").before(call);
+        IosStatusBarCheck.check(icons.getPaddingEnd()==0 && icons.getPaddingStart()==5,"default style retains each native icon container's spacing");
+        for (String[] leaf : new String[][]{
+            {"OplusStackedMobileIconLayoutStrategyKt","NetworkTypeText"},
+            {"TigoFiveGStackedMobileIconLayoutStrategyKt","TigoFiveGNetworkTypeText"}}) {
+            var callback=Api102Runtime.callbacks.get("com.android.systemui.statusbar.pipeline.shared.ui.composable."+leaf[0]+"#"+leaf[1]);
+            IosStatusBarCheck.check(callback!=null,"Compose network guard is registered for both native strategies");
+            Object nativeResult=new Object();call=IosStatusBarCheck.param(null);call.setResult(nativeResult);callback.before(call);
+            IosStatusBarCheck.check(call.getResult()==nativeResult,"system style still runs the native network-type composable");
+        }
     }
 }

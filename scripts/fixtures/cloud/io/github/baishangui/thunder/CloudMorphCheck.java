@@ -131,6 +131,52 @@ public class CloudMorphCheck {
         var field=CloudMorphHook.class.getDeclaredField("velocities");field.setAccessible(true);
         return ((Map<View,CloudMorphHook.Frame>)field.get(null)).get(body.container);
     }
+    @SuppressWarnings("unchecked")
+    static void verifyBusinessHideSilhouette(Scene entry,CloudMorphSurface body,Bundle config)throws Throwable{
+        var field=CloudMorphHook.class.getDeclaredField("velocities");field.setAccessible(true);
+        var velocities=(Map<View,CloudMorphHook.Frame>)field.get(null);
+        var capsule=i.instance.c.container.capsule;
+        int oldWidth=capsule.actualWidth,oldHeight=capsule.actualHeight,oldTargetWidth=capsule.targetWidth,oldTargetHeight=capsule.targetHeight;
+        int oldX=capsule.screenX,oldY=capsule.screenY;Object oldState=entry.state;
+        capsule.actualWidth=600;capsule.actualHeight=176;capsule.targetWidth=-1;capsule.targetHeight=-1;
+        capsule.screenX=180;capsule.screenY=10;entry.state=null;
+        float density=capsule.getResources().getDisplayMetrics().density;
+        for(boolean custom:new boolean[]{false,true})for(int curve=0;curve<4;curve++)for(int bounce:new int[]{0,35,100})for(float interruptAt:new float[]{.1f,.4f}){
+            config.putBoolean("cloud_corner_enabled",custom);config.putInt("cloud_corner",12);
+            config.putInt("cloud_animation_curve",curve);config.putInt("cloud_animation_bounce",bounce);CloudCheck.config(config);
+            float radius=custom?12*density:88;
+            var source=new CloudMorphHook.Frame(180,10,600,176,radius,0);
+            body.simulateHostGate=false;body.hostAllowed=true;body.businessAllowed=true;body.hostAmount=1;
+            body.hostOpacityLimit=1;body.hostGate.host(1);body.presentedVelocity=null;body.frame(source);body.opacity(1);
+            velocities.put(body.container,new CloudMorphHook.Frame(0,0,0,0,0,0));
+            String scenario="custom="+custom+";curve="+curve+";bounce="+bounce+";interrupt="+interruptAt;
+            Animator hide=new Animator();build(entry,"CAPSULE_DISAPPEAR",hide).start();
+            var hideClock=clock();
+            for(float fraction:new float[]{.0001f,.025f,.05f,.1f,.15f,.25f,.35f,.4f}){
+                if(fraction>interruptAt)break;
+                hideClock.advance(fraction);var frame=body.frame;
+                float expectedRadius=Math.min(radius,Math.min(frame.width(),source.height())/2f);
+                check(Math.abs(frame.radius()-expectedRadius)<.001f,
+                    "business hide retains its own rounded silhouette until width reaches the end caps: "+scenario+";fraction="+fraction+";width="+frame.width()+";expectedRadius="+expectedRadius+";actualRadius="+frame.radius());
+                check(frame.height()==176&&frame.y()==10,"business hide preserves the source height/top while changing width: "+scenario);
+                check(Math.abs(frame.x()+frame.width()/2-480)<.001f,"business hide preserves the source horizontal center: "+scenario);
+            }
+            var before=body.frame;var speed=logicalVelocity(body);
+            float expectedRadiusSpeed=before.width()<radius*2?speed.width()/2:0;
+            check(Math.abs(speed.radius()-expectedRadiusSpeed)<.01f,"business hide caches the visible radius tangent for a later service: "+scenario);
+            Animator incoming=new Animator();directBuild(entry,"e","APP_TO_CAPSULE",incoming).start();
+            checkFrame(before,body.frame,.0001f,"new entry starts at the business hide's actual rounded shape: "+scenario);
+            checkFrame(speed,logicalVelocity(body),.001f,"new entry inherits the business hide's visible shape velocity: "+scenario);
+            var incomingClock=clock();incomingClock.advance(.0001f);
+            checkPresentationVelocity(before,body.frame,speed,.0001f*incomingClock.duration/1000f,
+                "new entry retains the business hide radius/width tangent: "+scenario);
+            complete(incoming);hide.end();
+        }
+        capsule.actualWidth=oldWidth;capsule.actualHeight=oldHeight;capsule.targetWidth=oldTargetWidth;capsule.targetHeight=oldTargetHeight;
+        capsule.screenX=oldX;capsule.screenY=oldY;entry.state=oldState;
+        config.putBoolean("cloud_corner_enabled",false);config.putInt("cloud_animation_curve",0);config.putInt("cloud_animation_bounce",0);CloudCheck.config(config);
+        Animator restore=new Animator();build(entry,"CAPSULE_APPEAR",restore).start();complete(restore);
+    }
     static float[] components(CloudMorphHook.Frame frame){return new float[]{frame.x(),frame.y(),frame.width(),frame.height(),frame.radius()};}
     static void checkFrame(CloudMorphHook.Frame expected,CloudMorphHook.Frame actual,float tolerance,String message){
         var left=components(expected);var right=components(actual);
@@ -378,6 +424,7 @@ public class CloudMorphCheck {
         complete(shadedEntry);initialBody.hostAllowed=true;initialBody.hostAmount=1;
         verifyClosedHostHandoff(entry,initialBody,b);
         verifyWidthOnlyHide(entry,initialBody,b);
+        verifyBusinessHideSilhouette(entry,initialBody,b);
         Scene scene=new Scene();var normal=new com.oplus.systemui.plugins.seedling.card.ui.view.CardView();
         normal.actualWidth=800;normal.actualHeight=400;normal.screenX=100;normal.screenY=120;
         scene.j.g.cards.addView(normal);scene.j.g.cards.cards.add(normal);

@@ -146,9 +146,13 @@ def main(c16, c17, aapt2):
         def save(name, tree, overlay, original, conversion):
             tree = tint(copy.deepcopy(tree), overlay.dimensions)
             fraction=sizing['optical_height_fractions'].get(name)
-            if fraction and tree.tag=='vector':
-                old_height=float(tree.get(NS+'height')[:-2])
+            height=None
+            if fraction:
                 height=sizing['targets']['status_visible_height_dp']/fraction
+            elif name.startswith('stat_bt_battery_'):
+                height=sizing['targets']['bluetooth_battery_size_dp']
+            if height is not None and tree.tag=='vector':
+                old_height=float(tree.get(NS+'height')[:-2])
                 tree.set(NS+'width',f'{float(tree.get(NS+"width")[:-2])*height/old_height:.9g}dp')
                 tree.set(NS+'height',f'{height:.9g}dp')
                 conversion+='; optical visible height matched to the user reference'

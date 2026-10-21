@@ -26,13 +26,13 @@ final class IosStatusBarHook {
     private static volatile int[] badgeIds=new int[0];
     private static final Map<View,Float> wifiTranslations=new WeakHashMap<>();
     private static boolean enabled;
-    static final float ICON_SCALE = 1.12f;
+    static final float ICON_SCALE = 1.008f;
     static final float ICON_SIDE_GAP_DP = 3.25f;
     static final float BATTERY_SEPARATOR_DP = 4f;
     // Keep the original 93x55 proportions at the reference screenshot's scale.
-    static final float BATTERY_WIDTH_DP = 32f;
+    static final float BATTERY_WIDTH_DP = 28.8f;
     static final float BATTERY_HEIGHT_DP = BATTERY_WIDTH_DP * 55f / 93f;
-    static final float BATTERY_TEXT_SIZE_DP = 14f;
+    static final float BATTERY_TEXT_SIZE_DP = 11.5f;
     static final int BATTERY_DIGIT_WEIGHT = 900;
     static final float BATTERY_DIGIT_SCALE_X = 1.08f;
     static final float BATTERY_WIDTH_SCALE = 1f;
@@ -51,6 +51,7 @@ final class IosStatusBarHook {
         installBatteryTextLayout(loader);
         installBatteryDigitFont(loader);
         installBatteryPadding(loader);
+        installIconContainerSpacing(loader);
         Api102Runtime.findAndHookMethod(Resources.class, "getDrawableForDensity", int.class, int.class,
             Resources.Theme.class, new HookCallback() {
                 @Override protected void afterHookedMethod(Param p) {
@@ -86,6 +87,25 @@ final class IosStatusBarHook {
                 } catch (Exception error) { failure(id, error); }
             }
         });
+    }
+
+    private static void installIconContainerSpacing(ClassLoader loader) {
+        try {
+            Api102Runtime.findAndHookMethod("com.android.systemui.statusbar.phone.StatusIconContainer",loader,
+                "onMeasure",int.class,int.class,new HookCallback() {
+                    @Override protected void beforeHookedMethod(Param p) {
+                        if (!enabled || !(p.thisObject instanceof View icons)
+                                || !ResourceOverrides.name(icons.getResources(),icons.getId()).equals("com.android.systemui:id/statusIcons")) return;
+                        // QS resets this container's end padding to zero; home keeps it.
+                        // Normalize before native measurement so both real and fake bars agree.
+                        int end=Math.round(BATTERY_SEPARATOR_DP*icons.getResources().getDisplayMetrics().density);
+                        if (icons.getPaddingEnd()==end) return;
+                        icons.setPaddingRelative(icons.getPaddingStart(),icons.getPaddingTop(),end,icons.getPaddingBottom());
+                        ShadeHook.resourceHit("status-bar-ios-icon-separator");
+                    }
+                });
+            ShadeHook.hookRegistered("status-bar-ios-icon-separator");
+        } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-icon-separator",error); }
     }
 
     private static void installBatteryTextLayout(ClassLoader loader) {
@@ -251,7 +271,50 @@ final class IosStatusBarHook {
                     }
                 });
         } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-c17-label-collector", error); }
+        installStackedNetworkLabels(loader);
         installWifiLabels(loader);
+    }
+
+    private static void installStackedNetworkLabels(ClassLoader loader) {
+        String base="com.android.systemui.statusbar.pipeline.shared.ui.composable.";
+        HookCallback hide=new HookCallback() {
+            @Override protected void beforeHookedMethod(Param p) {
+                if (!enabled) return;
+                // This leaf emits only the network-type label (including image fallbacks).
+                // The enclosing native composition keeps the SIM bars, state and layout.
+                p.setResult(null);
+                ShadeHook.resourceHit("status-bar-ios-compose-network-text");
+            }
+        };
+        for (String[] target : new String[][]{
+                {"OplusStackedMobileIconLayoutStrategyKt","NetworkTypeText"},
+                {"TigoFiveGStackedMobileIconLayoutStrategyKt","TigoFiveGNetworkTypeText"}}) {
+            try {
+                Class<?> type=Reflect.findClass(base+target[0],loader);
+                boolean found=false;
+                // Kotlin mangles this name using its inline parameter types.
+                for (var method : type.getDeclaredMethods()) {
+                    String name=method.getName();
+                    if (!(name.equals(target[1]) || name.startsWith(target[1]+"-"))
+                            || method.getReturnType()!=void.class || method.getParameterCount()!=13
+                            || !java.lang.reflect.Modifier.isStatic(method.getModifiers())) continue;
+                    Object[] signature=new Object[14];
+                    System.arraycopy(method.getParameterTypes(),0,signature,0,13);
+                    signature[13]=hide;
+                    Api102Runtime.findAndHookMethod(type,name,signature);
+                    found=true;
+                }
+                if (!found) throw new IllegalStateException("Missing stacked network label: "+target[0]);
+                ShadeHook.hookRegistered("status-bar-ios-compose-label-"+target[0]);
+            } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-compose-label-"+target[0],error); }
+        }
+        // These actual C17 callers can already contain AOT-inlined network text.
+        for (String strategy : new String[]{"Default","BigType","TigoFiveG"}) {
+            try {
+                Api102Runtime.deoptimizeCallers(Reflect.findClass(base+strategy+"StackedMobileIconLayoutStrategy",loader),"StackedMobileIcon");
+                ShadeHook.hookRegistered("status-bar-ios-compose-label-deopt-"+strategy);
+            } catch (RuntimeException error) { ShadeHook.frameworkFailure("status-bar-ios-compose-label-deopt-"+strategy,error); }
+        }
     }
 
     private static void installWifiLabels(ClassLoader loader) {
@@ -450,7 +513,7 @@ final class IosStatusBarHook {
     }
 
     static String state() {
-        return (enabled ? "style=ios;renderer=resources;signals=status-c16-c17-stacked;battery=status-c16;state=system;icons=reference-14dp;native-containers=112%;height=+4dp;gap=~7.5dp;battery-proportions=93:55;battery-width="+BATTERY_WIDTH_DP+"dp;battery-height="+BATTERY_HEIGHT_DP+"dp;battery-text=body-centered;battery-text-size="+BATTERY_TEXT_SIZE_DP+"dp;battery-font=system-selected;battery-text-weight="+BATTERY_DIGIT_WEIGHT+";battery-text-scale-x="+BATTERY_DIGIT_SCALE_X+";battery-padding=0;network-text=hidden;wifi-offset=1px" : "style=system")
+        return (enabled ? "style=ios;renderer=resources;signals=status-c16-c17-stacked;battery=status-c16;state=system;icons=reference-90%-12.6dp;native-containers=100.8%;height=+4dp;gap=~7.5dp;battery-proportions=93:55;battery-width="+BATTERY_WIDTH_DP+"dp;battery-height="+BATTERY_HEIGHT_DP+"dp;battery-text=body-centered;battery-text-size="+BATTERY_TEXT_SIZE_DP+"dp;battery-font=system-selected;battery-text-weight="+BATTERY_DIGIT_WEIGHT+";battery-text-scale-x="+BATTERY_DIGIT_SCALE_X+";battery-padding=0;network-text=hidden;stacked-network-text=compose-suppressed;wifi-offset=1px" : "style=system")
             + (enabled != IosStatusIcons.active(ShadeHook.snapshot()) ? ";restart-required=true" : "");
     }
     private IosStatusBarHook() { }

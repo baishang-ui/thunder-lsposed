@@ -18,14 +18,15 @@
     "gap_dp": 7.67
   },
   "targets": {
-    "status_visible_height_dp": 14.0,
-    "single_signal_width_dp": 22.5,
-    "single_signal_height_dp": 14.5,
-    "stacked_visible_height_dp": 14.0,
+    "status_visible_height_dp": 12.6,
+    "single_signal_width_dp": 20.25,
+    "single_signal_height_dp": 13.05,
+    "stacked_visible_height_dp": 12.6,
+    "bluetooth_battery_size_dp": 14.4,
     "side_padding_dp": 3.25,
     "battery_separator_dp": 4.0,
-    "battery_width_dp": 32.0,
-    "battery_text_size_dp": 14.0,
+    "battery_width_dp": 28.8,
+    "battery_text_size_dp": 11.5,
     "battery_digit_weight": 900,
     "battery_digit_scale_x": 1.08,
     "battery_digit_font": "system-selected"

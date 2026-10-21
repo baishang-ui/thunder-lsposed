@@ -22,6 +22,35 @@ public final class IosRenderPathCheck {
         IosStatusBarCheck.config(true,1);
         ShadeHook.install("com.android.systemui","com.android.systemui",IosRenderPathCheck.class.getClassLoader());
         var module=new IosStatusBarCheck.ResourceContext(); IosStatusBarHook.prepare(module);
+        HookCallback separator=Api102Runtime.callbacks.get("com.android.systemui.statusbar.phone.StatusIconContainer#onMeasure");
+        check(separator!=null,"home and QS icon containers need the same measured battery separator");
+        for (boolean rtl : new boolean[]{false,true}) for (int originalEnd : new int[]{0,14,27}) {
+            var icons=new com.android.systemui.statusbar.phone.StatusIconContainer();
+            icons.id=701;icons.res.names.put(701,"com.android.systemui:id/statusIcons");
+            icons.layoutDirection=rtl?1:0;icons.setPaddingRelative(5,2,originalEnd,3);
+            var measure=IosStatusBarCheck.param(icons,0,0);separator.before(measure);
+            int end=Math.round(4f*icons.res.getDisplayMetrics().density);
+            check(icons.getPaddingEnd()==end && icons.getPaddingStart()==5 && icons.getPaddingTop()==2
+                && icons.getPaddingBottom()==3,"QS and home use one separator without changing other edges or RTL");
+            separator.before(measure);check(icons.getPaddingEnd()==end,"measuring again cannot accumulate battery spacing");
+        }
+        var foreignIcons=new com.android.systemui.statusbar.phone.StatusIconContainer();
+        foreignIcons.id=701;foreignIcons.res.names.put(701,"other:id/statusIcons");
+        var foreignMeasure=IosStatusBarCheck.param(foreignIcons,0,0);separator.before(foreignMeasure);
+        check(foreignIcons.getPaddingEnd()==0,"foreign resource names do not receive SystemUI spacing");
+        for (String[] leaf : new String[][]{
+            {"OplusStackedMobileIconLayoutStrategyKt","NetworkTypeText"},
+            {"TigoFiveGStackedMobileIconLayoutStrategyKt","TigoFiveGNetworkTypeText"}}) {
+            String key="com.android.systemui.statusbar.pipeline.shared.ui.composable."+leaf[0]+"#"+leaf[1];
+            HookCallback composeBadge=Api102Runtime.callbacks.get(key);
+            check(composeBadge!=null,"stacked Compose network text needs its own rendering guard: "+leaf[1]);
+            Object mobile=new Object(),model=new Object(),composer=new Object();
+            var badgeCall=IosStatusBarCheck.param(null,mobile,model,0L,null,null,null,null,null,null,null,composer,0,0);
+            badgeCall.setResult(new Object());composeBadge.before(badgeCall);
+            check(badgeCall.getResult()==null,"5G text/image leaf is suppressed before it emits Compose content");
+            check(badgeCall.args[0]==mobile && badgeCall.args[1]==model && badgeCall.args[10]==composer,
+                "Compose suppression preserves network models, signal state and the composer");
+        }
         var host=new Resources(); host.full="com.android.systemui:drawable/stat_signal_lte_signal_stacked_secondary_2";
         HookCallback xml=Api102Runtime.callbacks.get(Resources.class.getName()+"#getXml");
         var call=IosStatusBarCheck.param(host,1); xml.before(call);
@@ -60,7 +89,7 @@ public final class IosRenderPathCheck {
         check(Math.abs((IosStatusBarHook.complexDimension(4.92f)>>8)/32768f-4.92f)<.0001f,"raw fractional dimensions retain subpixel precision");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_wifi_signal_size";
         call=IosStatusBarCheck.param(host,1); call.setResult(30f); dimension.after(call);
-        check(Math.abs((Float)call.getResult()-33.6f)<.001f,"native icon sizes enlarge by 12 percent at actual density");
+        check(Math.abs((Float)call.getResult()-30.24f)<.001f,"native icon containers also shrink to 90 percent of the previous scale");
         host=new Resources(); host.full="com.android.systemui:dimen/stat_bt_battery_inset_left";
         call=IosStatusBarCheck.param(host,1); call.setResult(-2.5f); dimension.after(call);
         check(call.getResult().equals(-2.5f),"unneeded Bluetooth inset overrides are removed with standardized icon spacing");
@@ -72,7 +101,7 @@ public final class IosRenderPathCheck {
         value=new android.util.TypedValue(); value.type=android.util.TypedValue.TYPE_DIMENSION;
         value.data=(15<<8)|2;
         call=IosStatusBarCheck.param(host,1,value,true); getValue.after(call);
-        check((value.data&15)==2 && Math.abs((value.data>>8)/32768f-16.8f)<.0001f,"native SP dimensions retain font-scale units after scaling");
+        check((value.data&15)==2 && Math.abs((value.data>>8)/32768f-15.12f)<.0001f,"native SP dimensions retain font-scale units after scaling");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_battery_horizontal_height";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
         check(Math.abs((Float)call.getResult()-IosStatusBarHook.BATTERY_HEIGHT_DP*host.getDisplayMetrics().density)<.001f,"horizontal battery height preserves the original 93x55 canvas proportions");
@@ -82,7 +111,7 @@ public final class IosRenderPathCheck {
         check(Math.abs((Float)call.getResult())<.001f,"background and progress share the full original canvas");
         host=new Resources(); host.full="com.android.systemui:dimen/battery_percent_in_text_size";
         call=IosStatusBarCheck.param(host,1); call.setResult(99f); dimension.after(call);
-        check(Math.abs((Float)call.getResult()-14f*host.getDisplayMetrics().density)<.001f,"internal battery percentage matches the reference text proportions");
+        check(Math.abs((Float)call.getResult()-11.5f*host.getDisplayMetrics().density)<.001f,"internal battery percentage uses the slightly smaller text size");
         host=new Resources(); host.full="com.android.systemui:dimen/status_bar_battery_horizontal_height";
         value=new android.util.TypedValue(); call=IosStatusBarCheck.param(host,1,value,true); getValue.after(call);
         check(Math.abs((value.data>>8)/32768f-IosStatusBarHook.BATTERY_HEIGHT_DP)<.0001f,"raw and getter battery heights agree");

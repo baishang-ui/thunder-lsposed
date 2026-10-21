@@ -124,7 +124,7 @@ for row in ('primary','secondary'):
         data={p.get(NS+'pathData') for p in paths}
         if level==0:row_paths[row]=data
         assert data==row_paths[row],(row,'levels must use the same source outlines')
-        assert abs(float(root.get(NS+'height')[:-2])-16*14/12.6)<.000001
+        assert abs(float(root.get(NS+'height')[:-2])-16)<.000001
 assert row_paths['primary'].isdisjoint(row_paths['secondary']), 'Rows may not contain one another or double-draw the other SIM'
 assert len({(signature(f'stat_signal_lte_signal_stacked_primary_{a}'),signature(f'stat_signal_lte_signal_stacked_secondary_{b}'))
             for a in range(5) for b in range(5)})==25
@@ -136,9 +136,9 @@ background=xml('stat_battery_horizontal_bg')
 battery_width=float(background.get(NS+'width')[:-2])
 battery_height=float(background.get(NS+'height')[:-2])
 assert abs(battery_width/93-battery_height/55)<.000001, 'Battery artwork must enlarge uniformly in both axes using the original 93x55 canvas'
-assert abs(theme['dimensions']['status_bar_battery_horizontal_width']-32)<.000001
-assert abs(theme['dimensions']['status_bar_battery_horizontal_height']-32*55/93)<.000001
-assert theme['dimensions']['battery_percent_in_text_size']==14, 'Internal battery digits must match the reference text proportions'
+assert abs(theme['dimensions']['status_bar_battery_horizontal_width']-28.8)<.000001
+assert abs(theme['dimensions']['status_bar_battery_horizontal_height']-28.8*55/93)<.000001
+assert theme['dimensions']['battery_percent_in_text_size']==11.5, 'Internal battery digits use the slightly smaller system-font size'
 for edge in ('left','right','top','bottom'):
     assert theme['dimensions'].get('status_bar_battery_horizontal_padding_'+edge)==0, 'Native battery padding must not shrink already padded theme artwork'
 for edge in ('start','end','top','bottom'):
@@ -153,12 +153,12 @@ assert next(background.iter('path')).get(NS+'pathData')==next(fill.iter('path'))
 assert geometry(background)==geometry(fill), 'At 100 percent progress must cover the entire background, including its cap'
 assert background.find('group') is None and fill.find('group') is None, 'Do not crop or stretch the original battery proportions'
 assert float(fill.get(NS+'viewportWidth'))==93 and float(fill.get(NS+'viewportHeight'))==55
-assert abs(battery_width-32)<.000001 and abs(battery_height*(50-5)/55-32*45/93)<.000001
+assert abs(battery_width-28.8)<.000001 and abs(battery_height*(50-5)/55-28.8*45/93)<.000001
 for name,fraction in sizing['optical_height_fractions'].items():
     height=float(ET.parse(REF/(name+'.xml')).getroot().get(NS+'height')[:-2])
-    assert abs(height*fraction-14)<.00001,(name,'visible icon height must be normalized, not just its container')
+    assert abs(height*fraction-12.6)<.00001,(name,'visible icon height must be normalized, not just its container')
 single=xml('stat_signal_signal_lte_single_4_os17')
-assert float(single.get(NS+'viewportHeight'))==8 and abs(float(single.get(NS+'height')[:-2])*7.56/8-13.7025)<.00001
+assert float(single.get(NS+'viewportHeight'))==8 and abs(float(single.get(NS+'height')[:-2])*7.56/8-12.33225)<.00001
 assert theme['dimensions']['signal_cluster_battery_padding']==4
 assert len({(xml(f'stat_signal_wifi_signal_{level}_os17').get(NS+'width'),xml(f'stat_signal_wifi_signal_{level}_os17').get(NS+'height')) for level in range(5)})==1, 'Wi-Fi strength changes must retain the same canvas'
 for name in ('stat_battery_horizontal_percent_out_progress_bg','stat_battery_horizontal_percent_out_no_padding_progress_bg'):

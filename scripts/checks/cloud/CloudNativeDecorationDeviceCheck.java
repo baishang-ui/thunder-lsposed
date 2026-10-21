@@ -14,6 +14,29 @@ public final class CloudNativeDecorationDeviceCheck {
         Bitmap pixels=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888);
         drawable.draw(new Canvas(pixels));return pixels;
     }
+    static void shrinkingCapsule(CloudNativeDecoration decoration) {
+        // Draw the native copy directly: no View outline, canvas clip, scale or
+        // larger source capsule may manufacture the narrowing silhouette.
+        int height=176;
+        for(int width:new int[]{600,220,176,80,1}) {
+            float radius=Math.min(88f,width/2f);
+            decoration.geometry(width,height,radius,false);
+            Bitmap frame=pixels(decoration.drawable,width,height);
+            check(decoration.drawable.getBounds().width()==width&&decoration.drawable.getBounds().height()==height,
+                "native capsule bounds must narrow while retaining height: "+width);
+            check(frame.getPixel(width/2,height/2)==Color.RED,
+                "native capsule must keep its center throughout width-only disappearance: "+width);
+            if(width>1) {
+                check(Color.alpha(frame.getPixel(1,1))==0&&Color.alpha(frame.getPixel(width-2,1))==0,
+                    "narrowed capsule must draw curved end corners rather than rectangular cut edges: "+width);
+                check(frame.getPixel(1,height/2)==Color.RED&&frame.getPixel(width-2,height/2)==Color.RED,
+                    "curved native ends must reach the new left/right bounds: "+width);
+                check(frame.getPixel(width/2,1)==Color.RED&&frame.getPixel(width/2,height-2)==Color.RED,
+                    "width-only shrink must preserve the full native capsule height: "+width);
+            }
+            frame.recycle();
+        }
+    }
     public static void main(String[] args) throws Exception {
         GradientDrawable source=new GradientDrawable();source.setColor(0x8045789a);source.setCornerRadius(30);
         source.setBounds(30,0,130,40);source.setAlpha(0);
@@ -41,6 +64,7 @@ public final class CloudNativeDecorationDeviceCheck {
         Bitmap small=pixels(copy,240,80);
         check(small.getPixel(8,8)==Color.RED&&Color.alpha(small.getPixel(1,1))==0,
             "a smaller chosen radius must actually change the native pixels");
+        shrinkingCapsule(decoration);
         check(source.getCornerRadius()==30,"independent geometry cannot edit native source radius");
         GradientDrawable foreground=new GradientDrawable();foreground.setColor(Color.TRANSPARENT);foreground.setStroke(4,Color.BLUE);
         CloudNativeDecoration edge=new CloudNativeDecoration(foreground,null,null);edge.geometry(240,80,40,false);

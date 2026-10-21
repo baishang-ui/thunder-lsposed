@@ -8,15 +8,15 @@
 
 普通状态图标、Wi-Fi、横向电池和蓝牙电池来自 C16。第一包没有的高性能、流量节省、竖向电池、独立电池装饰及 ADB 素材、映射已删除，相关系统资源正常回退。设置页也移除高性能和流量节省的样式示例。图标种类缺口不会用第二包或旧手绘图补足。保留的别名只适配同一图标在 C17 中的不同资源名称。
 
-C16 普通图标和蓝牙电池的外部 inset 被移除，路径与内部变换保留。按用户参考截图的实际可见边界，普通图标与 Wi-Fi 统一为约 14dp 可见高度，各档 Wi-Fi 共用画布。画布两侧各留 3.25dp，相邻图标的可见间隙约 7–8dp。横向电池总宽 32dp、总高约 18.92dp，保留原始 93 × 55 画布及上下留白，可见主体约 29.25 × 15.48dp。原生容器的 1.12 倍尺寸仅用于承载，不再重复放大图形。参考截图的测量值、目标尺寸与各图形有效高度比例记录在 `status-icons-sizing.json`。蓝牙动画仅在所有帧有来源时替换，帧时序沿用系统；animated-vector 保留系统实现。
+C16 普通图标和蓝牙电池的外部 inset 被移除，路径与内部变换保留。按用户最新要求，将参考截图适配后的图形统一缩至上一版的 90%；普通图标与 Wi-Fi 为约 12.6dp 可见高度，蓝牙电量画布从 16dp 等比缩至 14.4dp，各档 Wi-Fi 共用画布。画布两侧各留 3.25dp，相邻图标的可见间隙约 7–8dp。横向电池总宽 28.8dp、总高约 17.03dp，保留原始 93 × 55 画布及上下留白，可见主体约 26.32 × 13.94dp。原生容器由系统尺寸的 1.12 倍同步调整为 1.008 倍，仅用于承载，不再重复放大图形。参考截图的测量值、目标尺寸与各图形有效高度比例记录在 `status-icons-sizing.json`。蓝牙动画仅在所有帧有来源时替换，帧时序沿用系统；animated-vector 保留系统实现。
 
 ## 双卡与单卡信号
 
 C16 的 `stat_signal_signal_lte_single_0..4` 本身画了两排，上排是递增的圆角柱，下排是圆角短条。原包下排在部分状态下固定点亮一格或两格，不能直接复制到 C17 的每张卡上。
 
-导入器原样提取两排路径，生成 C17 的 `stat_signal_lte_signal_stacked_primary_0..4` 与 `secondary_0..4`，共用 19 × 16 viewport；固有尺寸按两排图形总可见高度 14dp 调整。原 19 × 13 的两排图形垂直居中，上下排各自只包含四个路径；副卡透明度按自己的档位设置，未点亮格保留 C16 的 `0x35` 透明度。主、副卡的信号档位、排列与堆叠选择仍由系统决定，支持 25 种组合。soft、无语音与旧资源名复用相同图形。
+导入器原样提取两排路径，生成 C17 的 `stat_signal_lte_signal_stacked_primary_0..4` 与 `secondary_0..4`，共用 19 × 16 viewport；固有尺寸按两排图形总可见高度 12.6dp 调整。原 19 × 13 的两排图形垂直居中，上下排各自只包含四个路径；副卡透明度按自己的档位设置，未点亮格保留 C16 的 `0x35` 透明度。主、副卡的信号档位、排列与堆叠选择仍由系统决定，支持 25 种组合。soft、无语音与旧资源名复用相同图形。
 
-单卡 C17 资源只保留上排并垂直居中，使用 19 × 8 viewport 和 22.5 × 14.5dp 画布，使可见信号约 21.55 × 13.70dp，避免出现固定的假副卡。堆叠无服务从 C16 的灰色短条提取；独立无服务使用第一包的单行灰色资源。SOS 保留系统图标。
+单卡 C17 资源只保留上排并垂直居中，使用 19 × 8 viewport 和 20.25 × 13.05dp 画布，使可见信号约 19.40 × 12.33dp，避免出现固定的假副卡。堆叠无服务从 C16 的灰色短条提取；独立无服务使用第一包的单行灰色资源。SOS 保留系统图标。
 
 ## 透明角标与系统状态
 
@@ -26,15 +26,17 @@ C17 的 Wi-Fi 4 / 5 / 6 / 6E / 7 可以由 `wifi_left_tv` 文字控件或 `wifi_
 
 移动网络文字继续在 `Os17Binding.bindNetworkTypeText` 的输入置为 null，并在绑定后清理文字和图片。另在其 `$bindSubclassFlows$1$1.emit` 完成后清理 `mobileTypeText`、`mobileTypeImage`、`mobileRoamingText`，覆盖优化后的绑定路径和重复状态更新；`bindRoamingText` 的显示输入仍为 false。仅操作宿主的这些角标视图，不修改网络状态、信号强度或 StateFlow。系统默认样式保留原显示。
 
+原生堆叠信号实际由 `OplusSingleBindableStatusBarComposeIconView` 承载，Compose 文字不会经过上述 `TextView` 绑定和 ID 保护。现对 `OplusStackedMobileIconLayoutStrategyKt.NetworkTypeText-*` 与运营商分支 `TigoFiveGStackedMobileIconLayoutStrategyKt.TigoFiveGNetworkTypeText-*` 的网络类型叶函数单独拦截，iOS 样式不生成这一段文字或图片后备内容。函数进入前返回，不进入其 Compose 分组；样式在进程内冻结，原生外围组合、信号条与网络模型保持原有处理。默认、大字及 Tigo 三种实际调用者 `StackedMobileIcon` 同步取消已有 AOT 内联，防止跳过 Hook。默认图标样式保留原生执行，命中记录为 `status-bar-ios-compose-network-text`。
+
 角标另在实际文字和可见性写入入口防护：`TextView.setText`、`View.setVisibility` 及 `View.setFlags` 仅对缓存的状态栏角标 ID 生效，并核对完整包名，覆盖旧版 / 独立 5G 图标和优化后的绑定路径；其他视图快速跳过。`wifi_signal` 在绑定后向下偏移恰好 1 个物理像素，减少底部留白；保存原偏移，重复绑定不累加。
 
 ## 电池与窗口
 
-C16 横向电池的画布为 93 × 55，主体范围 x=0..85、y=5..50。C17 的 `BatteryBarDrawableBase.setDrawableBounds` 会把背景和进度都放到同一个矩形中；若把进度画布裁为主体大小，系统会将其重新拉伸，导致进度比背景大。现在背景与进度共同保留原始 93 × 55 画布及路径位置，宽高统一按原图比例调整到整体约 32 × 18.92dp，可见主体约 29.25 × 15.48dp。保持水平方向与垂直方向相同的缩放系数，不裁剪上下留白，也不把原图压成 28 × 17dp 的高胖主体。百分比外置及无 padding 分支复用同一画布。旧 ProgressBar 入口的四个进度边距及横向电池四个原生 padding 设为 0；另在 `BatteryBarDrawableBase.updatePadding` 和 `HorizontalBatteryContentDrawable.updatePadding` 完成后清除横向电池的内部 padding 与 `outPadding*`，覆盖系统默认四边各 2dp 及第三方主题计算的重复内缩。进度资源包含主体和右侧电池头两条原始路径，100% 时完整覆盖背景。保留 `LayerDrawable → ClipDrawable` 和 `android:id/progress`，系统继续处理电量、颜色、充电、百分比与 RTL。
+C16 横向电池的画布为 93 × 55，主体范围 x=0..85、y=5..50。C17 的 `BatteryBarDrawableBase.setDrawableBounds` 会把背景和进度都放到同一个矩形中；若把进度画布裁为主体大小，系统会将其重新拉伸，导致进度比背景大。现在背景与进度共同保留原始 93 × 55 画布及路径位置，宽高统一按原图比例调整到整体约 28.8 × 17.03dp，可见主体约 26.32 × 13.94dp。保持水平方向与垂直方向相同的缩放系数，不裁剪上下留白，也不把原图压成 28 × 17dp 的高胖主体。百分比外置及无 padding 分支复用同一画布。旧 ProgressBar 入口的四个进度边距及横向电池四个原生 padding 设为 0；另在 `BatteryBarDrawableBase.updatePadding` 和 `HorizontalBatteryContentDrawable.updatePadding` 完成后清除横向电池的内部 padding 与 `outPadding*`，覆盖系统默认四边各 2dp 及第三方主题计算的重复内缩。进度资源包含主体和右侧电池头两条原始路径，100% 时完整覆盖背景。保留 `LayerDrawable → ClipDrawable` 和 `android:id/progress`，系统继续处理电量、颜色、充电、百分比与 RTL。
 
-`getBodyRectForLayout(RectF)` 与 `getOffsetX()` 的现有百分比对齐适配到 85/93 主体比例，排除电池头，系统继续测量并居中一位、两位、三位数字。内部数字直接继承系统 `setFontTypeface` 提供的字体，在同一字体家族上调整到字重 900，字号 14dp、水平宽度系数 1.08；不内置、加载或指定另一套字体。系统更换字体后，在 `updatePercentInTextBounds` 原生测量前重新适配当前字体，保留斜体设置、颜色、充电和数字镂空绘制，默认样式不干预。蓝牙电池使用第一包的耳机及电量图形。竖向电池保持系统资源。
+`getBodyRectForLayout(RectF)` 与 `getOffsetX()` 的现有百分比对齐适配到 85/93 主体比例，排除电池头，系统继续测量并居中一位、两位、三位数字。内部数字直接继承系统 `setFontTypeface` 提供的字体，在同一字体家族上调整到字重 900，字号 11.5dp、水平宽度系数 1.08；不内置、加载或指定另一套字体。系统更换字体后，在 `updatePercentInTextBounds` 原生测量前重新适配当前字体，保留斜体设置、颜色、充电和数字镂空绘制，默认样式不干预。蓝牙电池使用第一包的耳机及电量图形。竖向电池保持系统资源。
 
-状态栏仍通过 `SystemBarUtils.getStatusBarHeight` 和 `getStatusBarHeightForRotation` 在系统结果上增加 4dp，同步窗口高度与应用避让，保留挖孔、旋转、嵌套调用与异常恢复处理。电池前两种原生 separator 统一为 4dp，配合 Wi-Fi 右侧留白形成约 7–8dp 可见间距。
+状态栏仍通过 `SystemBarUtils.getStatusBarHeight` 和 `getStatusBarHeightForRotation` 在系统结果上增加 4dp，同步窗口高度与应用避让，保留挖孔、旋转、嵌套调用与异常恢复处理。电池前两种原生 separator 统一为 4dp，配合 Wi-Fi 右侧留白形成约 7–8dp 可见间距。QS 页会另将 `StatusIconContainer` 末端 padding 清零，单改资源值不能覆盖这条路径。现仅对 SystemUI 的 `statusIcons` 容器在原生 `onMeasure` 前统一末端留白为 4dp，保留起始与上下 padding、RTL、图标排列和原生过渡动画，避免顶部与下拉页切换时信号到电池的距离突变；默认样式不干预。
 
 ## 加载与验证
 

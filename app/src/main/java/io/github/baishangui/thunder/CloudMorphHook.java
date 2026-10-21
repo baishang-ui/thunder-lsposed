@@ -601,6 +601,8 @@ final class CloudMorphHook {
                 Frame from=surface.index==0?surface.start:withProgress(surface.start,surface.startOpacity);
                 Frame to=surface.index==0?surface.target:withProgress(surface.target,surface.targetOpacity);
                 Frame velocity=surface.shared.transitionVelocity(surface.start,surface.startVelocity);
+                if(request.mode==Mode.CAPSULE_HIDE&&velocity!=null)
+                    velocity=CloudVisibilityState.velocityForWidth(surface.start,surface.start,velocity);
                 surface.trajectory=new CloudMotion(from,to,velocity,Math.max(1,Math.round(duration*span)),curve,bounce,
                     0,surface.shared.capsuleEntryClosedHandoff());
             }
@@ -650,6 +652,14 @@ final class CloudMorphHook {
                     Surface surface=surfaces.get(i);
                     float phase=CloudCardTiming.fraction(progress,surface.phaseStart,surface.phaseEnd);
                     Frame presented=surface.trajectory.frame(phase);
+                    Frame velocity=surface.trajectory.velocity(phase);
+                    if(request.mode==Mode.CAPSULE_HIDE) {
+                        // A width-only exit keeps its end caps. Interpolating
+                        // radius toward the final sliver would square the body
+                        // long before its width reaches the capsule's height.
+                        velocity=CloudVisibilityState.velocityForWidth(surface.start,presented,velocity);
+                        presented=CloudVisibilityState.shapeForWidth(surface.start,presented);
+                    }
                     if(i==0){
                         surface.frame(presented,true);
                         float fade=CloudCardTiming.opacity(phase);
@@ -662,7 +672,7 @@ final class CloudMorphHook {
                         surface.shared.opacity(reveal);
                         surface.frame(CloudCardTiming.follower(surfaces.get(0).current,surfaces.get(0).expanded,surface.expanded,reveal),false);
                     }
-                    velocities.put(i==0?spec.container:surface.view,surface.trajectory.velocity(phase));
+                    velocities.put(i==0?spec.container:surface.view,velocity);
                 }
 
             } catch(Throwable error){ShadeHook.frameworkFailure("cloud-morph-frame",error);finish(true);}

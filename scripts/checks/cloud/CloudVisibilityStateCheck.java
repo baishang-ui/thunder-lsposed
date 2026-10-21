@@ -107,7 +107,49 @@ public final class CloudVisibilityStateCheck {
             }
         }
         verifyPresentationVelocity();
+        verifyWidthHideShape();
         System.out.println("CloudVisibilityStateCheck: host/motion composition and interrupted input checks passed");
+    }
+    private static void verifyWidthHideShape() {
+        CloudMorphHook.Frame[] capsules={new CloudMorphHook.Frame(100,80,600,176,88,0),
+            new CloudMorphHook.Frame(360,10,240,80,40,0),new CloudMorphHook.Frame(120,80,176,176,88,0),
+            new CloudMorphHook.Frame(100,80,600,176,12,0),new CloudMorphHook.Frame(100,80,600,176,0,0)};
+        for(var capsule:capsules)for(int curve=0;curve<4;curve++)for(int bounce:new int[]{0,100}) {
+            CloudMotion disappear=new CloudMotion(capsule,CloudVisibilityState.hidden(capsule),null,500,curve,bounce);
+            for(int i=0;i<=1000;i++) {
+                float at=i/1000f;
+                var raw=disappear.frame(at);
+                var frame=CloudVisibilityState.shapeForWidth(capsule,raw);
+                close(raw.width(),frame.width());close(raw.progress(),frame.progress());
+                close(Math.min(capsule.radius(),Math.min(frame.width(),frame.height())/2),frame.radius());
+                close(capsule.height(),frame.height());close(capsule.y(),frame.y());
+                close(capsule.x()+capsule.width()/2,frame.x()+frame.width()/2);
+                var speed=CloudVisibilityState.velocityForWidth(capsule,raw,disappear.velocity(at));
+                close(0,speed.height());close(0,speed.y());close(-speed.width()/2,speed.x());
+                if(i<1000) {
+                    float epsilon=.00002f,dt=epsilon*.5f;
+                    var next=CloudVisibilityState.shapeForWidth(capsule,disappear.frame(at+epsilon));
+                    check(Float.isFinite(speed.radius())&&Math.abs(speed.radius()-(next.radius()-frame.radius())/dt)<8,
+                        "width-only hiding publishes the derivative of its actual circular outline; curve="+curve+" at="+at);
+                }
+            }
+        }
+        var capsule=capsules[1];
+        var horizontal=new CloudMorphHook.Frame(400,10,120,80,20,0);
+        var shrink=new CloudMorphHook.Frame(10,0,-20,0,-5,0);
+        close(40,CloudVisibilityState.shapeForWidth(capsule,horizontal).radius());
+        close(0,CloudVisibilityState.velocityForWidth(capsule,horizontal,shrink).radius());
+        var vertical=new CloudMorphHook.Frame(430,10,60,80,10,0);
+        close(30,CloudVisibilityState.shapeForWidth(capsule,vertical).radius());
+        close(-10,CloudVisibilityState.velocityForWidth(capsule,vertical,shrink).radius());
+        var circle=new CloudMorphHook.Frame(420,10,80,80,20,0);
+        close(-10,CloudVisibilityState.velocityForWidth(capsule,circle,shrink).radius());
+        close(0,CloudVisibilityState.velocityForWidth(capsule,circle,new CloudMorphHook.Frame(-10,0,20,0,5,0)).radius());
+        var custom=capsules[3];
+        var customLimit=new CloudMorphHook.Frame(388,80,24,176,4,0);
+        close(12,CloudVisibilityState.shapeForWidth(custom,customLimit).radius());
+        close(-10,CloudVisibilityState.velocityForWidth(custom,customLimit,shrink).radius());
+        close(0,CloudVisibilityState.velocityForWidth(custom,customLimit,new CloudMorphHook.Frame(-10,0,20,0,5,0)).radius());
     }
     private static void verifyPresentationVelocity() {
         CloudMorphHook.Frame[] shapes={new CloudMorphHook.Frame(360,10,240,80,40,0),
