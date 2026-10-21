@@ -4,6 +4,7 @@ import com.oplus.systemui.plugins.seedling.engine.animatorengine.h;
 /** C17 B0.invoke wraps the concrete scene and a parallel fraction-condition clock. */
 public class B0 {
     public final Object b;
+    public Object d;
     private final h scene;
     public final Z condition=new Z();
     public B0(Object builder,h scene){b=builder;this.scene=scene;}

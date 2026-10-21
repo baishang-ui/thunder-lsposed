@@ -12,11 +12,17 @@ final class CloudMotion {
         this(from,to,velocity,duration,curve,bounce,0);
     }
     CloudMotion(CloudMorphHook.Frame from,CloudMorphHook.Frame to,CloudMorphHook.Frame velocity,int duration,int curve,int bounce,float compressionScale) {
+        this(from,to,velocity,duration,curve,bounce,compressionScale,false);
+    }
+    CloudMotion(CloudMorphHook.Frame from,CloudMorphHook.Frame to,CloudMorphHook.Frame velocity,int duration,int curve,int bounce,float compressionScale,boolean preserveZeroVelocity) {
         start=values(from);end=values(to);initial=velocity==null?new float[6]:values(velocity);
         float scale=Math.max(0,Math.min(.03f,compressionScale));
         compression=new float[]{to.width()*scale*.5f,to.height()*scale*.5f,-to.width()*scale,-to.height()*scale,-to.radius()*scale,0};
         seconds=Math.max(1,duration)/1000f;linear=curve==3&&bounce==0;
-        if(linear&&(velocity==null||stopped(initial)))for(int i=0;i<6;i++)initial[i]=(end[i]-start[i])/seconds;
+        // Ordinary linear transitions restart at constant speed. A presentation
+        // handoff can explicitly cancel an independent gate down to zero;
+        // replacing that supplied zero would add the gate's motion back.
+        if(linear&&(velocity==null||!preserveZeroVelocity&&stopped(initial)))for(int i=0;i<6;i++)initial[i]=(end[i]-start[i])/seconds;
         damping=1f-.5f*Math.max(0,Math.min(100,bounce))/100f;
         float response=switch(curve){case 1 -> 8f;case 2 -> 10f;case 3 -> 7f;default -> 9f;};
         omega=response/(damping*seconds);
@@ -91,5 +97,11 @@ final class CloudMotion {
     }
     CloudMorphHook.Frame velocity(float fraction){
         return new CloudMorphHook.Frame(sample(0,fraction,true),sample(1,fraction,true),sample(2,fraction,true),sample(3,fraction,true),sample(4,fraction,true),sample(5,fraction,true));
+    }
+    float clampedPhaseVelocity(float fraction) {
+        float value=sample(5,fraction,false),speed=sample(5,fraction,true);
+        // A reversed phase can remain outside the visible interval even after
+        // its spring turns back toward it. The clamp is still stationary there.
+        return value<0||value>1||value==0&&speed<0||value==1&&speed>0?0:speed;
     }
 }

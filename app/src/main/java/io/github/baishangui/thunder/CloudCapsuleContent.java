@@ -58,9 +58,26 @@ final class CloudCapsuleContent {
                     if(!owned&&item.getAlpha()<1)canvas.saveLayerAlpha(null,Math.round(255*item.getAlpha()));
                     item.draw(canvas);canvas.restoreToCount(contentSave);
                 }
-            }else if(!capsuleChild)child.draw(canvas);
+            }else if(!capsuleChild) {
+                if(child==anchor&&child instanceof ViewGroup mini)drawMiniContent(canvas,mini);
+                else child.draw(canvas);
+            }
             canvas.restoreToCount(childSave);
         }
         canvas.restoreToCount(save);
+    }
+    private static void drawMiniContent(Canvas canvas,ViewGroup mini) {
+        // Its XML background has a fixed 20dp G2 radius. The independent body
+        // already supplies the fill and clipping, so only the live mini content
+        // belongs here; drawing mini itself would put the old silhouette back.
+        for(int i=0;i<mini.getChildCount();i++) {
+            View child=mini.getChildAt(i);
+            if(child.getVisibility()!=View.VISIBLE||child.getAlpha()<=0)continue;
+            int save=canvas.save();
+            canvas.translate(child.getLeft()-mini.getScrollX(),child.getTop()-mini.getScrollY());
+            canvas.concat(child.getMatrix());
+            if(child.getAlpha()<1)canvas.saveLayerAlpha(null,Math.round(255*child.getAlpha()));
+            child.draw(canvas);canvas.restoreToCount(save);
+        }
     }
 }

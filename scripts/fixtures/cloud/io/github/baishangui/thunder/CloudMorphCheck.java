@@ -44,11 +44,11 @@ public class CloudMorphCheck {
         CAPSULE_TO_LARGE_INSTANT_CARD,CAPSULE_TO_SMALL_INSTANT_CARD,CAPSULE_TO_SMALL_INSTANT_CARD_WITH_BLANK,
         LARGE_INSTANT_CARD_TO_CAPSULE,SMALL_INSTANT_CARD_TO_CAPSULE,SMALL_INSTANT_CARD_TO_CAPSULE_WITH_BLANK,
         CARD_TO_APP,LOCKSCREEN_TO_CARD,CARD_TO_CAPSULE_WITHOUT_ANIM,
-        APP_TO_CAPSULE,APP_TO_CAPSULE_WITH_NONE,CAPSULE_APPEAR,CAPSULE_WIDTH_CHANGE,CAPSULE_UPDATE_DATA_WITHOUT_ANIM,CAPSULE_DISAPPEAR,SINGLE_CAPSULE_TO_APP,MULTI_CAPSULE_TO_APP
+        APP_TO_CAPSULE,APP_TO_CAPSULE_WITH_NONE,CAPSULE_APPEAR,CAPSULE_SEIZE,CAPSULE_BUBBLE_SWITCH,CAPSULE_WIDTH_CHANGE,CAPSULE_UPDATE_DATA_WITHOUT_ANIM,CAPSULE_DISAPPEAR,SINGLE_CAPSULE_TO_APP,MULTI_CAPSULE_TO_APP
     }
     public static class Scene {
         public Window j=new Window(),k=j;public android.content.Context a=new android.content.Context(),l=a,i=a;
-        Kind kind;public Kind f(){return kind;}
+        Kind kind;public Kind f(){return kind;}Object state;
         com.oplus.systemui.plugins.seedling.animatorscenes.Z condition;
     }
     static HookCallback hook(String key){var h=Api102Runtime.callbacks.get(BASE+key);check(h!=null,"Missing boundary: "+key);return h;}
@@ -56,6 +56,7 @@ public class CloudMorphCheck {
         scene.kind=Kind.valueOf(name);
         var graph=new com.oplus.systemui.plugins.seedling.engine.animatorengine.h();
         var builder=new com.oplus.systemui.plugins.seedling.animatorscenes.B0(scene,graph);scene.condition=builder.condition;
+        builder.d=scene.state;
         var c=hook("animatorscenes.B0#invoke");var p=CloudCheck.param(builder,null);c.before(p);p.setResult(builder.invoke());c.after(p);
         var g=hook("engine.animatorengine.h#g");p=CloudCheck.param(p.getResult(),original,new Object());g.before(p);g.after(p);
         check(p.getResult()==original,"native animator identity and lifetime are preserved: "+name);
@@ -65,7 +66,7 @@ public class CloudMorphCheck {
     static Animator directBuild(Scene scene,String source,String name,Animator original)throws Throwable {
         scene.kind=Kind.valueOf(name);
         var graph=new com.oplus.systemui.plugins.seedling.engine.animatorengine.h();
-        var direct=CloudCheck.param(scene,graph);hook("animatorscenes."+source+"#c").after(direct);
+        var direct=CloudCheck.param(scene,graph,new Object(),scene.state);hook("animatorscenes."+source+"#c").after(direct);
         var p=CloudCheck.param(graph,original,new Object());hook("engine.animatorengine.h#g").after(p);
         check(p.getResult()==original,"direct entry preserves the native animator");
         return original;
@@ -80,11 +81,99 @@ public class CloudMorphCheck {
     static void complete(Animator nativeAnimator){for(ValueAnimator value:new ArrayList<>(ValueAnimator.running))value.end();nativeAnimator.end();}
     static CloudMorphSurface surface(){return CloudMorphSurface.created.get(CloudMorphSurface.created.size()-1);}
     static View card(int w,int h){View v=new View();v.actualWidth=w;v.actualHeight=h;return v;}
+    static CloudMorphHook.Frame movingGate(CloudMorphSurface body){
+        float dt=.0001f;var before=body.presentation();var after=CloudVisibilityState.presentation(body.frame,body.hostAmount-dt);
+        return new CloudMorphHook.Frame((after.x()-before.x())/dt,(after.y()-before.y())/dt,(after.width()-before.width())/dt,
+            (after.height()-before.height())/dt,(after.radius()-before.radius())/dt,0);
+    }
+    static void checkInitialWidthVelocity(CloudMorphSurface body,float startWidth,float expected,String message){
+        var animator=clock();float fraction=.0001f;animator.advance(fraction);
+        float actual=(body.frame.width()-startWidth)/(fraction*animator.duration/1000f);
+        check(Math.abs(actual-expected)<Math.max(8,Math.abs(expected)*.08f),message+" expected="+expected+" actual="+actual);
+    }
+    @SuppressWarnings("unchecked")
+    static CloudMorphHook.Frame logicalVelocity(CloudMorphSurface body)throws Exception{
+        var field=CloudMorphHook.class.getDeclaredField("velocities");field.setAccessible(true);
+        return ((Map<View,CloudMorphHook.Frame>)field.get(null)).get(body.container);
+    }
+    static float[] components(CloudMorphHook.Frame frame){return new float[]{frame.x(),frame.y(),frame.width(),frame.height(),frame.radius()};}
+    static void checkFrame(CloudMorphHook.Frame expected,CloudMorphHook.Frame actual,float tolerance,String message){
+        var left=components(expected);var right=components(actual);
+        for(int i=0;i<left.length;i++)check(Math.abs(left[i]-right[i])<=tolerance,message+" component="+i+" expected="+left[i]+" actual="+right[i]);
+    }
+    static void checkPresentationVelocity(CloudMorphHook.Frame before,CloudMorphHook.Frame after,CloudMorphHook.Frame expected,float seconds,String message){
+        var first=components(before);var next=components(after);var speed=components(expected);
+        for(int i=0;i<first.length;i++){
+            float actual=(next[i]-first[i])/seconds;
+            check(Math.abs(actual-speed[i])<Math.max(8,Math.abs(speed[i])*.08f),message+" component="+i+" expected="+speed[i]+" actual="+actual);
+        }
+    }
+    static void verifyClosedHostHandoff(Scene entry,CloudMorphSurface body,Bundle config)throws Throwable{
+        for(int curve=0;curve<4;curve++)for(boolean invisible:new boolean[]{false,true}){
+            config.putInt("cloud_animation_curve",curve);config.putBoolean("cloud_corner_enabled",true);config.putInt("cloud_corner",0);CloudCheck.config(config);
+            body.simulateHostGate=false;body.hostAllowed=true;body.businessAllowed=true;body.hostAmount=1;body.hostOpacityLimit=1;body.hostGate.host(1);
+            Animator appear=new Animator();build(entry,"CAPSULE_APPEAR",appear).start();complete(appear);
+            Animator hide=new Animator();build(entry,"CAPSULE_DISAPPEAR",hide).start();clock().advance(.55f);
+            if(invisible)body.opacity(0);
+            body.simulateHostGate=true;nativeHostVisibility(false);body.sampleHost(.4f);
+            var before=body.presentation();var speed=logicalVelocity(body);float alpha=body.presentationOpacity();
+            Animator incoming=new Animator();directBuild(entry,"e","APP_TO_CAPSULE",incoming).start();
+            checkFrame(before,body.presentation(),.0001f,"hide→host(false)→entry preserves the actual shape at curve "+curve);
+            check(Math.abs(body.presentationOpacity()-alpha)<.0001f,"closed-host entry preserves brightness without a second alpha gate at curve "+curve);
+            check(!body.hostAllowed&&body.hostAmount==1,"closed-host entry rebases its snapshot while retaining the real host(false) decision");
+            float epsilon=.0001f;var visualClock=clock();visualClock.advance(epsilon);body.sampleHost(epsilon);
+            checkPresentationVelocity(before,body.presentation(),speed,epsilon*visualClock.duration/1000f,"closed-host entry inherits the visible tangent at curve "+curve);
+            for(float fraction:new float[]{.05f,.25f,.5f,.8f,1}){
+                visualClock.advance(fraction);body.sampleHost(fraction);
+                if(invisible)check(body.presentationOpacity()==0,"an invisible old hide cannot reappear under a closed host at curve "+curve);
+            }
+            incoming.end();hide.end();
+            check(!body.hostAllowed&&body.hostAmount==0&&body.presentationOpacity()==0,"entry completion cannot reopen the control-center host gate at curve "+curve);
+            if(invisible){
+                body.sampleHost(1);nativeHostVisibility(true);float reopenedAlpha=body.presentationOpacity();
+                check(reopenedAlpha==0,"host(true) starts from the closed handoff brightness at curve "+curve);
+                body.sampleHost(.0001f);check(body.presentationOpacity()<.001f,"host(true) reveals a capped entry continuously at curve "+curve);
+                body.sampleHost(1);check(body.presentationOpacity()==1,"a genuine host show eventually restores the new entry");
+            }
+        }
+        for(int curve=0;curve<4;curve++){
+            config.putInt("cloud_animation_curve",curve);CloudCheck.config(config);
+            body.simulateHostGate=false;body.hostAllowed=true;body.businessAllowed=true;body.hostAmount=1;body.hostOpacityLimit=1;body.hostGate.host(1);
+            Animator appear=new Animator();build(entry,"CAPSULE_APPEAR",appear).start();complete(appear);
+            Animator hide=new Animator();build(entry,"CAPSULE_DISAPPEAR",hide).start();clock().advance(.35f);body.opacity(.05f);
+            body.simulateHostGate=true;nativeHostVisibility(false);body.sampleHost(.4f);
+            Animator incoming=new Animator();directBuild(entry,"e","APP_TO_CAPSULE",incoming).start();
+            var visualClock=clock();visualClock.advance(.1f);body.sampleHost(.1f);float alpha=body.presentationOpacity();
+            check(alpha>0&&alpha<=.05f,"closed entry retains the old dim body while its new raw opacity grows");
+            nativeHostVisibility(true);
+            check(Math.abs(body.presentationOpacity()-alpha)<.0001f,"host(true) cannot instantly discard a closed-handoff alpha cap at curve "+curve);
+            body.sampleHost(.0001f);
+            check(Math.abs(body.presentationOpacity()-alpha)<.001f,"host(true) begins revealing the closed-handoff cap continuously at curve "+curve);
+            body.sampleHost(1);complete(incoming);hide.end();
+            check(body.hostAllowed&&body.presentationOpacity()==1,"real host reveal restores full brightness after the closed entry");
+        }
+        config.putInt("cloud_animation_curve",3);config.putBoolean("cloud_corner_enabled",false);CloudCheck.config(config);
+        body.simulateHostGate=false;body.hostAllowed=true;body.businessAllowed=true;body.hostAmount=1;body.hostOpacityLimit=1;body.hostGate.host(1);
+        body.frame(new CloudMorphHook.Frame(440,10,80,80,40,0));
+        Animator miniHide=new Animator();build(entry,"CAPSULE_DISAPPEAR",miniHide).start();
+        body.simulateHostGate=true;nativeHostVisibility(false);
+        var miniStart=body.presentation();var miniSpeed=logicalVelocity(body);
+        Animator miniEntry=new Animator();directBuild(entry,"e","APP_TO_CAPSULE",miniEntry).start();
+        checkFrame(miniStart,body.presentation(),.0001f,"same-frame mini hide→closed-host→wide entry preserves its square source");
+        var miniClock=clock();miniClock.advance(.0001f);body.sampleHost(.0001f);
+        checkPresentationVelocity(miniStart,body.presentation(),miniSpeed,.0001f*miniClock.duration/1000f,
+            "linear mini handoff keeps an explicitly cancelled zero logical speed instead of restoring the default slope");
+        miniClock.end();body.sampleHost(1);miniEntry.end();miniHide.end();
+        config.putInt("cloud_animation_curve",0);config.putBoolean("cloud_corner_enabled",false);CloudCheck.config(config);
+        body.simulateHostGate=false;body.hostAllowed=true;body.businessAllowed=true;body.hostAmount=1;body.hostOpacityLimit=1;body.hostGate.host(1);
+        Animator restore=new Animator();build(entry,"CAPSULE_APPEAR",restore).start();complete(restore);
+    }
     public static void main(String[] args)throws Throwable {
         CloudHook.install(CloudMorphCheck.class.getClassLoader());
         Bundle b=new Bundle();b.putBoolean("enabled",true);b.putBoolean("cloud_enabled",true);CloudCheck.config(b);
         check(!Api102Runtime.callbacks.containsKey("com.oplus.systemui.plugins.r8.O3#a"),"native press is untouched");
         var container=i.instance.c.container;var capsule=container.capsule;
+        container.screenX=0;container.screenY=0;container.measuredWidth=960;container.measuredHeight=100;
         capsule.actualWidth=240;capsule.actualHeight=80;capsule.drawableWidth=0;
         capsule.screenX=360;capsule.screenY=10;
         hook("capsule.ui.view.CapsuleContainerRoot#onTouchEvent").before(CloudCheck.param(new TouchRoot(),null,new Object()));
@@ -129,6 +218,61 @@ public class CloudMorphCheck {
         Animator interruptedEntry=new Animator();directBuild(entry,"h","CAPSULE_APPEAR",interruptedEntry).start();
         check(initialBody.frame.width()==pulseWidth,"entry interruption inherits the presented pulse geometry");
         complete(interruptedEntry);
+        // Native p() keeps the current key until its callback. The incoming view
+        // can also retain its previous layout while measurement is already final.
+        var incoming=new i.Capsule();incoming.actualWidth=120;incoming.actualHeight=80;
+        incoming.targetWidth=360;incoming.targetHeight=80;incoming.screenX=420;incoming.screenY=10;
+        container.incoming.put("incoming",incoming);
+        entry.state=new com.oplus.systemui.plugins.seedling.statemachine.fluid.d("incoming");
+        entry.kind=Kind.APP_TO_CAPSULE;
+        hook("animatorscenes.e#p").before(CloudCheck.param(entry,null,new Object(),entry.state,new Object()));
+        nativeBusinessVisibility(false);
+        hook("capsule.ui.view.CapsuleContainer#onLayout").after(CloudCheck.param(container,null,false,0,0,240,80));
+        check(initialBody.capsule==capsule&&initialBody.frame.width()==240&&initialBody.opacity==1,"replacement reservation preserves the currently presented capsule until native handoff");
+        check(initialBody.visible(),"replacement pre-hide cannot close the existing body business gate before native entry starts");
+        Animator replacement=new Animator();directBuild(entry,"e","APP_TO_CAPSULE",replacement).start();
+        check(initialBody.capsule==incoming&&initialBody.frame.width()==240&&initialBody.opacity==1,"incoming service inherits the existing visible body at native start while current key is still old");
+        clock().advance(.45f);
+        check(initialBody.frame.width()>240&&initialBody.frame.width()<360&&initialBody.opacity==1,"existing capsule begins its continuous measured-size transition with the incoming content");
+        float replacementMid=initialBody.frame.width();
+        hook("capsule.ui.view.CapsuleContainer#onLayout").after(CloudCheck.param(container,null,false,0,0,240,80));
+        check(initialBody.frame.width()==replacementMid&&initialBody.capsule==incoming,"old container key and stale incoming layout cannot retarget the new service back to the previous width");
+        complete(replacement);check(initialBody.frame.width()==360,"service entry reaches incoming measured width without waiting for current key or layout width to change");
+        check(initialBody.frame.x()==300,"incoming measurement stays centered on the native capsule anchor");
+        hook("capsule.ui.view.CapsuleContainer#onLayout").after(CloudCheck.param(container,null,false,0,0,240,80));
+        check(initialBody.frame.width()==360&&ValueAnimator.running.isEmpty(),"native-end old-key layout cannot send a completed incoming service back to the previous service size");
+        container.incoming.put("third",capsule);container.l="third";
+        hook("capsule.ui.view.CapsuleContainer#onLayout").after(CloudCheck.param(container,null,false,0,0,240,80));
+        clock().end();check(initialBody.frame.width()==240&&initialBody.capsule==capsule,"a genuinely later native selection releases the pending old-key endpoint");
+        container.l="current";
+        var unlaid=new i.Capsule();unlaid.actualWidth=0;unlaid.actualHeight=0;unlaid.targetWidth=320;unlaid.targetHeight=80;unlaid.parent=container;
+        container.incoming.put("measured-first",unlaid);
+        entry.state=new com.oplus.systemui.plugins.seedling.statemachine.fluid.d("measured-first");
+        Animator measuredFirst=new Animator();directBuild(entry,"e","APP_TO_CAPSULE",measuredFirst).start();
+        complete(measuredFirst);
+        check(initialBody.frame.width()==320&&initialBody.frame.x()==320&&initialBody.frame.y()==10,"measurement before first layout uses the native parent center rather than a negative zero-layout origin");
+        // A slide is CAPSULE_SEIZE and can return a graph directly, bypassing B0.
+        entry.state=new com.oplus.systemui.plugins.seedling.statemachine.fluid.d("current");
+        Animator slide=new Animator();directBuild(entry,"m","CAPSULE_SEIZE",slide).start();
+        check(initialBody.frame.width()==320,"swipe inherits its currently presented shape");
+        clock().advance(.5f);check(initialBody.frame.width()>240&&initialBody.frame.width()<320,"native swipe changes the capsule shape along with text and moons");
+        complete(slide);check(initialBody.frame.width()==240,"swipe settles at the selected service width");
+        entry.state=new com.oplus.systemui.plugins.seedling.statemachine.fluid.i(240,360);
+        capsule.targetWidth=360;capsule.drawableWidth=24;
+        Animator drawableGoal=new Animator();directBuild(entry,"A","CAPSULE_WIDTH_CHANGE",drawableGoal).start();
+        clock().advance(.4f);check(initialBody.frame.width()>240&&initialBody.frame.width()<360,"drawable-width scene morphs despite unchanged layout bounds and a transient native width");
+        complete(drawableGoal);check(initialBody.frame.width()==360,"last native width segment supplies the final drawable target");
+        entry.state=new com.oplus.systemui.plugins.seedling.statemachine.fluid.i(360,285,410);
+        Animator drawableWithoutMeasure=new Animator();directBuild(entry,"A","CAPSULE_WIDTH_CHANGE",drawableWithoutMeasure).start();
+        clock().end();check(initialBody.frame.width()==410,"native terminal drawable width wins even before final measurement catches up");
+        drawableWithoutMeasure.end();
+        hook("capsule.ui.view.CapsuleContainer#onLayout").after(CloudCheck.param(container,null,false,0,0,240,80));
+        check(initialBody.frame.width()==410&&ValueAnimator.running.isEmpty(),"native-end stale measurement cannot rewind an explicit drawable endpoint");
+        capsule.targetWidth=410;
+        hook("capsule.ui.view.CapsuleContainer#onLayout").after(CloudCheck.param(container,null,false,0,0,240,80));
+        check(initialBody.frame.width()==410&&ValueAnimator.running.isEmpty(),"matching final measurement acknowledges the drawable endpoint without restarting it");
+        capsule.targetWidth=-1;capsule.drawableWidth=0;entry.state=null;
+        hook("capsule.ui.view.CapsuleContainer#onLayout").after(CloudCheck.param(container,null,false,0,0,240,80));clock().end();
         Scene unavailableEntry=new Scene();unavailableEntry.kind=Kind.APP_TO_CAPSULE;
         hook("animatorscenes.e#p").before(CloudCheck.param(unavailableEntry,null,new Object(),new Object(),new Object()));
         var noAnimatorGraph=new com.oplus.systemui.plugins.seedling.engine.animatorengine.h();
@@ -151,6 +295,33 @@ public class CloudMorphCheck {
         check(initialBody.frame.width()<80&&initialBody.frame.height()<40,"business disappearance retracts the capsule geometry instead of only fading it");
         complete(disappear);
         Animator appearAgain=new Animator();build(entry,"CAPSULE_APPEAR",appearAgain).start();complete(appearAgain);initialBody=surface();
+        initialBody.hostAmount=.55f;
+        var hostRetracted=initialBody.presentation();float hostAlpha=initialBody.presentationOpacity();
+        var hideSpeed=movingGate(initialBody);initialBody.presentedVelocity=hideSpeed;
+        Animator overlappingHide=new Animator();build(entry,"CAPSULE_DISAPPEAR",overlappingHide).start();
+        check(initialBody.capsuleHideOwned&&initialBody.frame.equals(hostRetracted)&&Math.abs(initialBody.opacity-hostAlpha)<.0001f,"business hide inherits the visible host geometry and alpha with one contraction owner");
+        checkInitialWidthVelocity(initialBody,hostRetracted.width(),hideSpeed.width(),"business hide inherits the gate width velocity instead of braking at owner handoff");
+        float hideCenterX=hostRetracted.x()+hostRetracted.width()/2,hideCenterY=hostRetracted.y()+hostRetracted.height()/2;
+        clock().advance(.6f);
+        check(Math.abs(initialBody.frame.x()+initialBody.frame.width()/2-hideCenterX)<.001f&&Math.abs(initialBody.frame.y()+initialBody.frame.height()/2-hideCenterY)<.001f,"overlapping hide contracts around its presented center without multiplying host geometry");
+        complete(overlappingHide);
+        Animator afterOverlap=new Animator();build(entry,"CAPSULE_APPEAR",afterOverlap).start();complete(afterOverlap);initialBody=surface();
+        initialBody.hostAmount=.2f;initialBody.businessAllowed=false;
+        var partialBusiness=initialBody.presentation();float partialAlpha=initialBody.presentationOpacity();
+        var entrySpeed=movingGate(initialBody);initialBody.presentedVelocity=entrySpeed;
+        Animator businessEntry=new Animator();directBuild(entry,"e","APP_TO_CAPSULE",businessEntry).start();
+        check(initialBody.frame.equals(partialBusiness)&&Math.abs(initialBody.presentationOpacity()-partialAlpha)<.0001f&&initialBody.businessAllowed&&initialBody.hostAmount==1,"entry absorbs a partly hidden business gate from its actual geometry and brightness without multiplying a second reveal");
+        checkInitialWidthVelocity(initialBody,partialBusiness.width(),entrySpeed.width(),"entry inherits the gate width velocity before reversing toward the capsule");
+        clock().advance(.5f);
+        check(initialBody.frame.width()>partialBusiness.width()&&initialBody.frame.width()<240&&initialBody.presentationOpacity()>partialAlpha&&initialBody.visible(),"business-hide interruption restores one continuous visible capsule trajectory");
+        complete(businessEntry);
+        initialBody.hostAllowed=false;initialBody.hostAmount=.2f;
+        initialBody.presentedVelocity=movingGate(initialBody);int sampledGateSpeeds=initialBody.presentationVelocityCalls;
+        Animator shadedEntry=new Animator();directBuild(entry,"e","APP_TO_CAPSULE",shadedEntry).start();
+        check(!initialBody.visible()&&initialBody.hostAmount==.2f,"entry cannot absorb or reset a genuinely hidden control-center host gate");
+        check(initialBody.presentationVelocityCalls==sampledGateSpeeds,"host(false) entry retains logical velocity instead of absorbing the independently running host gate");
+        complete(shadedEntry);initialBody.hostAllowed=true;initialBody.hostAmount=1;
+        verifyClosedHostHandoff(entry,initialBody,b);
         Scene scene=new Scene();var normal=new com.oplus.systemui.plugins.seedling.card.ui.view.CardView();
         normal.actualWidth=800;normal.actualHeight=400;normal.screenX=100;normal.screenY=120;
         scene.j.g.cards.addView(normal);scene.j.g.cards.cards.add(normal);
@@ -263,6 +434,6 @@ public class CloudMorphCheck {
         check(!surface().visible(),"w(false) observed while disabled survives re-enabling and late Body creation");
         nativeBusinessVisibility(true);check(!surface().visible(),"re-enabled business show still respects the cached outer host gate");
         nativeHostVisibility(true);check(surface().visible(),"re-enabled session recovers on the real outer host show");
-        System.out.println("Verified "+checks+" unified-object lifecycle checks (platform rendering verified separately on device).");
+        System.out.println("Verified "+checks+" unified-object lifecycle checks (platform rendering requires separate device validation).");
     }
 }

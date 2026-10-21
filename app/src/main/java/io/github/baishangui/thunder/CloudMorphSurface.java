@@ -73,7 +73,8 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     private final Object outline;
     private Object material,insetsListener;
     private View capsule,card,owner,capsuleContent,cardContent,capsuleRoot,cardRoot;
-    private boolean instant,attached,expanded,disposed,materialReady,settled,scaleListenerRegistered,capsuleMotionOwned;
+    private boolean instant,attached,expanded,disposed,materialReady,settled,scaleListenerRegistered,capsuleMotionOwned,capsuleHideOwned,capsuleEntryPresentation;
+    private float hostOpacityLimit=1f;
     private final ValueAnimator.DurationScaleChangeListener durationScaleChanged=this::onDurationScaleChanged;
     private final ArrayList<View> layoutSources=new ArrayList<>();
     private ViewTreeObserver geometryObserver;
@@ -82,6 +83,7 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     private HookConfig styledConfig;
     private View styledCapsule;
     private Drawable nativeCapsuleBackground,styledBackground,cardDecoration;
+    private final CloudSurfacePolicy.CapsuleBackground<Drawable> capsuleBackground=new CloudSurfacePolicy.CapsuleBackground<>();
     private CloudNativeMaterial nativeMaterial;
     private CloudNativeDecoration capsuleDecoration;
     private final CloudVisibilityState visibility=new CloudVisibilityState();
@@ -140,6 +142,13 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     }
     boolean disposed(){return disposed;}
     CloudMorphHook.Frame current(){return disposed?null:current;}
+    CloudMorphHook.Frame presentation(){return disposed?null:presented;}
+    CloudMorphHook.Frame presentationVelocity(CloudMorphHook.Frame logicalVelocity) {
+        if(disposed||current==null)return null;
+        CloudMorphSurface host=parent==null?this:parent;
+        return host.capsuleHideOwned?logicalVelocity:host.visibility.presentationVelocity(current,logicalVelocity);
+    }
+    float presentationOpacity(){return body.getAlpha();}
     float opacity(){return visibility.motion();}
     void opacity(float value){visibility.motion(value);applyOpacity();}
     /** Native w/y gates have an interruptible silhouette independent from the form trajectory. */
@@ -158,27 +167,32 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         if(visibility.shown()==shown)return;
         visibility.shown(shown);
         if(!shown)cancelInputTree();
-        if(hostVisibilityClock!=null){hostVisibilityClock.cancel();hostVisibilityClock=null;}
+        if(hostVisibilityClock!=null){ValueAnimator previous=hostVisibilityClock;hostVisibilityClock=null;previous.cancel();}
         // Cached host/business gates are applied before a late-created window is mounted.
         // There is no prior visible frame to fade from in that case.
-        if(!attached){visibility.host(shown?1f:0f);applyOpacity();return;}
-        float from=visibility.host(),to=shown?1f:0f;
+        if(!attached){visibility.host(shown?1f:0f);if(shown)hostOpacityLimit=1f;applyOpacity();return;}
         HookConfig config=ShadeHook.snapshot();
+        float initialLimit=hostOpacityLimit;
+        visibility.beginHost(shown?1f:0f,config.cloudAnimationDuration,config.cloudAnimationCurve);
+        visibility.sampleHost(0); // Make the new gate's initial velocity available before scene handoff.
         ValueAnimator clock=ValueAnimator.ofFloat(0f,1f);
         hostVisibilityClock=clock;clock.setDuration(config.cloudAnimationDuration);
         clock.setInterpolator(new android.view.animation.LinearInterpolator());
         clock.addUpdateListener(value->{if(!disposed&&hostVisibilityClock==clock){
-            float phase=CloudMorphTiming.progress(((Number)value.getAnimatedValue()).floatValue(),config.cloudAnimationCurve,0);
-            visibility.host(from+(to-from)*phase);applyOpacity();
+            float fraction=((Number)value.getAnimatedValue()).floatValue();
+            visibility.sampleHost(fraction);
+            if(shown)hostOpacityLimit=initialLimit+(1f-initialLimit)*CloudCardTiming.opacity(fraction);
+            applyOpacity();
         }});
         clock.addListener(new AnimatorListenerAdapter(){
-            @Override public void onAnimationEnd(Animator animation){if(hostVisibilityClock==clock)hostVisibilityClock=null;}
+            @Override public void onAnimationEnd(Animator animation){if(hostVisibilityClock==clock){visibility.finishHost();hostVisibilityClock=null;}}
         });
         applyOpacity();clock.start();
     }
     private void applyOpacity() {
-        body.setAlpha(visibility.composed());
-        int desired=lifetimeVisible&&visibility.composed()>0f?View.VISIBLE:View.INVISIBLE;
+        float amount=capsuleHideOwned?visibility.motion():Math.min(visibility.motion(),hostOpacityLimit)*Math.min(1f,visibility.host()*4f);
+        body.setAlpha(amount);
+        int desired=lifetimeVisible&&amount>0f?View.VISIBLE:View.INVISIBLE;
         if(body.getVisibility()!=desired)body.setVisibility(desired);
         if(current!=null)applyFrameGeometry(current);
         for(CloudMorphSurface layer:layers.values())if(layer.current!=null)layer.applyFrameGeometry(layer.current);
@@ -325,13 +339,43 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     void beginTransition(boolean cardTransition,boolean opening){
         inputOwnership.begin(cardTransition,opening);
         if(cardTransition&&!opening)cancelInputTree();
-        if(cardTransition&&parent==null){visibility.allowBusiness(true);setHostVisibility(visibility.targetShown());}
+        // Native p() pre-hides the capsule before an entry graph. Once this
+        // graph owns its body, its opacity clock also owns that business reveal.
+        if(parent==null&&(cardTransition||capsuleMotionOwned&&!capsuleHideOwned)){
+            visibility.allowBusiness(true);
+            if(capsuleMotionOwned&&!capsuleHideOwned&&capsuleEntryPresentation) {
+                // Entry starts at the actual presentation snapshot, so it can
+                // finish the previous reveal itself. Rebase a still-closed host
+                // gate around this snapshot without opening the real host gate.
+                hostOpacityLimit=visibility.hostAllowed()?1f:body.getAlpha();
+                if(hostVisibilityClock!=null){ValueAnimator previous=hostVisibilityClock;hostVisibilityClock=null;previous.cancel();}
+                visibility.host(1);visibility.shown(true);
+                setHostVisibility(visibility.targetShown());
+            }else setHostVisibility(visibility.targetShown());
+        }
         updateInputRegion();queueNativeInputSync();
     }
+    boolean capsuleEntryHandoff(){return parent==null&&(visibility.hostAllowed()||capsuleHideOwned);}
+    void capsuleEntryPresentation(boolean value){capsuleEntryPresentation=value;}
+    boolean capsuleEntryClosedHandoff(){return capsuleEntryPresentation&&!visibility.hostAllowed();}
+    CloudMorphHook.Frame transitionVelocity(CloudMorphHook.Frame start,CloudMorphHook.Frame presentedVelocity) {
+        if(!capsuleEntryPresentation||visibility.host()!=1f)return presentedVelocity;
+        // At the rebased p=1, the logical Jacobian is identity. Subtract the
+        // independent gate's derivative, including linear-curve initial speed.
+        CloudMorphHook.Frame gate=visibility.presentationVelocity(start,null);
+        CloudMorphHook.Frame speed=presentedVelocity==null?new CloudMorphHook.Frame(0,0,0,0,0,0):presentedVelocity;
+        return new CloudMorphHook.Frame(speed.x()-gate.x(),speed.y()-gate.y(),speed.width()-gate.width(),
+            speed.height()-gate.height(),speed.radius()-gate.radius(),speed.progress()-gate.progress());
+    }
     void capsuleMotionOwned(boolean owned){capsuleMotionOwned=owned;}
+    void capsuleHideOwned(boolean owned){capsuleHideOwned=owned;}
+    boolean capsuleHideOwned(){return capsuleHideOwned;}
     private void applyFrameGeometry(CloudMorphHook.Frame frame) {
         current=frame;
-        frame=CloudVisibilityState.presentation(frame,parent==null?visibility.host():parent.visibility.host());
+        CloudMorphSurface host=parent==null?this:parent;
+        // A disappear scene takes over the already presented frame. Applying
+        // the native w/y gate as well would shrink and fade that same exit twice.
+        frame=CloudVisibilityState.presentation(frame,host.capsuleHideOwned?1f:host.visibility.host());
         presented=frame;
         int width=Math.max(1,Math.round(frame.width())),height=Math.max(1,Math.round(frame.height()));
         FrameLayout.LayoutParams child=(FrameLayout.LayoutParams)shape.getLayoutParams();
@@ -420,7 +464,7 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     }
     private void updateStyle() {
         if(disposed||!materialReady)return;
-        if(capsule!=null)nativeCapsuleBackground=capsule.getBackground();
+        nativeCapsuleBackground=capsuleBackground.resolve(capsule==null?null:capsule.getBackground(),this::fallbackCapsuleBackground);
         HookConfig config=ShadeHook.snapshot();
         if(config==styledConfig&&styledCapsule==capsule&&styledBackground==nativeCapsuleBackground) {
             if(capsuleDecoration!=null)capsuleDecoration.refresh();
@@ -439,11 +483,24 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         shape.setBackground(nativeMaterial.blur);
         nativeMaterial.apply(current==null?0:current.progress(),config.cloudArea.blur);
         shape.setOutlineProvider((ViewOutlineProvider)outline);shape.setClipToOutline(true);
-        if(current!=null) {
-            float radius=Math.max(0,Math.min(current.radius(),Math.min(current.width(),current.height())/2f));
-            Reflect.callMethod(material,"setCornerRadius",radius);CloudHook.round(shape.getBackground(),radius,current.progress()>.001f);
+        if(presented!=null) {
+            float radius=Math.max(0,Math.min(presented.radius(),Math.min(presented.width(),presented.height())/2f));
+            Reflect.callMethod(material,"setCornerRadius",radius);CloudHook.round(shape.getBackground(),radius,presented.progress()>.001f);
         }
         shape.invalidate();
+    }
+    private Drawable fallbackCapsuleBackground() {
+        Object mini=Reflect.callMethod(container,"getMiniView");
+        if(mini instanceof View view&&view.getBackground()!=null)return view.getBackground();
+        if(container instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++) {
+            View child=group.getChildAt(i);
+            if(isNativeCapsule(child)&&child.getBackground()!=null)return child.getBackground();
+        }
+        // This is the ordinary CapsuleView constructor resource in this host.
+        // Keep its colors when late binding has not supplied a source plate yet.
+        int id=container.getResources().getIdentifier("capsule_view_bg_ic","drawable","com.oplus.systemui.plugins");
+        if(id==0)throw new IllegalStateException("Native capsule fill resource unavailable");
+        return container.getResources().getDrawable(id,container.getContext().getTheme());
     }
     private void hide(View view) {
         if(view==null||view==body||view==shape)return;
@@ -514,7 +571,8 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
             applyOpacity();
             queueNativeInputSync();
             suppressNative();updateStyle();
-            float press=settled&&current!=null&&current.progress()==0f&&!expanded&&capsule!=null?
+            float press=settled&&current!=null&&current.progress()==0f&&!expanded&&capsule!=null&&
+                visibility.shown()&&visibility.host()==1f&&!capsuleMotionOwned?
                 Math.max(.94f,Math.min(1.04f,capsule.getScaleX()*container.getScaleX())):1f;
             if(shape.getScaleX()!=press||shape.getScaleY()!=press){shape.setScaleX(press);shape.setScaleY(press);updateInputRegion();}
             // Invalidate the separate content only for a real native traversal. Never invalidate its root.

@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Looper;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -62,6 +63,20 @@ public final class CloudCapsuleContentDeviceCheck {
         CloudCapsuleContent.draw(canvas,container,incoming,200,40,1,false,content::containsKey,content::get,true);
         check(pixels.getPixel(25,20)==Color.RED,"owned app entry must suppress native wrapper/item entry alpha and matrix");
         check(Color.alpha(pixels.getPixel(90,20))==0,"owned entry must not draw a second native-shifted capsule");
+        FrameLayout miniContainer=frame(context,0,0,300,60),mini=frame(context,30,0,200,40);
+        ColorDrawable nativeBackground=new ColorDrawable(Color.MAGENTA),nativeForeground=new ColorDrawable(Color.CYAN);
+        mini.setBackground(nativeBackground);mini.setForeground(nativeForeground);
+        View miniItem=fill(context,Color.GREEN,0,0,20,40);
+        mini.addView(miniItem);miniItem.layout(0,0,20,40);miniItem.setTranslationX(10);miniItem.setAlpha(.5f);
+        miniContainer.addView(mini);mini.layout(30,0,230,40);pixels.eraseColor(Color.TRANSPARENT);
+        CloudCapsuleContent.draw(canvas,miniContainer,mini,200,40,1,false,view->false,view->null);
+        int miniPixel=pixels.getPixel(35,20);
+        check(Color.green(miniPixel)>240&&Color.alpha(miniPixel)>=126&&Color.alpha(miniPixel)<=129,
+            "mini content must retain its native item matrix and alpha");
+        check(Color.alpha(pixels.getPixel(100,20))==0,
+            "mini fixed-radius background and foreground must not paint over the unified shape");
+        check(mini.getBackground()==nativeBackground&&mini.getForeground()==nativeForeground,
+            "drawing mini content must not mutate native source decoration");
         System.out.println("CloudCapsuleContentDeviceCheck: "+checks+" real Android switch/moon/alpha checks passed");
     }
 }

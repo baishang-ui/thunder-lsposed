@@ -15,10 +15,14 @@ public class i {
         public boolean j(){return mini;}
         public android.view.View getMiniView(){return miniView;}
         public final Capsule capsule=new Capsule();
-        public Capsule f(String key){return unbound?null:capsule;}
+        public final java.util.Map<String,Capsule> incoming=new java.util.HashMap<>();
+        public Capsule f(String key){return unbound?null:incoming.getOrDefault(key,capsule);}
     }
     public static class Capsule extends com.oplus.systemui.plugins.seedling.capsule.ui.view.CapsuleView {
         public int drawableWidth=-1;
+        public int targetWidth=-1,targetHeight=-1;
+        @Override public int getMeasuredWidth(){return targetWidth<0?getWidth():targetWidth;}
+        @Override public int getMeasuredHeight(){return targetHeight<0?getHeight():targetHeight;}
         public int getCapsuleDrawableWidth(){return drawableWidth<0?getWidth():drawableWidth;}
         public void setCapsuleDrawableWidth(int value){drawableWidth=value;}
     }

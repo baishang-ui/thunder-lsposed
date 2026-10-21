@@ -11,6 +11,14 @@ public final class CloudMotionCheck {
         check(Math.abs(linear.frame(.5f).width()-500)<.001,"constant-speed curve reaches halfway at half duration");
         var nextLinear=new CloudMotion(frame(800),frame(200),linear.velocity(1),500,3,0);
         check(Math.abs(nextLinear.frame(.5f).width()-500)<.001,"consecutive constant-speed transitions remain linear after settling");
+        var mini=new CloudMorphHook.Frame(457.5f,10,45,45,22.5f,0);
+        var arrivingCapsule=new CloudMorphHook.Frame(360,10,240,80,40,0);
+        var compensatedZero=new CloudMorphHook.Frame(0,0,0,0,0,0);
+        var miniHandoff=new CloudMotion(mini,arrivingCapsule,compensatedZero,500,3,0,0,true);
+        check(miniHandoff.velocity(0).equals(compensatedZero),"a square handoff preserves an explicitly compensated zero velocity");
+        check(Math.abs((miniHandoff.frame(.0001f).width()-mini.width())/.00005f)<.5f,
+            "a new service does not jump to constant speed when the mini handoff cancels the independent gate velocity");
+        check(miniHandoff.frame(1).equals(arrivingCapsule),"zero-speed mini handoff still reaches the new capsule endpoint");
         var forward=new CloudMotion(frame(200),frame(800),null,500,2,0);
         float last=200;
         for(int i=0;i<=100;i++){

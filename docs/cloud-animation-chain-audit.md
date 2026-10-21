@@ -12,7 +12,7 @@
 | 挂载与布局 | C0.p；card.window.d.j / f.k 排队至布局后调用继续函数 | 不暂停原生动画，不阻断挂载，不替换系统事件时钟 |
 | 图构建 | animatorscenes.B0.invoke → h.t / 组合片段与 Z 条件时钟 | 标记外层原生图；不假设所有入口都经过 t / Q |
 | 原生播放 | animatorengine.h.s → h.g → Animator.start | 返回同一个原生 Animator，只追加可清理的视觉观察器 |
-| 胶囊几何 | CapsuleContainer.f(key) 的 CapsuleView；mini 形态在 getMiniView | 同时支持两种承载。真实测量尺寸是默认几何，动画覆盖宽度有效时才采用 |
+| 胶囊几何 | CapsuleContainer.f(key) 的 CapsuleView；mini 形态在 getMiniView | 同时支持两种承载。目标来自场景的服务 key、测量尺寸或宽度动画末段；Drawable 的瞬时覆盖宽度不作为最终尺寸 |
 | 卡片材质 | CardView 内 CardBackgroundView；InstantContainer.getInstantView 上的 ViewRootManager | 对实际材质面统一改尺寸、位置与原生平滑圆角 |
 | 每帧视觉 | 窗口 ViewTreeObserver.OnPreDrawListener | 在原生属性更新后覆盖同帧的缩放、位移、alpha、轮廓、遮罩和过渡 blur，避免两套画面接力 |
 | 收起隐藏/卸载 | card.window.i.j(false) / i.e() | 仅在本次收起仍未完成时延迟；视觉达到胶囊终点后执行一次。被新展开打断时丢弃旧隐藏，避免移除新卡片 |
@@ -49,6 +49,18 @@
 
 当前固件的 `APP_TO_CAPSULE`（`animatorscenes.e`）由旧/新 `CapsuleView` 的 `capsule.animation.s/F` 和状态栏协同片段 `N` 组成；`APP_TO_CAPSULE_WITH_NONE`（`f`）使用胶囊 `j`、状态栏 `N` 和条件片段 `Z`；`CAPSULE_APPEAR`（`h`）使用胶囊 `i/Wj`。这些图不包含独立应用窗口或 SurfaceControl 的形变。`N` 调用 `notifyAnimationPrepare` 并发送状态栏动画数据。首次入口的 600ms 状态栏协同与 950ms 条件等待不等同于胶囊形变时长，因此保留用户设置的视觉时长，不把条件等待拉长为视觉动画。
 
-入口预留改为先认领持久 `CapsuleContainer`，不再要求 `p()` 尚未绑定的 `CapsuleView` 已存在。首个内容布局时即隐藏原生实体并建立透明的统一表面，直到真实原生入口图开始再推进视觉时钟。初始轮廓从收缩、上移的小圆点形变为胶囊，取代此前 95% 胶囊大小的弱缩放；已有服务替换仍继承当前表面、位置和速度。host/business 隐藏与 `CAPSULE_DISAPPEAR` 使用相同的收缩几何，透明度只在末段退出。
+入口预留改为先认领持久 `CapsuleContainer`，不再要求 `p()` 尚未绑定的 `CapsuleView` 已存在。首个内容布局时即隐藏原生实体并建立透明的统一表面，直到真实原生入口图开始再推进视觉时钟。初始轮廓从中心的小圆点形变为胶囊，取代此前 95% 胶囊大小的弱缩放；已有服务替换仍继承当前表面、位置和速度。host/business 隐藏与 `CAPSULE_DISAPPEAR` 使用中心收缩几何，透明度只在末段退出。
 
-`CloudMorphCheck` 重放“预处理时无 CapsuleView → 原生绑定与布局 → 原生图启动”，确认不会提前展示入口终点，并覆盖小圆点入口、业务隐藏和保留当前服务替换轮廓。`CloudVisibilityStateCheck` 单独检查几何压缩、上移、反向中断的一致性与末段透明度。这些检查验证 Hook 状态和时序，不代替所有应用的真机视觉验收。
+`CloudMorphCheck` 重放“预处理时无 CapsuleView → 原生绑定与布局 → 原生图启动”，确认不会提前展示入口终点，并覆盖小圆点入口、业务隐藏和保留当前服务替换轮廓。`CloudVisibilityStateCheck` 单独检查几何压缩、固定中心、反向中断的一致性与末段透明度。这些检查验证 Hook 状态和时序，不代替所有应用的真机视觉验收。
+
+### 滑动与已有服务替换的目标追踪
+
+当前 APK 的 `animatorscenes.e.c` 与 `m.c` 分别读取 `container.f(container.l)` 旧服务和 `container.f(event.e.z().b)` 新服务。`p()` 绑定时可以保留旧 `l`，所以持续读取 `l` 会让新文本已显示时，统一胶囊仍停在旧服务尺寸。`m.c` 还明确比较新服务的 measured/layout 大小，必要时按父容器测量中心布置新视图，证明动画期间 `getWidth()` 不是可靠终点。
+
+宽度变化场景 `A.c` 将 `fluid.i.e.c` 交给 `r8.t6` 和 `capsule.animation.P`。`P.g` 顺序播放 `animationData.d` 的段，每段 `d()` 为起始宽度、`c()` 为结束宽度；原生每帧改 `CapsuleView.setCapsuleDrawableWidth` 的背景边界，无需同步改布局宽。Hook 现在随原生 Request 保存明确的新服务 key 和末段宽度，接入 `m/A/j.c` 的直接图路径，并保持同一个 Body 从当前轮廓连续走向新目标。原生文本横滑、月牙和内容事件仍由原生图推进。
+
+`syncCapsule` 在图运行中追踪同一个目标，避免旧 key 的布局回调拉回旧尺寸；原生结束后保留尚未确认的目标，直到测量赶上或新的真实选择/测量取代它。预留中的 `y(false,*)` 不再先藏掉已有胶囊。若旧业务隐藏已运行到中段，入口从实际绘制矩形和 alpha 接手，取消旧业务门的第二条恢复形变；控制中心的真实 host(false) 门继续生效。退场同样从实际绘制状态接手，只运行一条中心收缩。
+
+新增回归覆盖旧 key/旧布局与新测量并存、首测量早于布局、原生宽度段与瞬时 Drawable 宽度不同、原生结束后迟到旧布局、真正新选择/新测量解除目标、业务隐藏中断入口和 host/business 隐藏重叠。首次失败保存在 `.local/cloud-native-target-red.log`，随后 `CloudMorphCheck` 的 696 项与多卡片、可见性及触摸所有权回归通过；平台绘制和不同应用模板仍需要真机复核。
+
+可见性与场景交接同时传递实际展示矩形、透明度和几何导数。退场已经接手显示后，若控制中心关闭并紧接新服务进入，重新建立宿主动画起点但保留关闭目标；新场景扣除宿主动画初速度，避免二次压缩或速度叠加。线性曲线的方形迷你胶囊可显式保留补偿后的零速度，普通线性场景仍按原规则运行。宿主恢复时透明度限制连续解除。四种曲线的组合微步、隐藏期间不重现及中途恢复回归通过；关闭速度补偿或零速度保留的源快照均能重新触发失败。

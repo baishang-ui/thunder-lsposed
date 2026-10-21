@@ -14,6 +14,15 @@ public final class CloudSurfacePolicyCheck {
         close(60,CloudSurfacePolicy.radius(300,120,60,true,80,3));
         close(42,CloudSurfacePolicy.radius(300,120,42,false,8,3));
         close(30,CloudSurfacePolicy.radius(300,60,42,false,8,3));
-        System.out.println("CloudSurfacePolicyCheck: 10 settled lifecycle/radius checks passed");
+        CloudSurfacePolicy.CapsuleBackground<Object> backgrounds=new CloudSurfacePolicy.CapsuleBackground<>();
+        Object mini=new Object(),outgoing=new Object(),incoming=new Object();int[] fallbacks={0};
+        java.util.function.Supplier<Object> fallback=()->{fallbacks[0]++;return mini;};
+        check(backgrounds.resolve(null,fallback)==mini);
+        check(backgrounds.resolve(null,fallback)==mini&&fallbacks[0]==1);
+        check(backgrounds.resolve(outgoing,fallback)==outgoing);
+        check(backgrounds.resolve(null,fallback)==outgoing);
+        check(backgrounds.resolve(incoming,fallback)==incoming);
+        check(backgrounds.resolve(null,fallback)==incoming&&fallbacks[0]==1);
+        System.out.println("CloudSurfacePolicyCheck: 16 settled lifecycle/radius/background checks passed");
     }
 }

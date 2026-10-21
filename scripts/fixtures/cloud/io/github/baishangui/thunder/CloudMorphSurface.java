@@ -6,11 +6,16 @@ final class CloudMorphSurface {
     static boolean sourceRootOwnsInput(View root){return false;}
     static final java.util.List<CloudMorphSurface> created=new java.util.ArrayList<>();
     final CloudInputOwnership inputOwnership=new CloudInputOwnership();
-    boolean hostAllowed=true,businessAllowed=true,cardTransition,capsuleMotionOwned;
-    float opacity=1;CloudMorphHook.Frame frame;boolean attached,expanded,disposed;View capsule,card,owner,container;
+    boolean hostAllowed=true,businessAllowed=true,cardTransition,capsuleMotionOwned,capsuleHideOwned,capsuleEntryPresentation,simulateHostGate;
+    float opacity=1,hostAmount=1;CloudMorphHook.Frame frame,presentedVelocity;int presentationVelocityCalls;boolean attached,expanded,disposed;View capsule,card,owner,container;
+    final CloudVisibilityState hostGate=new CloudVisibilityState();
+    float hostOpacityLimit=1,entryAlpha,initialLimit=1;boolean hostGateRunning,hostGateShowing;
     CloudMorphSurface(View container,ClassLoader loader){this.container=container;created.add(this);}
     boolean disposed(){return disposed;}
     CloudMorphHook.Frame current(){return frame;}
+    CloudMorphHook.Frame presentation(){return CloudVisibilityState.presentation(frame,capsuleHideOwned?1:hostAmount);}
+    float presentationOpacity(){return capsuleHideOwned?opacity:Math.min(opacity,hostOpacityLimit)*Math.min(1,hostAmount*4);}
+    CloudMorphHook.Frame presentationVelocity(CloudMorphHook.Frame logicalVelocity){presentationVelocityCalls++;if(capsuleHideOwned)return logicalVelocity;if(presentedVelocity!=null)return presentedVelocity;return simulateHostGate?hostGate.presentationVelocity(frame,logicalVelocity):logicalVelocity;}
     float opacity(){return opacity;}
     final java.util.Map<View,CloudMorphSurface> layers=new java.util.LinkedHashMap<>();
     CloudMorphSurface cardLayer(View card){return layers.computeIfAbsent(card,key->new CloudMorphSurface(container,null));}
@@ -20,10 +25,41 @@ final class CloudMorphSurface {
     void bind(View capsule,View card,View owner,boolean instant){this.capsule=capsule;this.card=card;this.owner=owner;inputOwnership.bind(card);}
     void syncCapsule(View capsule){this.capsule=capsule;}
     void capsuleMotionOwned(boolean owned){capsuleMotionOwned=owned;}
+    void capsuleHideOwned(boolean owned){capsuleHideOwned=owned;}
+    boolean capsuleHideOwned(){return capsuleHideOwned;}
+    boolean capsuleEntryHandoff(){return hostAllowed||capsuleHideOwned;}
+    void capsuleEntryPresentation(boolean value){capsuleEntryPresentation=value;if(value)entryAlpha=presentationOpacity();}
+    boolean capsuleEntryClosedHandoff(){return capsuleEntryPresentation&&!hostAllowed;}
+    CloudMorphHook.Frame transitionVelocity(CloudMorphHook.Frame start,CloudMorphHook.Frame presentedVelocity){
+        if(!capsuleEntryPresentation||hostAmount!=1)return presentedVelocity;
+        var gate=hostGate.presentationVelocity(start,null);
+        var speed=presentedVelocity==null?new CloudMorphHook.Frame(0,0,0,0,0,0):presentedVelocity;
+        return new CloudMorphHook.Frame(speed.x()-gate.x(),speed.y()-gate.y(),speed.width()-gate.width(),speed.height()-gate.height(),speed.radius()-gate.radius(),speed.progress()-gate.progress());
+    }
     void refreshStyle(){}
-    void hostVisibility(boolean shown){hostAllowed=shown;}
+    void hostVisibility(boolean shown){hostAllowed=shown;if(simulateHostGate)beginHost(shown&&businessAllowed);}
     void businessVisibility(boolean shown){businessAllowed=shown;}
-    void beginTransition(boolean cardTransition,boolean opening){this.cardTransition=cardTransition;inputOwnership.begin(cardTransition,opening);if(cardTransition)businessAllowed=true;}
+    void beginTransition(boolean cardTransition,boolean opening){
+        this.cardTransition=cardTransition;inputOwnership.begin(cardTransition,opening);boolean entry=capsuleMotionOwned&&!capsuleHideOwned;
+        if(cardTransition||entry)businessAllowed=true;
+        if(entry&&capsuleEntryPresentation){
+            hostOpacityLimit=hostAllowed?1:entryAlpha;hostAmount=1;hostGate.host(1);hostGateRunning=false;
+            if(simulateHostGate&&!hostAllowed)beginHost(false);
+        }
+        presentedVelocity=null;
+    }
+    void beginHost(boolean shown){
+        if(hostGate.host()!=hostAmount)hostGate.host(hostAmount);
+        hostGateShowing=shown;initialLimit=hostOpacityLimit;
+        var config=ShadeHook.snapshot();hostGate.beginHost(shown?1:0,config.cloudAnimationDuration,config.cloudAnimationCurve);
+        hostGate.sampleHost(0);hostAmount=hostGate.host();hostGateRunning=true;
+    }
+    void sampleHost(float fraction){
+        if(!hostGateRunning)return;
+        hostGate.sampleHost(fraction);hostAmount=hostGate.host();
+        if(hostGateShowing)hostOpacityLimit=initialLimit+(1-initialLimit)*CloudCardTiming.opacity(fraction);
+        if(fraction==1){hostGate.finishHost();hostGateRunning=false;}
+    }
     boolean visible(){return hostAllowed&&businessAllowed&&opacity>0;}
     void show(){attached=true;}
     void frame(CloudMorphHook.Frame value){frame=value;container.setAlpha(0);if(card!=null)card.setAlpha(0);if(owner!=null)owner.setAlpha(0);}
