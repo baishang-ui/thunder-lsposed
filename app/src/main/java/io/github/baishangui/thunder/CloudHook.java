@@ -27,6 +27,12 @@ final class CloudHook {
     private static final Map<View,SharedBackground> shared=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View,CapsuleState> capsules=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<Drawable,java.lang.ref.WeakReference<View>> gradients=Collections.synchronizedMap(new WeakHashMap<>());
+    private static final View.OnLayoutChangeListener capsuleGeometry=(view,left,top,right,bottom,oldLeft,oldTop,oldRight,oldBottom)->{
+        if(right-left==oldRight-oldLeft&&bottom-top==oldBottom-oldTop)return;
+        HookConfig config=ShadeHook.snapshot();CapsuleState state=capsules.get(view);
+        if(state!=null&&config.enabled&&config.cloud&&config.cloudArea.cornerEnabled)
+            applyCapsuleCorners(view,config.cloudArea,state.manager);
+    };
     private static final class SharedBackground {
         final Object factory;
         final java.lang.ref.WeakReference<Object> manager;
@@ -189,15 +195,16 @@ final class CloudHook {
                     if(p.hasThrowable())return;
                     View view=(View)p.thisObject;
                     CapsuleState state=capsules.get(view);
-                    if(state==null){state=new CapsuleState(view);capsules.put(view,state);}
+                    if(state==null){state=new CapsuleState(view);capsules.put(view,state);view.addOnLayoutChangeListener(capsuleGeometry);}
                     if("onFinishInflate".equals(method)) {
-                        HookConfig c=ShadeHook.snapshot();if(c.enabled&&c.cloud)applyCorners(view,c.cloudArea,false);
+                        HookConfig c=ShadeHook.snapshot();if(c.enabled&&c.cloud)applyCapsuleCorners(view,c.cloudArea,null);
                     } else applyCapsule(view,state,ShadeHook.snapshot());
                 }
             }));
         bind(loader,"capsule-detach",() -> Api102Runtime.findAndHookMethod(BASE+"capsule.ui.view.CapsuleView",loader,"onDetachedFromWindow",new HookCallback() {
             @Override protected void afterHookedMethod(Param p) {
                 View view=(View)p.thisObject;CapsuleState state=capsules.remove(view);
+                view.removeOnLayoutChangeListener(capsuleGeometry);
                 if(state!=null){view.setBackground(state.background);for(Runnable reset:state.restore)reset.run();
                     view.setOutlineProvider(state.outline);view.setClipToOutline(state.clip);}
             }
@@ -206,7 +213,10 @@ final class CloudHook {
         bind(loader,"capsule-bounds",() -> Api102Runtime.findAndHookMethod(BASE+"capsule.ui.view.CapsuleView",loader,"setCapsuleDrawableWidth",int.class,new HookCallback() {
             @Override protected void afterHookedMethod(Param p) {
                 HookConfig c=ShadeHook.snapshot();
-                if(!p.hasThrowable()&&c.enabled&&c.cloud)applyCorners((View)p.thisObject,c.cloudArea,false);
+                if(!p.hasThrowable()&&c.enabled&&c.cloud){
+                    View view=(View)p.thisObject;CapsuleState state=capsules.get(view);
+                    applyCapsuleCorners(view,c.cloudArea,state==null?null:state.manager);
+                }
             }
         }));
         for(String method:new String[]{"onAttachedToWindow","onConfigurationChanged"}) {
@@ -267,6 +277,10 @@ final class CloudHook {
         NativeOutline saved=fallbackOutlines.remove(view);
         if(saved!=null){view.setOutlineProvider(saved.provider);view.setClipToOutline(saved.clip);view.invalidateOutline();}
     }
+    /** Apply the existing native material semantics to the independent cloud shape. */
+    static void applyUnifiedMaterial(View view,Object manager,HookConfig.Area area) {
+        applyCard(view,manager,area);
+    }
     private static void applyCard(View view,Object manager,HookConfig.Area area) {
         trackGradients(view.getBackground(),view);
         boolean nativeBlur=manager!=null && contains(view.getBackground(),
@@ -311,15 +325,34 @@ final class CloudHook {
         HookConfig.Area area=c.cloudArea;
         if(area.blur) {
             state.manager=Reflect.newInstance(Reflect.findClass("com.oplus.view.ViewRootManager",view.getClass().getClassLoader()),view);
-            applyMaterial(view,state.manager,area);
+            applyMaterial(view,state.manager,area,true);
             Reflect.callMethod(state.manager,"setBlurRadius",area.radius);
             Object drawable=Reflect.callMethod(state.manager,"getBackgroundBlurDrawable");
             if(!(drawable instanceof Drawable))throw new IllegalStateException("Native capsule blur drawable unavailable");
             view.setBackground((Drawable)drawable);
             ShadeHook.resourceHit("cloud-capsule-blur");
         } else {state.manager=null;tint(view.getBackground(),area,false);}
-        applyCorners(view,area,!area.blur);
+        applyCapsuleCorners(view,area,state.manager);
         state.applied=c;view.invalidate();view.invalidateOutline();
+    }
+    private static void applyCapsuleCorners(View view,HookConfig.Area area,Object manager) {
+        if(!area.cornerEnabled)return;
+        float radius=CloudCornerGeometry.capsuleRadius(view.getWidth(),view.getHeight(),area.corner,
+            view.getResources().getDisplayMetrics().density);
+        round(view.getBackground(),radius,false);round(view.getForeground(),radius,false);
+        if(manager!=null)Reflect.callMethod(manager,"setCornerRadius",radius);
+        // Capsule ends are semicircles. G2's card smoothing remains visibly square
+        // at the half-height limit, regardless of how far the slider is increased.
+        Object corners=Reflect.newInstance(Reflect.findClass("kotlin.Triple",view.getContext().getClassLoader()),0,radius,0f);
+        ViewOutlineProvider outline=view.getOutlineProvider();
+        if(outline!=null&&Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(outline,"thunder.cloud-capsule-outline")))
+            Reflect.setObjectField(outline,"b",corners);
+        else {
+            outline=(ViewOutlineProvider)Reflect.newInstance(
+                Reflect.findClass("com.oplus.systemui.plugins.common.util.j",view.getContext().getClassLoader()),null,corners);
+            Reflect.setAdditionalInstanceField(outline,"thunder.cloud-capsule-outline",true);view.setOutlineProvider(outline);
+        }
+        view.setClipToOutline(true);view.invalidateOutline();
     }
     private static boolean contains(Drawable drawable,Object target) {
         if(drawable==null||target==null)return false;
@@ -387,7 +420,6 @@ final class CloudHook {
         }
     }
     static void refresh() {
-        CloudMorphHook.refresh();
         java.util.ArrayList<View> parents;
         synchronized(outlines){parents=new java.util.ArrayList<>(outlines.keySet());}
         for(View view:parents){view.invalidateOutline();view.invalidate();}
@@ -402,8 +434,12 @@ final class CloudHook {
         synchronized(capsules){current=new java.util.ArrayList<>(capsules.entrySet());}
         for(Map.Entry<View,CapsuleState> entry:current)try {applyCapsule(entry.getKey(),entry.getValue(),ShadeHook.snapshot());}
         catch(Throwable error){ShadeHook.frameworkFailure("cloud-refresh-capsule",error);}
+        CloudMorphHook.refresh();
     }
     private static void applyMaterial(View view,Object manager,HookConfig.Area area) {
+        applyMaterial(view,manager,area,false);
+    }
+    private static void applyMaterial(View view,Object manager,HookConfig.Area area,boolean capsule) {
         if(area.cornerEnabled || view.getClass().getName().endsWith("CapsuleView")) {
             int dp=area.cornerEnabled?area.corner:20;
             Reflect.callMethod(manager,"setCornerRadius",dp*view.getResources().getDisplayMetrics().density);
@@ -415,8 +451,9 @@ final class CloudHook {
             try {
                 Object geometry=Reflect.findClass(BASE+"util.c",view.getClass().getClassLoader()).getDeclaredMethod("f").invoke(null);
                 int type=((Number)Reflect.callMethod(geometry,"d")).intValue();
-                Reflect.callMethod(param,"setSmoothCornerType",type==2?1:0);
-                Reflect.callMethod(param,"setSmoothCornerWeight",((Number)Reflect.callMethod(geometry,"f")).floatValue());
+                boolean circularCapsule=capsule&&area.cornerEnabled;
+                Reflect.callMethod(param,"setSmoothCornerType",circularCapsule?0:type==2?1:0);
+                Reflect.callMethod(param,"setSmoothCornerWeight",circularCapsule?0f:((Number)Reflect.callMethod(geometry,"f")).floatValue());
             } catch(ReflectiveOperationException error){throw new IllegalStateException("Cloud smooth corners unavailable",error);}
             float[] top={(color>>16&255)/255f,(color>>8&255)/255f,(color&255)/255f,(color>>>24)/255f};
             Reflect.callMethod(param,"setMaterialParams",color>>>24==0?0:1,new float[4],top);
@@ -455,21 +492,25 @@ final class CloudHook {
         view.invalidate();
     }
     static void round(Drawable drawable,float radius) {
+        round(drawable,radius,true);
+    }
+    static void round(Drawable drawable,float radius,boolean smooth) {
         if(drawable==null)return;
         drawable=drawable.mutate();
         if(drawable instanceof GradientDrawable) {
-            new CloudCornerGeometry.Gradient((GradientDrawable)drawable).apply();
+            if(smooth)new CloudCornerGeometry.Gradient((GradientDrawable)drawable).apply();
+            else Reflect.callMethod(Reflect.getObjectField(drawable,"mGradientDrawableExt"),"setSmoothRoundStyle",false,0f,0);
             ((GradientDrawable)drawable).setCornerRadius(radius);
         }
         else if(drawable instanceof LayerDrawable) {
             LayerDrawable layers=(LayerDrawable)drawable;
-            for(int i=0;i<layers.getNumberOfLayers();i++)round(layers.getDrawable(i),radius);
-        } else if(drawable instanceof DrawableWrapper)round(((DrawableWrapper)drawable).getDrawable(),radius);
+            for(int i=0;i<layers.getNumberOfLayers();i++)round(layers.getDrawable(i),radius,smooth);
+        } else if(drawable instanceof DrawableWrapper)round(((DrawableWrapper)drawable).getDrawable(),radius,smooth);
         else if(drawable.getClass().getName().equals(BASE+"util.d")) {
             // C17's translucent gradient draws its own Path from a cached Kotlin Triple:
             // (corner type, radius in px, smooth weight). Preserve type and weight.
             Object corners=Reflect.getObjectField(drawable,"d");
-            Reflect.setObjectField(drawable,"d",cornerConfig(corners,radius));
+            Reflect.setObjectField(drawable,"d",smooth?cornerConfig(corners,radius):Reflect.newInstance(corners.getClass(),0,radius,0f));
             drawable.invalidateSelf();
         }
     }

@@ -12,8 +12,11 @@ final class HookConfig {
     final Area volumeBar, volumePanel;
     final long revision;
     final Area qs, shade, banner, cloudArea, cloudCardArea, notificationCard, qsCards, qsProgress;
-    final boolean cloudHeightEnabled, cloudCornerEnabled;
+    final boolean cloudHeightEnabled, cloudCornerEnabled, cloudAnimationEnabled;
+    final int cloudAnimationDuration, cloudAnimationCurve, cloudAnimationBounce;
     final int cloudHeight, cloudCorner;
+    final boolean cloudCardPositionEnabled;
+    final int cloudCardOffsetX,cloudCardOffsetY;
     final boolean margins, cloud;
     final int cloudLockStyle, cloudAppColorStrength;
     final boolean cloudAppColor, cloudAppColorStrengthEnabled;
@@ -82,6 +85,13 @@ final class HookConfig {
         margins = data != null && data.getBoolean("notification_margins", false);
         margin = Math.max(0, Math.min(64, data == null ? 30 : data.getInt("notification_margin", 30)));
         cloud = data != null && data.getBoolean("cloud_enabled", true);
+        cloudCardPositionEnabled = data!=null&&data.getBoolean("cloud_card_position_enabled",false);
+        cloudCardOffsetX = bounded(data,"cloud_card_offset_x",0,-100,100);
+        cloudCardOffsetY = bounded(data,"cloud_card_offset_y",0,-100,300);
+        cloudAnimationEnabled = data == null || data.getBoolean("cloud_animation_enabled",true);
+        cloudAnimationDuration = bounded(data,"cloud_animation_duration",300,120,1000);
+        cloudAnimationCurve = bounded(data,"cloud_animation_curve",0,0,3);
+        cloudAnimationBounce = bounded(data,"cloud_animation_bounce",0,0,100);
         // Legacy preset value 1 now selects the saved custom settings as well.
         cloudLockStyle = bounded(data,"cloud_lock_style",0,0,2)==0 ? 0 : 2;
         Area lock=new Area(data,"cloud_lock");
@@ -98,7 +108,7 @@ final class HookConfig {
         cloudHeightEnabled = data != null && data.getBoolean("cloud_height_enabled",false);
         cloudCornerEnabled = data != null && data.getBoolean("cloud_corner_enabled",false);
         cloudHeight = Math.max(20,Math.min(64,data == null ? 34 : data.getInt("cloud_height",34)));
-        cloudCorner = Math.max(0,Math.min(48,data == null ? 20 : data.getInt("cloud_corner",20)));
+        cloudCorner = Math.max(0,Math.min(128,data == null ? 20 : data.getInt("cloud_corner",20)));
         for(String key:TILE_KEYS) {
             Area a=new Area(styleData,styleData.containsKey(key+"_radius")?key:"qs_card");
             if(effective&&styleData.containsKey("style_"+key)&&!styleEnabled(styleData,key)) a=new Area(false,a.radius,false,a.color,false,a.corner);
@@ -117,7 +127,7 @@ final class HookConfig {
             case "panel": return active(b,"panel") || b.getBoolean("panel_saturation_enabled");
             case "notification": return active(b,"notification_card") || b.getBoolean("notification_margins");
             case "banner": return active(b,"banner");
-            case "cloud": return b.getBoolean("cloud_enabled",true) && (active(b,"cloud") || active(b,"cloud_card") ||
+            case "cloud": return b.getBoolean("cloud_enabled",true) && (active(b,"cloud") || active(b,"cloud_card") || b.getBoolean("cloud_card_position_enabled") ||
                 b.getBoolean("cloud_height_enabled") || b.getBoolean("cloud_corner_enabled") || b.getBoolean("cloud_app_color_strength_enabled") || !b.getBoolean("cloud_app_color",true));
             case "cloud_lock": return b.getBoolean("cloud_enabled",true) && (b.getInt("cloud_lock_style")!=0 || b.getBoolean("cloud_lock_corner_enabled") || (!b.containsKey("cloud_lock_corner_enabled") && b.getBoolean("cloud_card_corner_enabled")));
             case "cloud_notification": return b.getBoolean("cloud_enabled",true) && (active(b,"notification_card") || b.getBoolean("cloud_card_corner_enabled"));
@@ -194,7 +204,7 @@ final class HookConfig {
         Area(Bundle data, String key) {
             sharedMaterial = "qs_card".equals(key);
             cornerEnabled = data != null && data.getBoolean(key+"_corner_enabled",false);
-            corner = Math.max(0,Math.min("cloud".equals(key)?48:64,data==null?28:data.getInt(key+"_corner","cloud".equals(key)?20:28)));
+            corner = Math.max(0,Math.min("cloud".equals(key)?128:64,data==null?28:data.getInt(key+"_corner","cloud".equals(key)?20:28)));
             blur = data != null && data.getBoolean(key+"_blur", false);
             tint = data != null && data.getBoolean(key+"_tint", false);
             radius = clamp(data == null ? 100 : data.getInt(key+"_radius", 100));

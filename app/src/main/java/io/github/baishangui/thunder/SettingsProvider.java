@@ -102,6 +102,13 @@ public final class SettingsProvider extends ContentProvider {
             result.putBoolean("notification_margins", prefs.getBoolean("notification_margins", false));
             result.putInt("notification_margin", Math.max(0, Math.min(64, prefs.getInt("notification_margin", 30))));
             result.putBoolean("cloud_enabled", prefs.getBoolean("cloud_enabled", true));
+            result.putBoolean("cloud_card_position_enabled",prefs.getBoolean("cloud_card_position_enabled",false));
+            result.putInt("cloud_card_offset_x",Math.max(-100,Math.min(100,prefs.getInt("cloud_card_offset_x",0))));
+            result.putInt("cloud_card_offset_y",Math.max(-100,Math.min(300,prefs.getInt("cloud_card_offset_y",0))));
+            result.putBoolean("cloud_animation_enabled",prefs.getBoolean("cloud_animation_enabled",true));
+            result.putInt("cloud_animation_duration",Math.max(120,Math.min(1000,prefs.getInt("cloud_animation_duration",300))));
+            result.putInt("cloud_animation_curve",Math.max(0,Math.min(3,prefs.getInt("cloud_animation_curve",0))));
+            result.putInt("cloud_animation_bounce",Math.max(0,Math.min(100,prefs.getInt("cloud_animation_bounce",0))));
             result.putBoolean("cloud_height_enabled",prefs.getBoolean("cloud_height_enabled",false));
             result.putInt("cloud_height",prefs.getInt("cloud_height",34));
             result.putBoolean("cloud_corner_enabled",prefs.getBoolean("cloud_corner_enabled",false));

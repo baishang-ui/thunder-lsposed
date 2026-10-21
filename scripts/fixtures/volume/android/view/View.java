@@ -17,4 +17,5 @@ public int left,top,scrollX,scrollY;public int getLeft(){return left;}public int
 public float pivotX,pivotY;public void setPivotX(float x){pivotX=x;}public void setPivotY(float y){pivotY=y;}public float getPivotX(){return pivotX;}public float getPivotY(){return pivotY;}public float getScaleX(){return scaleX;}public float getScaleY(){return scaleY;}public float scaleX=1,scaleY=1;public void setScaleX(float v){scaleX=v;}public void setScaleY(float v){scaleY=v;}public void setTranslationX(float v){screenX+=Math.round(v-translationX);translationX=v;}
 public static final int LAYOUT_DIRECTION_RTL=1;public int layoutDirection;public int getLayoutDirection(){return layoutDirection;}public int getPaddingStart(){return layoutDirection==1?paddingRight:paddingLeft;}public int getPaddingEnd(){return layoutDirection==1?paddingLeft:paddingRight;}public void setPaddingRelative(int s,int t,int e,int b){setPadding(layoutDirection==1?e:s,t,layoutDirection==1?s:e,b);}
 public ViewTreeObserver observer=new ViewTreeObserver();public ViewTreeObserver getViewTreeObserver(){return observer;}
+public Object renderEffect;public void setRenderEffect(Object value){renderEffect=value;}
 }

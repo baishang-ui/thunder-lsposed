@@ -7,6 +7,10 @@ import android.graphics.drawable.GradientDrawable;
 /** One native G2 curve for custom flow-card content, material and edge layers. */
 final class CloudCornerGeometry {
     static final float WEIGHT=3f;
+    static float capsuleRadius(float width,float height,int dp,float density) {
+        float requested=Math.max(0,dp*density);
+        return width>0&&height>0?Math.min(requested,Math.min(width,height)/2f):requested;
+    }
     static boolean enabled() {
         HookConfig c=ShadeHook.snapshot();return c.enabled&&c.cloud&&(c.cloudCardArea.cornerEnabled||c.lockCardArea().cornerEnabled||c.cloudNotificationArea().cornerEnabled);
     }

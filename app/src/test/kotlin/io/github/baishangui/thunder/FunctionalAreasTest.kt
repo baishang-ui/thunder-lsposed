@@ -6,6 +6,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class FunctionalAreasTest {
+    @Test fun capsuleRadiusSupportsFullRangeAcrossEditorsAndImport() {
+        for (radius in listOf(0, 48, 64, 96, 128)) {
+            val s=Settings(cloudCornerEnabled=true,cloudCorner=radius,
+                cloudCardArea=Area(cornerEnabled=true,corner=19))
+            assertEquals(s,Settings.from(s.bundle()))
+            assertEquals(s,Settings.parse(s.json()))
+            assertEquals(radius,HookConfig(s.bundle()).cloudArea.corner)
+            assertEquals(radius,SystemSettingsCatalog.patch(s,"cloud_corner",radius,0).cloudCorner)
+            assertEquals(19,HookConfig(s.bundle()).cloudCardArea.corner)
+        }
+        for (radius in listOf(-1,129)) {
+            val root=JSONObject(Settings().json())
+            root.getJSONObject("settings").put("cloud_corner",radius)
+            assertThrows(IllegalArgumentException::class.java) { Settings.parse(root.toString()) }
+            assertThrows(IllegalArgumentException::class.java) { SystemSettingsCatalog.validate("cloud_corner",radius,0) }
+        }
+    }
     @Test fun allCardAreasAreIndependent() {
         val s=Settings(cloudCornerEnabled=true,cloudCorner=6,cloudArea=Area(true,30,true,0x44112233),
             cloudCardArea=Area(true,140,true,0x88776655.toInt(),true,32),
@@ -101,6 +118,8 @@ internal fun JSONObject.removeV13Fields(): JSONObject = apply {
 
 internal fun JSONObject.legacyVersion(version: Int): JSONObject = apply {
     put("version", version)
+    if (version < 25) CloudCardPositionSettings.keys.forEach { getJSONObject("settings").remove(it) }
+    if (version < 24) CloudAnimationSettings.keys.forEach { getJSONObject("settings").remove(it) }
     if (version < 23) StyleSettings.keys.forEach { getJSONObject("settings").remove(it) }
     if (version < 22) { getJSONObject("settings").remove("panel_saturation_enabled"); getJSONObject("settings").remove("panel_saturation") }
     if (version == 21) { getJSONObject("settings").put("panel_tone_enabled", false); getJSONObject("settings").put("panel_tone", 0) }

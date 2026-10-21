@@ -17,5 +17,6 @@ public class Animator {
     protected void dispatchEnd(){for(var l:getListeners())l.onAnimationEnd(this);}
     protected void dispatchCancel(){for(var l:getListeners())l.onAnimationCancel(this);}
     public void start(){dispatchStart();}
+    public void end(){dispatchEnd();}
     public void cancel(){dispatchCancel();dispatchEnd();}
 }

@@ -58,7 +58,7 @@ class VolumeSettingsTest {
             val migrated=Settings.parse(old.toString())
             assertEquals(settings,migrated)
             assertFalse(migrated.bundle().keySet().any { it.startsWith("volume_button") })
-            assertEquals(23,JSONObject(migrated.json()).getInt("version"))
+            assertEquals(25,JSONObject(migrated.json()).getInt("version"))
             old.getJSONObject("settings").put("volume_buttons_blur","false")
             assertThrows(IllegalArgumentException::class.java) { Settings.parse(old.toString()) }
         }

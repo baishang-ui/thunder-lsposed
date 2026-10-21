@@ -46,7 +46,7 @@ class QsCardSettingsTest {
             notificationArea=Area(true,121,true,0x55667788,true,36))
         assertEquals(settings,Settings.from(settings.bundle()))
         assertEquals(settings,Settings.parse(settings.json()))
-        assertEquals(23,JSONObject(settings.json()).getInt("version"))
+        assertEquals(25,JSONObject(settings.json()).getInt("version"))
         val runtime=HookConfig(settings.bundle())
         assertSame(runtime.shade,runtime.qs)
         assertEquals(0x55443322,runtime.shade.color)

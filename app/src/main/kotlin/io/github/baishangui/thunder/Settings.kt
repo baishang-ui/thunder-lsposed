@@ -32,13 +32,17 @@ internal data class Settings(
     val cloudLock: CloudLockSettings = CloudLockSettings(),
     val panelSaturationEnabled: Boolean = false,
     val panelSaturation: Int = 100,
-    val styles: StyleSettings = StyleSettings()
+    val styles: StyleSettings = StyleSettings(),
+    val cloudAnimation: CloudAnimationSettings = CloudAnimationSettings(),
+    val cloudCardPosition: CloudCardPositionSettings = CloudCardPositionSettings()
 ) {
     fun bundle() = Bundle().apply {
         volume.write(this)
         statusBar.write(this)
         gestureBar.write(this)
         cloudLock.write(this)
+        cloudAnimation.write(this)
+        cloudCardPosition.write(this)
         putBoolean("enabled", enabled); putInt("theme", theme)
         putBoolean("panel_saturation_enabled", panelSaturationEnabled); putInt("panel_saturation", panelSaturation)
         putInt("color_mode", colorMode)
@@ -65,7 +69,7 @@ internal data class Settings(
     fun json(): String {
         val data = JSONObject()
         bundle().let { b -> b.keySet().sorted().forEach { k -> @Suppress("DEPRECATION") data.put(k, b.get(k)) } }
-        return JSONObject().put("format", "thunder.settings").put("version", 23).put("settings", data).toString(2)
+        return JSONObject().put("format", "thunder.settings").put("version", 25).put("settings", data).toString(2)
     }
     companion object {
         fun from(b: Bundle): Settings {
@@ -85,11 +89,11 @@ internal data class Settings(
                 b.getBoolean("notification_margins", false), b.getInt("notification_margin", 30).coerceIn(0, 64),
                 b.getBoolean("cloud_enabled", true),
                 b.getBoolean("cloud_height_enabled", false), b.getInt("cloud_height",34).coerceIn(20,64),
-                b.getBoolean("cloud_corner_enabled", false), b.getInt("cloud_corner",20).coerceIn(0,48),
+                b.getBoolean("cloud_corner_enabled", false), b.getInt("cloud_corner",20).coerceIn(0,128),
                 a("cloud",0x20282828).copy(cornerEnabled=false,corner=28), b.getInt("status_bar_hidden_icons",0) and StatusBarIcons.ALL,
                 Area(cards.blur,cards.radius,cards.tint,cards.color,cards.cornerEnabled,cards.corner),
                 if(b.containsKey("cloud_card_color")) a("cloud_card",0x20282828)
-                else a("cloud",0x20282828).copy(corner=b.getInt("cloud_corner",20).coerceIn(0,48)),
+                else a("cloud",0x20282828).copy(corner=b.getInt("cloud_corner",20).coerceIn(0,128)),
                 if(b.getInt("status_bar_icon_style",0)==1) 1 else 0,
                 b.getBoolean("status_bar_stack_signals", false),
                 Area(rows.blur,rows.radius,rows.tint,rows.color,rows.cornerEnabled,rows.corner),
@@ -102,13 +106,13 @@ internal data class Settings(
                 cloudLock = CloudLockSettings.from(b),
                 panelSaturationEnabled = b.getBoolean("panel_saturation_enabled", false),
                 panelSaturation = b.getInt("panel_saturation", 100).coerceIn(0, 200),
-                styles = StyleSettings.from(b))
+                styles = StyleSettings.from(b), cloudAnimation = CloudAnimationSettings.from(b), cloudCardPosition = CloudCardPositionSettings.from(b))
         }
         fun parse(text: String): Settings {
             require(text.toByteArray(Charsets.UTF_8).size <= 65536) { "配置不能超过 64 KB" }
             val root = JSONObject(text)
             val version = root.opt("version")
-            require(root.opt("format") == "thunder.settings" && version in setOf(3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23)) { "不是受支持的 thunder 配置" }
+            require(root.opt("format") == "thunder.settings" && version in setOf(3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25)) { "不是受支持的 thunder 配置" }
             val data = root.getJSONObject("settings")
             // v21's black/white overlay was the wrong control. Keep the saved material,
             // discard that adjustment and start actual saturation at the identity value.
@@ -143,14 +147,16 @@ internal data class Settings(
                 }
             }
             val defaults = Settings().bundle().apply {
-                if (version != 23) StyleSettings.keys.forEach { remove(it) }
-                if (version !in setOf(22,23)) { remove("panel_saturation_enabled"); remove("panel_saturation") }
-                if (version !in setOf(20,21,22,23)) remove("volume_liquid_entrance")
+                if (version != 25) CloudCardPositionSettings.keys.forEach { remove(it) }
+                if (version !in setOf(24,25)) CloudAnimationSettings.keys.forEach { remove(it) }
+                if (version !in setOf(23,24,25)) StyleSettings.keys.forEach { remove(it) }
+                if (version !in setOf(22,23,24,25)) { remove("panel_saturation_enabled"); remove("panel_saturation") }
+                if (version !in setOf(20,21,22,23,24,25)) remove("volume_liquid_entrance")
                 // Older exports retain their manually selected UI colors.
-                if (version !in setOf(16,17,18,19,20,21,22,23)) remove("color_mode")
-                if (version !in setOf(17,18,19,20,21,22,23)) StatusBarSettings.keys.forEach { remove(it) }
-                if (version !in setOf(18,19,20,21,22,23)) GestureBarSettings.keys.forEach { remove(it) }
-                if (version !in setOf(19,20,21,22,23)) CloudLockSettings.keys.forEach { remove(it) }
+                if (version !in setOf(16,17,18,19,20,21,22,23,24,25)) remove("color_mode")
+                if (version !in setOf(17,18,19,20,21,22,23,24,25)) StatusBarSettings.keys.forEach { remove(it) }
+                if (version !in setOf(18,19,20,21,22,23,24,25)) GestureBarSettings.keys.forEach { remove(it) }
+                if (version !in setOf(19,20,21,22,23,24,25)) CloudLockSettings.keys.forEach { remove(it) }
                 // v7 and v12 serialize rows separately; v8–v11 seed them from the shared material.
                 if(version in setOf(8,9,10,11)) {
                     keySet().filter { it.startsWith("notification_card_") }.forEach { remove(it) }
@@ -171,7 +177,7 @@ internal data class Settings(
                 listOf("notification_card","cloud_card").flatMap { k ->
                     listOf("blur","radius","tint","color","corner_enabled","corner").map { "${k}_$it" }
                 }
-            val expected = defaults.keySet() - (if (version !in setOf(13,14,15,16,17,18,19,20,21,22,23)) VolumeSettings.keys else emptySet()) - (if (version !in setOf(13,14,15,16,17,18,19,20,21,22,23)) setOf("gesture_bar_hidden", "gesture_bar_remove_inset") else emptySet()) - (if (version !in setOf(11,12,13,14,15,16,17,18,19,20,21,22,23)) setOf("status_bar_stack_signals") else emptySet()) - (if (version !in setOf(9,10,11,12,13,14,15,16,17,18,19,20,21,22,23)) setOf("status_bar_icon_style") else emptySet()) - (if (version in setOf(3,4,5,6)) v7 else emptySet()) - (if (version == 3) added else emptySet()) -
+            val expected = defaults.keySet() - (if (version !in setOf(13,14,15,16,17,18,19,20,21,22,23,24,25)) VolumeSettings.keys else emptySet()) - (if (version !in setOf(13,14,15,16,17,18,19,20,21,22,23,24,25)) setOf("gesture_bar_hidden", "gesture_bar_remove_inset") else emptySet()) - (if (version !in setOf(11,12,13,14,15,16,17,18,19,20,21,22,23,24,25)) setOf("status_bar_stack_signals") else emptySet()) - (if (version !in setOf(9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25)) setOf("status_bar_icon_style") else emptySet()) - (if (version in setOf(3,4,5,6)) v7 else emptySet()) - (if (version == 3) added else emptySet()) -
                 (if (version == 3 || version == 4) setOf("status_bar_hidden_icons") else emptySet()) -
                 (if (version in setOf(3,4,5)) setOf("qs_card_tint","qs_card_color") else emptySet())
             require(data.keys().asSequence().toSet() == expected) { "配置字段不完整或包含未知字段" }
@@ -184,11 +190,11 @@ internal data class Settings(
                 }
             }
             val ranges = mapOf("panel_saturation" to 0..200, "theme" to 0..2, "color_mode" to 0..2, "glass_strength" to 0..100, "refraction" to 0..100,
-                "roundness" to 16..36, "panel_radius" to 0..200, "banner_radius" to 0..200, "notification_margin" to 0..64, "cloud_height" to 20..64, "cloud_corner" to 0..48, "cloud_radius" to 0..200,
+                "roundness" to 16..36, "panel_radius" to 0..200, "banner_radius" to 0..200, "notification_margin" to 0..64, "cloud_height" to 20..64, "cloud_corner" to 0..128, "cloud_radius" to 0..200,
                 "status_bar_icon_style" to 0..1, "status_bar_hidden_icons" to 0..StatusBarIcons.ALL,
                 "qs_card_radius" to 0..200,"qs_card_corner" to 0..64,"banner_corner" to 0..64,"notification_card_corner" to 0..64,
                 "cloud_card_corner" to 0..64,"notification_card_radius" to 0..200,"cloud_card_radius" to 0..200)
-            (ranges + StyleSettings.ranges + VolumeSettings.ranges + StatusBarSettings.ranges + GestureBarSettings.ranges + CloudLockSettings.ranges).forEach { (k, range) -> require(!b.containsKey(k) || b.getInt(k) in range) { "$k 超出允许范围" } }
+            (ranges + CloudCardPositionSettings.ranges + CloudAnimationSettings.ranges + StyleSettings.ranges + VolumeSettings.ranges + StatusBarSettings.ranges + GestureBarSettings.ranges + CloudLockSettings.ranges).forEach { (k, range) -> require(!b.containsKey(k) || b.getInt(k) in range) { "$k 超出允许范围" } }
             require((b.getInt("accent") ushr 24) == 255 && (b.getInt("backdrop_color") ushr 24) == 255) { "界面配色必须为不透明颜色" }
             return from(b)
         }

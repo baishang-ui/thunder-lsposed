@@ -20,6 +20,7 @@ public final class ValueAnimator extends Animator {
     public Object getAnimatedValue(){return value;}
     public void removeAllUpdateListeners(){listeners.clear();}
     public void cancel(){cancelled=true;running.remove(this);super.cancel();}
+    public void end(){paused=false;value=to;for(var l:new ArrayList<>(listeners))l.onAnimationUpdate(this);running.remove(this);dispatchEnd();}
     public void start(){running.add(this);dispatchStart();advance(0);}
     public void advance(float t){
         if(paused||cancelled)return;

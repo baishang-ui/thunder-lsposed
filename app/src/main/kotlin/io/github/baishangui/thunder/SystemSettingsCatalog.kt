@@ -49,12 +49,20 @@ internal object SystemSettingsCatalog {
         material("volume_bar", "音量条与按钮", "volume")
         material("volume_panel", "展开面板", "volume")
         flag("cloud_enabled", "启用流体云调整", "cloud")
+        flag("cloud_animation_enabled", "优化展开与收起", "cloud")
+        number("cloud_animation_duration", "动画时长（ms）", "cloud", 120..1000, "cloud_animation_enabled")
+        add(Field("cloud_animation_curve", "动画曲线", "cloud", 0..3,
+            listOf("iOS 式缓出", "平滑缓动", "轻快缓出", "匀速"), dependency = "cloud_animation_enabled"))
+        number("cloud_animation_bounce", "回弹大小（%）", "cloud", 0..100, "cloud_animation_enabled")
         flag("cloud_height_enabled", "自定义胶囊高度", "cloud")
         number("cloud_height", "胶囊高度（dp）", "cloud", 20..64, "cloud_height_enabled")
         flag("cloud_corner_enabled", "自定义胶囊圆角", "cloud")
-        number("cloud_corner", "胶囊圆角（dp）", "cloud", 0..48, "cloud_corner_enabled")
+        number("cloud_corner", "胶囊圆角（dp）", "cloud", 0..128, "cloud_corner_enabled")
         material("cloud", "胶囊背景", "cloud", false)
         material("cloud_card", "展开卡片", "cloud")
+        flag("cloud_card_position_enabled", "自定义展开位置", "cloud")
+        number("cloud_card_offset_x", "展开卡片水平偏移（dp）", "cloud", -100..100, "cloud_card_position_enabled")
+        number("cloud_card_offset_y", "展开卡片垂直偏移（dp）", "cloud", -100..300, "cloud_card_position_enabled")
         add(Field("cloud_lock_style", "锁屏背景", "cloud", 0..2, listOf("跟随系统", "自定义材质"), choiceValues = listOf(0, 2)))
         material("cloud_lock", "锁屏材质", "cloud")
         flag("cloud_app_color", "应用提供的背景颜色", "cloud")
@@ -142,6 +150,7 @@ internal object SystemSettingsCatalog {
         putString("page", f.page); putString("section", section(f))
         if (f.page != "home") putString("style_group", StyleGroups.forField(f.key))
         putString("unit", when {
+            "（ms）" in f.title -> "ms"
             "（dp）" in f.title -> "dp"
             "（px）" in f.title -> "px"
             "（sp）" in f.title -> "sp"
