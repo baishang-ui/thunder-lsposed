@@ -1,6 +1,8 @@
 package io.github.baishangui.thunder;
 
 import android.graphics.Matrix;
+import android.graphics.Path;
+import android.graphics.Region;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -11,6 +13,20 @@ import java.util.Map;
 final class CloudInputBridge {
     private static final Map<View,Window> active=new IdentityHashMap<>();
     private View window;
+    /** A closing capsule can only acquire pixels shared with its visible silhouette. */
+    static Region capsuleRegion(Region visible,CloudMorphHook.Frame target,float offsetX,float offsetY) {
+        Region result=new Region();
+        if(target==null||visible.isEmpty())return result;
+        float radius=Math.max(0,Math.min(target.radius(),Math.min(target.width(),target.height())/2f));
+        Path path=new Path();path.addRoundRect(target.x()-offsetX,target.y()-offsetY,
+            target.x()-offsetX+target.width(),target.y()-offsetY+target.height(),radius,radius,Path.Direction.CW);
+        result.setPath(path,visible);return result;
+    }
+    /** Region equality includes holes and contours, not merely its enclosing bounds. */
+    static boolean updateRegion(Region published,Region next) {
+        if(published.equals(next))return false;
+        published.set(next);return true;
+    }
     private static final class Window {
         final WindowManager manager;
         final CloudInputWindowPolicy flags=new CloudInputWindowPolicy();

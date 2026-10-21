@@ -7,6 +7,14 @@ import android.graphics.drawable.GradientDrawable;
 /** One native G2 curve for custom flow-card content, material and edge layers. */
 final class CloudCornerGeometry {
     static final float WEIGHT=3f;
+    static float nonSmoothWeight(ClassLoader loader) {
+        try {
+            return ((Number)Reflect.findClass("com.oplus.view.OplusSmoothRoundedManager",loader)
+                .getDeclaredMethod("getNonWight").invoke(null)).floatValue();
+        } catch(ReflectiveOperationException error) {
+            throw new IllegalStateException("Native non-smooth corner weight unavailable",error);
+        }
+    }
     static float capsuleRadius(float width,float height,int dp,float density) {
         float requested=Math.max(0,dp*density);
         return width>0&&height>0?Math.min(requested,Math.min(width,height)/2f):requested;

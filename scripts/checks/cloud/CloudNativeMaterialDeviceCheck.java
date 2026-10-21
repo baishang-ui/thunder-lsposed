@@ -25,6 +25,14 @@ public final class CloudNativeMaterialDeviceCheck {
         void setBlurRadius(int radius){this.radius=radius;}
     }
     static void close(float expected,float actual){if(Math.abs(expected-actual)>.001f)throw new AssertionError(expected+" != "+actual);}
+    static void round(Object params,float[] original) {
+        close(0,((Number)Reflect.callMethod(params,"getSmoothCornerType")).floatValue());
+        close(2,((Number)Reflect.callMethod(params,"getSmoothCornerWeight")).floatValue());
+        float[] actual=(float[])Reflect.callMethod(params,"toFloatArray");
+        if(actual.length!=18)throw new AssertionError("Unexpected native material codec size "+actual.length);
+        close(2,actual[16]);close(0,actual[17]);
+        for(int i=0;i<16;i++)close(original[i],actual[i]);
+    }
     public static void main(String[] args) {
         ClassLoader loader=CloudNativeMaterialDeviceCheck.class.getClassLoader();
         Object params=Reflect.newInstance(Reflect.findClass("com.oplus.graphics.OplusBlurParam",loader));
@@ -36,17 +44,15 @@ public final class CloudNativeMaterialDeviceCheck {
         Manager manager=new Manager(new Blur(params));
         CloudNativeMaterial material=new CloudNativeMaterial(manager,loader);material.capture(null,false);
         material.apply(0,false);close(0,manager.radius);close(0,manager.blur.alpha);
-        Object round=Reflect.newInstance(params.getClass());
-        Reflect.callMethod(round,"fromFloatArray",(Object)original.clone());
-        Reflect.callMethod(round,"setSmoothCornerType",0);
-        Reflect.callMethod(round,"setSmoothCornerWeight",0f);
-        float[] expectedRound=(float[])Reflect.callMethod(round,"toFloatArray");
-        float[] actualRound=(float[])Reflect.callMethod(manager.applied,"toFloatArray");
-        for(int i=0;i<expectedRound.length;i++)close(expectedRound[i],actualRound[i]);
+        // Assert the actual native contract independently of production setter calls.
+        // A vendor debug override that forces G2 must fail this round-capsule probe.
+        round(manager.applied,original);
         material.apply(.5f,false);close(30,manager.radius);close(128,manager.blur.alpha);
         material.apply(1,false);close(60,manager.radius);close(255,manager.blur.alpha);
         float[] actual=(float[])Reflect.callMethod(manager.applied,"toFloatArray");
         for(int i=0;i<original.length;i++)close(original[i],actual[i]);
-        System.out.println("CloudNativeMaterialDeviceCheck: native codec/radius/alpha checks passed");
+        material.apply(0,true);close(0,manager.radius);close(255,manager.blur.alpha);
+        round(manager.applied,original);
+        System.out.println("CloudNativeMaterialDeviceCheck: native ROUND type 0/weight 2, G2, codec, radius and alpha checks passed");
     }
 }

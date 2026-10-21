@@ -13,6 +13,14 @@ public final class CloudCapsuleCornerCheck {
         @Override public int getWidth(){return 600;}
         @Override public int getHeight(){return height;}
     }
+    static final class Mini extends android.view.View {
+        @Override public int getWidth(){return 176;}
+        @Override public int getHeight(){return 176;}
+    }
+    static final class MiniContainer extends com.oplus.systemui.plugins.seedling.capsule.ui.view.CapsuleContainer {
+        final Mini mini=new Mini();
+        public android.view.View getMiniView(){return mini;}
+    }
     static void check(boolean ok,String text){if(!ok)throw new AssertionError(text);checks++;}
     static void close(float expected,float actual,String text){check(Math.abs(expected-actual)<.001f,text+": "+actual);}
     public static void main(String[] args)throws Throwable {
@@ -44,12 +52,41 @@ public final class CloudCapsuleCornerCheck {
         CloudCheck.config(b);CloudHook.refresh();
         close(88,com.oplus.view.ViewRootManager.last.corner,"native blur shares saturated capsule radius");
         check(com.oplus.view.ViewRootManager.last.params.smoothType==0,"native blur uses the same circular curve");
+        close(2,com.oplus.view.ViewRootManager.last.params.smoothWeight,"native blur clears the old G2 weight with the host's valid round value");
         b.putBoolean("cloud_corner_enabled",false);b.putBoolean("cloud_blur",false);b.putBoolean("cloud_tint",false);
         CloudCheck.config(b);CloudHook.refresh();
         close(17,fill.getCornerRadius(),"disabling custom shape restores native radius");
         check(fill.mGradientState.smooth&&fill.mGradientState.mSmoothWeight==1.1f,"disabling restores the saved vendor smoothing");
         CloudCheck.after(BASE+"onDetachedFromWindow",view,null);
         check(view.layoutListeners.isEmpty(),"detached capsules release geometry listeners");
+        for(boolean animated:new boolean[]{false,true}) {
+            b.putBoolean("cloud_animation_enabled",animated);b.putBoolean("cloud_corner_enabled",true);
+            CloudCheck.config(b);
+            MiniContainer container=new MiniContainer();Mini mini=container.mini;
+            GradientDrawable miniFill=(GradientDrawable)mini.getBackground();
+            miniFill.setCornerRadius(20);miniFill.mGradientDrawableExt.setSmoothRoundStyle(true,2,1);
+            QsGeometryCheck.afterIfPresent("com.oplus.systemui.plugins.seedling.capsule.ui.view.CapsuleContainer#onFinishInflate",container,null);
+            close(88,miniFill.getCornerRadius(),"mini capsule reaches a circular end with animations="+animated);
+            check(!miniFill.mGradientState.smooth,"mini source no longer keeps its XML G2 curve");
+            for(var listener:java.util.List.copyOf(mini.attachListeners))listener.onViewAttachedToWindow(mini);
+            check(((com.oplus.systemui.plugins.common.util.j)mini.getOutlineProvider()).b.d().equals(0),"mini clip uses native ROUND");
+            b.putBoolean("cloud_blur",true);b.putBoolean("cloud_tint",true);CloudCheck.config(b);CloudHook.refresh();
+            close(88,com.oplus.view.ViewRootManager.last.corner,"mini blur saturates at the same circular radius");
+            close(0,com.oplus.view.ViewRootManager.last.params.smoothType,"mini blur selects ROUND");
+            close(2,com.oplus.view.ViewRootManager.last.params.smoothWeight,"mini blur uses the native non-smooth weight");
+            b.putBoolean("cloud_blur",false);b.putBoolean("cloud_tint",false);
+            b.putBoolean("cloud_corner_enabled",false);CloudCheck.config(b);CloudHook.refresh();
+            close(20,miniFill.getCornerRadius(),"disabling mini corners restores its original XML radius");
+            check(miniFill.mGradientState.smooth&&miniFill.mGradientState.mSmoothWeight==2,"disabling restores the mini's original smoothing");
+            b.putBoolean("cloud_corner_enabled",true);CloudCheck.config(b);CloudHook.refresh();
+            for(var listener:java.util.List.copyOf(mini.attachListeners))listener.onViewDetachedFromWindow(mini);
+            close(20,miniFill.getCornerRadius(),"mini detach restores native geometry");
+            check(mini.layoutListeners.isEmpty(),"mini detach releases size listeners");
+            for(var listener:java.util.List.copyOf(mini.attachListeners))listener.onViewAttachedToWindow(mini);
+            close(88,miniFill.getCornerRadius(),"reused mini reattaches with saturated round corners");
+            check(mini.attachListeners.size()==1&&mini.layoutListeners.size()==1,"mini reattach keeps exactly one lifecycle and size listener");
+            for(var listener:java.util.List.copyOf(mini.attachListeners))listener.onViewDetachedFromWindow(mini);
+        }
         System.out.println("Verified "+checks+" capsule range and circular-layer checks.");
     }
 }

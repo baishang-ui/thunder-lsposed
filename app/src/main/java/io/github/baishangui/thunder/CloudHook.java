@@ -51,6 +51,26 @@ final class CloudHook {
             remember(background,restore);remember(foreground,restore);
         }
     }
+    private static final View.OnAttachStateChangeListener miniAttachment=new View.OnAttachStateChangeListener() {
+        @Override public void onViewAttachedToWindow(View view){
+            try{applyCapsule(view,trackCapsule(view),ShadeHook.snapshot());}
+            catch(Throwable error){ShadeHook.frameworkFailure("cloud-mini-attach",error);}
+        }
+        @Override public void onViewDetachedFromWindow(View view){
+            try{releaseCapsule(view);}
+            catch(Throwable error){ShadeHook.frameworkFailure("cloud-mini-detach",error);}
+        }
+    };
+    private static CapsuleState trackCapsule(View view) {
+        CapsuleState state=capsules.get(view);
+        if(state==null){state=new CapsuleState(view);capsules.put(view,state);view.addOnLayoutChangeListener(capsuleGeometry);}
+        return state;
+    }
+    private static void releaseCapsule(View view) {
+        CapsuleState state=capsules.remove(view);view.removeOnLayoutChangeListener(capsuleGeometry);
+        if(state!=null){view.setBackground(state.background);for(Runnable reset:state.restore)reset.run();
+            view.setOutlineProvider(state.outline);view.setClipToOutline(state.clip);}
+    }
     static void watch(ClassLoader host) {
         bind(host,"loader-create", () -> Api102Runtime.findAndHookMethod("com.android.systemui.shared.plugins.PluginInstance$PluginFactory",host,
             "createClassLoader",new HookCallback() {
@@ -194,8 +214,7 @@ final class CloudHook {
                 @Override protected void afterHookedMethod(Param p) {
                     if(p.hasThrowable())return;
                     View view=(View)p.thisObject;
-                    CapsuleState state=capsules.get(view);
-                    if(state==null){state=new CapsuleState(view);capsules.put(view,state);view.addOnLayoutChangeListener(capsuleGeometry);}
+                    CapsuleState state=trackCapsule(view);
                     if("onFinishInflate".equals(method)) {
                         HookConfig c=ShadeHook.snapshot();if(c.enabled&&c.cloud)applyCapsuleCorners(view,c.cloudArea,null);
                     } else applyCapsule(view,state,ShadeHook.snapshot());
@@ -203,10 +222,18 @@ final class CloudHook {
             }));
         bind(loader,"capsule-detach",() -> Api102Runtime.findAndHookMethod(BASE+"capsule.ui.view.CapsuleView",loader,"onDetachedFromWindow",new HookCallback() {
             @Override protected void afterHookedMethod(Param p) {
-                View view=(View)p.thisObject;CapsuleState state=capsules.remove(view);
-                view.removeOnLayoutChangeListener(capsuleGeometry);
-                if(state!=null){view.setBackground(state.background);for(Runnable reset:state.restore)reset.run();
-                    view.setOutlineProvider(state.outline);view.setClipToOutline(state.clip);}
+                releaseCapsule((View)p.thisObject);
+            }
+        }));
+        // Multi-service mini is a FrameLayout with its own fixed G2 XML fill,
+        // so CapsuleView lifecycle hooks never reach it. Track that actual view
+        // even when the independent animation surface is disabled.
+        bind(loader,"mini-capsule",() -> Api102Runtime.findAndHookMethod(BASE+"capsule.ui.view.CapsuleContainer",loader,"onFinishInflate",new HookCallback() {
+            @Override protected void afterHookedMethod(Param p) {
+                if(p.hasThrowable()||!(Reflect.callMethod(p.thisObject,"getMiniView") instanceof View view))return;
+                trackCapsule(view);
+                view.removeOnAttachStateChangeListener(miniAttachment);view.addOnAttachStateChangeListener(miniAttachment);
+                HookConfig c=ShadeHook.snapshot();if(c.enabled&&c.cloud)applyCapsuleCorners(view,c.cloudArea,null);
             }
         }));
         // Firmware reapplies drawable bounds while the capsule changes width.
@@ -440,20 +467,25 @@ final class CloudHook {
         applyMaterial(view,manager,area,false);
     }
     private static void applyMaterial(View view,Object manager,HookConfig.Area area,boolean capsule) {
+        // Mini is a framework FrameLayout; its class loader cannot see plugin
+        // util.c, while its inflation Context retains the plugin loader.
+        ClassLoader loader=view.getContext().getClassLoader();
         if(area.cornerEnabled || view.getClass().getName().endsWith("CapsuleView")) {
             int dp=area.cornerEnabled?area.corner:20;
             Reflect.callMethod(manager,"setCornerRadius",dp*view.getResources().getDisplayMetrics().density);
         }
         if(area.tint) {
             int color=area.color;
-            Object param=Reflect.newInstance(Reflect.findClass("com.oplus.graphics.OplusBlurParam",view.getClass().getClassLoader()));
+            Object param=Reflect.newInstance(Reflect.findClass("com.oplus.graphics.OplusBlurParam",loader));
             Reflect.callMethod(param,"setBlurType",2);
             try {
-                Object geometry=Reflect.findClass(BASE+"util.c",view.getClass().getClassLoader()).getDeclaredMethod("f").invoke(null);
+                Object geometry=Reflect.findClass(BASE+"util.c",loader).getDeclaredMethod("f").invoke(null);
                 int type=((Number)Reflect.callMethod(geometry,"d")).intValue();
                 boolean circularCapsule=capsule&&area.cornerEnabled;
                 Reflect.callMethod(param,"setSmoothCornerType",circularCapsule?0:type==2?1:0);
-                Reflect.callMethod(param,"setSmoothCornerWeight",circularCapsule?0f:((Number)Reflect.callMethod(geometry,"f")).floatValue());
+                Reflect.callMethod(param,"setSmoothCornerWeight",circularCapsule
+                    ?CloudCornerGeometry.nonSmoothWeight(loader)
+                    :((Number)Reflect.callMethod(geometry,"f")).floatValue());
             } catch(ReflectiveOperationException error){throw new IllegalStateException("Cloud smooth corners unavailable",error);}
             float[] top={(color>>16&255)/255f,(color>>8&255)/255f,(color&255)/255f,(color>>>24)/255f};
             Reflect.callMethod(param,"setMaterialParams",color>>>24==0?0:1,new float[4],top);

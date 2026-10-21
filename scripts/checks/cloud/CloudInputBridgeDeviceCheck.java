@@ -1,6 +1,7 @@
 package io.github.baishangui.thunder;
 
 import android.graphics.Matrix;
+import android.graphics.Region;
 import android.view.MotionEvent;
 
 /** app_process only: real Android event semantics, with no window, input injection or business UI. */
@@ -38,6 +39,28 @@ public final class CloudInputBridgeDeviceCheck {
         }
     }
     public static void main(String[] args) {
+        // A closing body may reopen only where the visible body already covers
+        // its capsule destination. It must never regain the large card region.
+        CloudMorphHook.Frame capsule=new CloudMorphHook.Frame(100,20,240,80,40,0);
+        Region visible=new Region(200,20,500,160);
+        Region capsuleOnly=CloudInputBridge.capsuleRegion(visible,capsule,0,0);
+        check(capsuleOnly.contains(210,60),"visible capsule overlap cannot reopen immediately");
+        check(!capsuleOnly.contains(160,60),"invisible capsule target intercepted DOWN");
+        check(!capsuleOnly.contains(400,60),"closing card area intercepted DOWN outside the capsule");
+        check(!capsuleOnly.contains(338,21),"capsule bounding-box corner intercepted DOWN");
+        check(CloudInputBridge.capsuleRegion(new Region(0,200,500,400),capsule,0,0).isEmpty(),
+            "disjoint destination must leave the entire display transparent");
+        check(CloudInputBridge.capsuleRegion(visible,null,0,0).isEmpty(),"unknown capsule destination captured input");
+        Region published=new Region();int traversals=0;
+        if(CloudInputBridge.updateRegion(published,capsuleOnly))traversals++;
+        for(int i=0;i<120;i++)if(CloudInputBridge.updateRegion(published,new Region(capsuleOnly)))traversals++;
+        check(traversals==1,"stable capsule input requested a layout on every native pre-draw");
+        Region hole=new Region(capsuleOnly);hole.op(220,40,230,50,Region.Op.DIFFERENCE);
+        check(hole.getBounds().equals(capsuleOnly.getBounds()),"test must retain the region's enclosing bounds");
+        check(CloudInputBridge.updateRegion(published,hole),"changed contour with identical bounds was not submitted");
+        hole.setEmpty();check(!published.isEmpty(),"submitted region retained the caller's mutable instance");
+        check(CloudInputBridge.updateRegion(published,hole)&&published.isEmpty(),"outside dismissal did not immediately clear input");
+        check(!CloudInputBridge.updateRegion(published,hole),"empty closing input repeatedly requested traversal");
         Matrix windowMap=new Matrix();windowMap.setValues(new float[]{1,0,-24,0,1,-88,0,0,1});
         MotionEvent down=event(MotionEvent.ACTION_DOWN,1);
         MotionEvent outside=CloudInputBridge.outsideToRoot(down,windowMap);

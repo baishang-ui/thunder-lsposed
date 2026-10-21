@@ -8,6 +8,7 @@ import android.graphics.drawable.LayerDrawable;
 final class CloudNativeMaterial {
     private final Object manager,params;
     final Drawable blur;
+    private final float roundWeight;
     private float[] capsule,card,mixed;
     private int capsuleRadius,cardRadius;
     private float applied=Float.NaN;
@@ -17,6 +18,7 @@ final class CloudNativeMaterial {
         blur=(Drawable)Reflect.callMethod(manager,"getBackgroundBlurDrawable");
         if(blur==null)throw new IllegalStateException("Independent native blur drawable missing");
         params=Reflect.newInstance(Reflect.findClass("com.oplus.graphics.OplusBlurParam",loader));
+        roundWeight=CloudCornerGeometry.nonSmoothWeight(loader);
     }
     void capture(Drawable capsuleBackground,boolean capsuleBlur) {
         card=snapshot(blur);cardRadius=Reflect.getIntField(blur,"mBlurRadius");
@@ -32,7 +34,8 @@ final class CloudNativeMaterial {
         // The folded capsule uses the host's circular end caps; expanded cards
         // retain its G2 shape. Material and outline must make the same choice.
         Reflect.callMethod(params,"setSmoothCornerType",p>.001f?1:0);
-        Reflect.callMethod(params,"setSmoothCornerWeight",p>.001f?CloudCornerGeometry.WEIGHT:0f);
+        // OplusBlurParam rejects zero instead of clearing the previous G2 weight.
+        Reflect.callMethod(params,"setSmoothCornerWeight",p>.001f?CloudCornerGeometry.WEIGHT:roundWeight);
         Reflect.callMethod(manager,"setBlurParams",params);
         Reflect.callMethod(manager,"setBlurRadius",Math.round(capsuleRadius+(cardRadius-capsuleRadius)*p));
         blur.setAlpha(Math.round(255*(capsuleBlur?1:p)));

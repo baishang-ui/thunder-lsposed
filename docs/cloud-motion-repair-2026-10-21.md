@@ -48,9 +48,26 @@
 - `:app:testDebugUnitTest :app:assembleDebug --offline` 成功，27 个测试套件、125 项单元测试，0 失败、0 错误、0 跳过。
 - 完整 `scripts/check_effects.py` 成功，其中包含 7,164 项运动轨迹检查、696 项统一对象生命周期检查、16 项表面策略检查，以及堆叠、圆角、内容身份和输入所有权回归。
 - 真实 Surface、内容辅助类和 Android 绘制探针通过 Java/Dex 编译。`CloudCapsuleContentDeviceCheck` 已扩为 13 项，覆盖迷你容器背景不重复绘制、内容矩阵和透明度保留。
-- 本轮没有连接设备，未执行平台绘制与像素探针。前一轮 `CloudNativeMaterialDeviceCheck` 验证过 ROUND/0、G2/3、圆角和 alpha 的宿主材质参数；前一轮内容探针在 View/Context 初始化时被 SIGKILL，没有完成像素断言。两者不能代替本轮的真机视觉验证。
+- 本轮没有连接设备，未执行平台绘制与像素探针。前一轮 `CloudNativeMaterialDeviceCheck` 的预期值重复了生产代码的 setter 顺序，不能证明实际圆角权重正确；后续审查确认数值 0 会被原生 setter 拒绝，修正见下节。前一轮内容探针在 View/Context 初始化时被 SIGKILL，没有完成像素断言。这些结果不能代替本轮的真机视觉验证。
 - `git diff --check` 成功。未安装本次 APK，也未重启宿主。
 
 后续修复安装包：`.local/cloud-followup-fixes/thunder-cloud-followup-20261021.apk`。最终暂存快照的构建与完整回归日志分别为 `.local/cloud-followup-build-final.log`、`.local/cloud-followup-effects-final.log`；独立暂存快照再次检查最终提交内容，APK 由该快照生成。
 
 这些检查不等于已经在所有应用模板上完成整段视觉验收。控制中心连续下拉恢复、多服务滑动切换、删除首卡后立即收起、前台应用首次进入及动画中途反转，仍应在更新模块并重新加载后进行实际观感确认。
+
+
+## 二次反馈：切换连续性、横向隐藏与触摸响应
+
+左右切换及第二个前台服务进入时，B0 包装的外层图与内部 `c()` 图曾同时携带统一形变标记。原生 `h.g()` 递归构造两个观察器后，会为同一胶囊重复启动 Motion。现在把标记提升至外图时从内图移除，每个原生场景只保留一个视觉时钟。原生图仍立即播放；没有证据表明其 950ms 条件片段在启动之前阻塞入口。
+
+目标测量变化不再重跑一段完整时长。运行中的形变从当前矩形和速度重新计算轨迹，在原时钟剩余时间内完成，保留闭门补偿后的零速度；视觉已结束后的真实新尺寸才启动下一段。相同尺寸服务替换也移除了人为的 3% 压缩脉冲。这些修改针对形变顿挫和拖尾，原生文字横滑与月牙继续由原图驱动。
+
+按最新要求，已有胶囊隐藏只压缩宽度，保持当前高度、纵向位置和水平中心。控制中心可见性门与原生消失场景均采用这一几何约束；后者接手中途运动时清除高度、纵向和中心漂移速度。首次入口仍使用独立的点到胶囊过渡，避免更改首次进入效果。
+
+收起一开始仍释放外部及大卡片的触摸区域。在胶囊内容已出现的末段，只允许“当前实际轮廓与原生胶囊目标的交集”启动反向展开，并直接映射至原生胶囊根节点；不可见目标不会截获点击。手势序列和时间戳持续保留，透明的原生卡片窗口仍保持输入租约直至真正隐藏。未修改原生重复点击保护、滑动阈值或长按时限。相同展示矩形不重复构造圆角和 Outline，只有输入区域内容或外部捕获状态变化才请求布局，减少持续触摸期间的重复工作。
+
+最大圆角补齐了原生 mini 的生命周期。mini 是独立 FrameLayout，不会经过 CapsuleView hook；现在在动画优化开关两种状态下都按短边一半饱和，并在禁用、分离及复用时恢复或重新应用。它的材质查找使用 inflation Context 的插件 ClassLoader，避免 framework FrameLayout 的类加载器找不到插件 `util.c`。
+
+实际 `oplus-framework.jar` 中，`OplusBlurParam.setSmoothCornerWeight` 对 `<=0` 直接返回，不会清除已载入的 G2 权重。`OplusSmoothRoundedManager.getNonWight()` 返回 2，原生构造函数也将它与 ROUND type 0 配对。胶囊材质现在读取该原生非平滑权重；展开卡片仍为 G2 type 1 / weight 3。主机回归模拟拒绝零值并覆盖卡片回到胶囊，设备探针独立断言 getter 和 18 槽编码中的 weight/type，不再通过重复同一组 setter 构造预期值。厂商调试属性可强制 G2；该情况下设备探针应明确失败，不能报告 ROUND 通过。
+
+本轮安装包输出为 `.local/cloud-switch-fixes/thunder-cloud-switch-20261021.apk`；提交快照的回归与构建日志分别为 `.local/cloud-switch-effects-final.log`、`.local/cloud-switch-build-final.log`。当前未连接设备，触摸延迟与连续观感仍需要在对应固件运行该包确认；主机回归和 Android 编译不能替代实际帧率、触摸耗时或像素测量。

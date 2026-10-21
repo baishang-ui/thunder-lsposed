@@ -23,26 +23,41 @@ public final class CloudVisibilityStateCheck {
         CloudMorphHook.Frame capsule=new CloudMorphHook.Frame(360,10,240,80,40,0);
         check(CloudVisibilityState.presentation(capsule,1).equals(capsule),"fully shown geometry is untouched");
         CloudMorphHook.Frame middle=CloudVisibilityState.presentation(capsule,.5f);
-        check(middle.width()<180&&middle.height()<80,"shade hiding changes width and height before the alpha tail");
+        close(120.5f,middle.width());close(capsule.height(),middle.height());close(capsule.y(),middle.y());
         close(capsule.x()+capsule.width()/2,middle.x()+middle.width()/2);
-        close(20.75f,CloudVisibilityState.presentation(capsule,.25f).height());
-        close(60.25f,CloudVisibilityState.presentation(capsule,.75f).height());
+        close(60.75f,CloudVisibilityState.presentation(capsule,.25f).width());
+        close(180.25f,CloudVisibilityState.presentation(capsule,.75f).width());
         CloudMorphHook.Frame hidden=CloudVisibilityState.presentation(capsule,0);
-        close(hidden.width(),hidden.height());close(hidden.height()/2,hidden.radius());
+        close(1,hidden.width());close(capsule.height(),hidden.height());close(.5f,hidden.radius());
+        check(hidden.equals(CloudVisibilityState.hidden(capsule)),"disappearance uses the width-only hidden endpoint");
+        var firstEntrance=CloudVisibilityState.entrance(capsule);
+        close(1,firstEntrance.width());close(1,firstEntrance.height());close(.5f,firstEntrance.radius());
+        close(capsule.x()+capsule.width()/2,firstEntrance.x()+.5f);
+        close(capsule.y()+capsule.height()/2,firstEntrance.y()+.5f);
+        check(firstEntrance.height()!=hidden.height(),"the first entrance point is independent from a height-preserving hide");
+        for(int curve=0;curve<4;curve++){
+            CloudMotion disappear=new CloudMotion(capsule,hidden,null,500,curve,100);
+            for(int i=0;i<=100;i++){
+                var sample=disappear.frame(i/100f);
+                close(capsule.height(),sample.height());close(capsule.y(),sample.y());
+                close(capsule.x()+capsule.width()/2,sample.x()+sample.width()/2);
+            }
+        }
         close(capsule.x()+capsule.width()/2,hidden.x()+hidden.width()/2);
         close(capsule.y()+capsule.height()/2,hidden.y()+hidden.height()/2);
         check(hidden.y()>=capsule.y(),"a local hide must not invent a target above the source capsule");
         for(CloudMorphHook.Frame shape:new CloudMorphHook.Frame[]{capsule,
             new CloudMorphHook.Frame(48,92,800,120,8,0),new CloudMorphHook.Frame(120,80,80,240,0,0)}){
-            float previousWidth=0,previousHeight=0;
+            float previousWidth=0;
             for(int i=0;i<=1000;i++){
                 var sample=CloudVisibilityState.presentation(shape,i/1000f);
                 close(shape.x()+shape.width()/2,sample.x()+sample.width()/2);
                 close(shape.y()+shape.height()/2,sample.y()+sample.height()/2);
-                check(sample.width()>=previousWidth&&sample.height()>=previousHeight,"hide geometry converges without an aspect-ratio reversal");
+                close(shape.y(),sample.y());close(shape.height(),sample.height());
+                check(sample.width()>=previousWidth,"hide changes only width along its reversible centered path");
                 check(sample.width()<=shape.width()&&sample.height()<=shape.height()&&sample.radius()<=Math.min(sample.width(),sample.height())/2,
                     "all intermediate outlines stay within the original centered envelope");
-                previousWidth=sample.width();previousHeight=sample.height();
+                previousWidth=sample.width();
             }
             float epsilon=.0001f;
             var nearHidden=CloudVisibilityState.presentation(shape,epsilon);
@@ -77,6 +92,7 @@ public final class CloudVisibilityStateCheck {
                 check(Float.isFinite(sample.width())&&Float.isFinite(sample.height())&&sample.width()>=1&&sample.height()>=1,
                     "composed host geometry stays finite through a full interrupted hide");
                 close(480,sample.x()+sample.width()/2);close(50,sample.y()+sample.height()/2);
+                close(capsule.y(),sample.y());close(capsule.height(),sample.height());
             }
             host.finishHost();close(0,host.host());
             host.beginHost(1,500,curve);host.sampleHost(epsilon);
@@ -110,6 +126,8 @@ public final class CloudVisibilityStateCheck {
                 var next=CloudVisibilityState.presentation(advance(logical,logicalSpeed,dt),trajectory.frame(at+epsilon).progress());
                 closeVelocity(projected,delta(current,next,dt),1.5f,"host and logical derivatives compose through size, center and clamped radius");
                 var stillProjected=host.presentationVelocity(logical,null);
+                close(0,stillProjected.y());close(0,stillProjected.height());
+                close(-stillProjected.width()/2,stillProjected.x());
                 var stillNext=CloudVisibilityState.presentation(logical,trajectory.frame(at+epsilon).progress());
                 closeVelocity(stillProjected,delta(current,stillNext,dt),1.5f,"a stationary capsule keeps its host contraction speed during ownership handoff");
                 CloudMotion handedOff=new CloudMotion(current,logical,stillProjected,500,curve,0);
@@ -120,9 +138,9 @@ public final class CloudVisibilityStateCheck {
         closeVelocity(speeds[0],resting.presentationVelocity(shapes[0],speeds[0]),.0001f,"a resting open host leaves logical velocity unchanged");
         resting.host(0);
         var hiddenSpeed=resting.presentationVelocity(shapes[0],speeds[0]);
-        close(0,hiddenSpeed.width());close(0,hiddenSpeed.height());close(0,hiddenSpeed.radius());
+        close(0,hiddenSpeed.width());close(speeds[0].height(),hiddenSpeed.height());close(0,hiddenSpeed.radius());
         close(speeds[0].x()+speeds[0].width()/2,hiddenSpeed.x());
-        close(speeds[0].y()+speeds[0].height()/2,hiddenSpeed.y());
+        close(speeds[0].y(),hiddenSpeed.y());
         // A fast reversal can briefly carry the raw phase past its clamp. Its
         // visible derivative is zero until it comes back inside the interval.
         for(int direction=0;direction<2;direction++){
