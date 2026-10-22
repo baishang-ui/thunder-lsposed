@@ -14,6 +14,8 @@ import android.text.TextWatcher;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Chronometer;
+import android.widget.TextClock;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -90,7 +92,7 @@ final class CloudTextRenderer {
         leases.clear();leases.putAll(nextLeases);snapshots=nextSnapshots;slots=nextSlots;
     }
     void revision(){if(root!=null)bind(root,true);}
-    /** Scene changes reveal all text, including unchanged values; model revisions only diff characters. */
+    /** Scene changes reveal all text; only time updates animate individual characters. */
     void reveal(Object revision) {
         if(java.util.Objects.equals(sceneRevision,revision))return;
         sceneRevision=revision;sceneStarted=SystemClock.uptimeMillis();sceneDuration=Math.max(0,duration.getAsInt());
@@ -129,16 +131,28 @@ final class CloudTextRenderer {
                 entry=new Entry(text);texts.put(text,entry);
                 CloudTextTransition previous=snapshots.get(slot);
                 if(previous!=null)entry.transition.copyFrom(previous);
-                entry.transition.update(value,SystemClock.uptimeMillis(),duration.getAsInt(),animateNew||!snapshots.isEmpty());
+                entry.update(value,SystemClock.uptimeMillis(),duration.getAsInt(),animateNew||!snapshots.isEmpty());
                 if(sceneRevision!=null&&SystemClock.uptimeMillis()-sceneStarted<sceneDuration)
                     entry.transition.reveal(sceneStarted,sceneDuration);
                 text.addTextChangedListener(entry);
-            } else entry.transition.update(value,SystemClock.uptimeMillis(),duration.getAsInt(),false);
+            } else entry.update(value,SystemClock.uptimeMillis(),duration.getAsInt(),false);
             entry.failed=false;entry.owners.put(this,true);next.put(text,entry);nextSnapshots.put(slot,entry.transition);nextSlots.put(text,slot);
             if(entry.transition.running(SystemClock.uptimeMillis()))entry.invalidateAndSchedule();
         }
         if(view instanceof ViewGroup group)
             for(int i=0;i<group.getChildCount();i++)collect(group.getChildAt(i),path+"/"+i,animateNew,next,nextSnapshots,nextSlots,ids);
+    }
+    private static boolean timeText(TextView text) {
+        if(text instanceof TextClock)return true;
+        if(!(text instanceof Chronometer))return false;
+        try {
+            // The host's SmartChronometer also renders ordinary module text.
+            // Its mode, rather than its class or a time-shaped string, opts in.
+            Object mode=text.getClass().getMethod("getCurrentMode").invoke(text);
+            return mode instanceof Enum<?> value&&
+                (value.name().equals("COUNT_UP")||value.name().equals("COUNT_DOWN"));
+        }catch(NoSuchMethodException ignored){return true;}
+        catch(ReflectiveOperationException|RuntimeException ignored){return false;}
     }
     private static final class Entry implements TextWatcher,Runnable {
         final WeakReference<TextView> source;
@@ -152,6 +166,12 @@ final class CloudTextRenderer {
         float effectRadius=-1;
         boolean queued,recording,failed;
         Entry(TextView source){this.source=new WeakReference<>(source);}
+        boolean update(String value,long now,int duration,boolean animateNew) {
+            boolean time=timeText(source.get());
+            boolean changed=transition.update(value,now,time?duration:0,time&&animateNew);
+            if(!time&&!transition.revealing(now))transition.finish();
+            return changed;
+        }
         @Override public void beforeTextChanged(CharSequence s,int start,int count,int after) { }
         @Override public void onTextChanged(CharSequence s,int start,int before,int count) { }
         @Override public void afterTextChanged(Editable ignored) {
@@ -161,7 +181,7 @@ final class CloudTextRenderer {
             for(CloudTextRenderer current:new ArrayList<>(owners.keySet())) {
                 String slot=current.slots.get(text);if(slot!=null)current.snapshots.put(slot,transition);
             }
-            if(transition.update(value,SystemClock.uptimeMillis(),owner.duration.getAsInt(),false))
+            if(update(value,SystemClock.uptimeMillis(),owner.duration.getAsInt(),false))
                 if(failed)transition.finish();else invalidateAndSchedule();
         }
         CloudTextRenderer owner(){return owners.isEmpty()?null:owners.keySet().iterator().next();}

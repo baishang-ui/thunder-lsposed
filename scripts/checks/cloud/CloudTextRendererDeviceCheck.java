@@ -12,13 +12,17 @@ import android.os.SystemClock;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.TextView;
+import android.widget.Chronometer;
 
 /** Android app-process probe: native TextView pixels and hardware recording, no mounted window. */
 public final class CloudTextRendererDeviceCheck {
     static int checks;
     static void check(boolean value,String message){checks++;if(!value)throw new AssertionError(message);}
-    static final class Label extends TextView {
+    enum Mode { PLAIN_TEXT, COUNT_UP }
+    static final class Label extends Chronometer {
         int effectWrites;
+        Mode mode=Mode.PLAIN_TEXT;
+        public Mode getCurrentMode(){return mode;}
         Label(Context context){super(context);setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,24);setTextColor(Color.WHITE);setTypeface(Typeface.MONOSPACE);setPadding(0,0,0,0);setIncludeFontPadding(false);}
         @Override public void setRenderEffect(android.graphics.RenderEffect effect){effectWrites++;super.setRenderEffect(effect);}
         @Override protected void onDraw(Canvas canvas) {
@@ -42,6 +46,7 @@ public final class CloudTextRendererDeviceCheck {
         if(context==null)throw new IllegalStateException("Run this rendering probe in an Android app process");
         FrameLayout root=new FrameLayout(context);root.setBackgroundColor(Color.BLUE);
         Label stable=new Label(context),timer=new Label(context);stable.setText("TITLE");timer.setText("00:00");
+        timer.mode=Mode.COUNT_UP;
         stable.setId(101);timer.setId(102);timer.setBackgroundColor(Color.GREEN);
         root.addView(stable,new FrameLayout.LayoutParams(240,45));
         FrameLayout.LayoutParams timerParams=new FrameLayout.LayoutParams(240,45);timerParams.topMargin=50;root.addView(timer,timerParams);

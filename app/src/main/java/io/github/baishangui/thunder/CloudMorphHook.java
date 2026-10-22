@@ -302,7 +302,7 @@ final class CloudMorphHook {
             Object latest=pendingContentRevisions.remove(source);
             if(latest==null||!enabled()||Objects.equals(nativeContentRevisions.get(source),latest))return;
             boolean matched=false;
-            for(CloudMorphSurface shared:new ArrayList<>(sessions.values()))matched=shared.contentChangedForSource(source,latest)||matched;
+            for(CloudMorphSurface shared:new ArrayList<>(sessions.values()))matched=shared.contentChangedForSource(source)||matched;
             if(matched){nativeContentRevisions.put(source,latest);ShadeHook.resourceHit("cloud-content-native-revision");}
         });
     }
@@ -691,7 +691,7 @@ final class CloudMorphHook {
             for(Surface surface:surfaces) {
                 if(surface.view!=null){active.put(surface.view,this);watch(surface.view);}surface.acquire(spec.opening);
                 if(request.mode!=Mode.CAPSULE_HIDE&&request.mode!=Mode.CAPSULE_UPDATE)surface.shared.textSceneChanged(contentRevision);
-                else if(request.mode==Mode.CAPSULE_UPDATE)surface.shared.contentChanged(contentRevision);
+                else if(request.mode==Mode.CAPSULE_UPDATE)surface.shared.contentChanged();
             }
             Surface primary=surfaces.get(0);
             primary.shared.retainCards(spec.cards.stream().skip(1).map(Target::view).toList());

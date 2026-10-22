@@ -32,16 +32,17 @@ final class CloudMorphSurface {
     void bind(View capsule,View card,View owner,boolean instant){this.capsule=capsule;this.card=card;this.owner=owner;inputOwnership.bind(card);}
     void syncCapsule(View capsule){this.capsule=capsule;}
     void capsuleMotionOwned(boolean owned){capsuleMotionOwned=owned;}
-    boolean contentMotionOwned;Object contentRevision;int contentChanges;
+    boolean contentMotionOwned;int contentChanges;
     int textSceneChanges;
     void textSceneChanged(Object revision){textSceneChanges++;}
     void contentMotionOwned(boolean owned){contentMotionOwned=owned;}
-    void contentChanged(Object revision){if(!java.util.Objects.equals(contentRevision,revision)){contentRevision=revision;contentChanges++;}}
-    boolean contentChangedForSource(View source,Object revision){
+    // Count every notification: deduplication belongs to the production Hook.
+    void contentChanged(){if(!disposed)contentChanges++;}
+    boolean contentChangedForSource(View source){
         if(disposed||source==null)return false;
         boolean matched=related(source,capsule)||related(source,card);
-        if(matched)contentChanged(revision);
-        for(CloudMorphSurface layer:layers.values())matched=layer.contentChangedForSource(source,revision)||matched;
+        if(matched)contentChanged();
+        for(CloudMorphSurface layer:layers.values())matched=layer.contentChangedForSource(source)||matched;
         return matched;
     }
     private static boolean related(View source,View content){
