@@ -11,7 +11,7 @@ final class CloudVisibilityState {
     float host(){return host;}
     void host(float value){host=clamp(value);hostTrajectory=null;hostVelocity=null;}
     void beginHost(float to,int duration,int curve) {
-        hostTrajectory=new CloudMotion(phase(host),phase(clamp(to)),hostVelocity,duration,curve,0);
+        hostTrajectory=new CloudMotion(phase(host),phase(clamp(to)),hostVelocity,duration,curve,0,0,true);
     }
     void sampleHost(float fraction) {
         if(hostTrajectory==null)return;

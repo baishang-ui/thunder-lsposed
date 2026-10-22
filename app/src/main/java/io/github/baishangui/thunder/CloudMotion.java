@@ -3,14 +3,20 @@ package io.github.baishangui.thunder;
 /** Analytic spring in screen pixels. Retargeting inherits position and velocity, independent of FPS. */
 final class CloudMotion {
     private static final float ARRIVAL_LIMIT=.1f,ARRIVAL_RESPONSE_SECONDS=.012f;
+    private static final float HALF_CRITICAL=1.67834699f;
     private final float[] start,end,initial;
-    private final float seconds,omega,damping,geometryOmega,phaseOmega;
-    private final boolean closingCapsule,linearGeometrySafe,linearPhaseSafe;
+    private final float seconds,omega,damping,phaseOmega,carryOmega,rebound;
+    private final boolean linearPhaseSafe,linearGeometrySafe;
     private final float[] compression;
     private final boolean linear;
     private final boolean arrival;
     private final float arrivalWidth,arrivalHeight;
     private final float arrivalExcursion,arrivalEventStart;
+    // One analytic evaluation per visual tick, shared by position, velocity and
+    // the native/independent windows' repeated pre-draw observations.
+    private final float[][] samples=new float[3][6];
+    private float sampledFraction=Float.NaN,presentedFraction=Float.NaN;
+    private CloudMorphHook.Frame sampledFrame,sampledVelocity;
 
     CloudMotion(CloudMorphHook.Frame from,CloudMorphHook.Frame to,CloudMorphHook.Frame velocity,int duration,int curve,int bounce) {
         this(from,to,velocity,duration,curve,bounce,0);
@@ -40,32 +46,39 @@ final class CloudMotion {
         arrivalEventStart=Float.isFinite(eventStart)?Math.max(0,Math.min(1,eventStart)):0;
         float scale=Math.max(0,Math.min(.03f,compressionScale));
         compression=new float[]{to.width()*scale*.5f,to.height()*scale*.5f,-to.width()*scale,-to.height()*scale,-to.radius()*scale,0};
-        seconds=Math.max(1,duration)/1000f;linear=curve==3&&bounce==0;
+        seconds=Math.max(1,duration)/1000f;linear=curve==3;
         // Ordinary linear transitions restart at constant speed. App events
         // and presentation handoffs supply their actual visible tangent, even
         // at a zero-speed turning point or after cancelling an independent gate.
         if(linear&&(velocity==null||!preserveZeroVelocity&&arrivalExcursion==0&&stopped(initial)))for(int i=0;i<6;i++)initial[i]=(end[i]-start[i])/seconds;
-        damping=1f-.5f*Math.max(0,Math.min(100,bounce))/100f;
+        // Use a continuous physical response again. Match its half-travel time
+        // across bounce amounts instead of accelerating it with 1/damping.
+        // The size slider sets the spring excursion, never the total duration.
+        rebound=.04f*Math.max(0,Math.min(100,bounce))/100f;
+        double log=rebound==0?0:Math.log(rebound);
+        damping=rebound==0?1f:(float)(-log/Math.sqrt(Math.PI*Math.PI+log*log));
         float response=switch(curve){case 1 -> 8f;case 2 -> 10f;case 3 -> 7f;default -> 9f;};
-        omega=response/(damping*seconds);
-        closingCapsule=!arrival&&to.progress()==0&&(from.progress()>0||from.width()>to.width()+.001f||from.height()>to.height()+.001f);
+        omega=response*halfTravel(damping)/(HALF_CRITICAL*seconds);
+        carryOmega=response/seconds;
         boolean safeLinear=true;
-        float geometricResponse=response/seconds;
-        if(closingCapsule)for(int i=0;i<6;i++){
-            float offset=start[i]-end[i];
-            // Preserve an inherited approach velocity while braking early enough
-            // that neither the outline nor its screen position crosses the capsule.
-            if(Math.abs(offset)>.001f){
-                geometricResponse=Math.max(geometricResponse,-initial[i]/offset);
-                // The constant-speed Hermite continuation only stays on the
-                // approach side while inherited travel is within five deltas.
-                safeLinear&=initial[i]*seconds/(-offset)<=5f;
-            }
+        for(int i=0;i<5;i++) {
+            float delta=end[i]-start[i];
+            if(Math.abs(initial[i]*seconds)>5*Math.max(1,Math.abs(delta)))safeLinear=false;
         }
-        geometryOmega=geometricResponse;linearGeometrySafe=safeLinear;
+        linearGeometrySafe=safeLinear;
         float phaseOffset=start[5]-end[5];
         phaseOmega=Math.abs(phaseOffset)>.001f?Math.max(response/seconds,-initial[5]/phaseOffset):response/seconds;
         linearPhaseSafe=Math.abs(phaseOffset)<=.001f||initial[5]*seconds/(-phaseOffset)<=5f;
+    }
+    private static float halfTravel(float damping) {
+        if(damping>=.9999f)return HALF_CRITICAL;
+        double q=Math.sqrt(1-damping*damping),low=0,high=HALF_CRITICAL;
+        for(int i=0;i<18;i++) {
+            double at=(low+high)*.5;
+            double residual=Math.exp(-damping*at)*(Math.cos(q*at)+damping/q*Math.sin(q*at));
+            if(residual>.5)low=at;else high=at;
+        }
+        return (float)((low+high)*.5);
     }
     private static boolean stopped(float[] speed){for(float value:speed)if(Math.abs(value)>.001f)return false;return true;}
     private static float[] values(CloudMorphHook.Frame f){return new float[]{f.x(),f.y(),f.width(),f.height(),f.radius(),f.progress()};}
@@ -73,19 +86,8 @@ final class CloudMotion {
         return sample(i,fraction,velocity?1:0);
     }
     private float sample(int i,float fraction,int derivative) {
-        float base=sampleBase(i,fraction,derivative);
-        if(fraction<=0||fraction>=1)return base;
-        float u=fraction,v=1-u;
-        // Same-size service replacement still visibly arrives without jumping
-        // to a fabricated starting rectangle. Both endpoint derivatives are zero.
-        float pulse=derivative==2?32*(1-6*u+6*u*u)/(seconds*seconds):derivative==1?32*u*v*(1-2*u)/seconds:16*u*u*v*v;
-        float value=base+compression[i]*pulse;
-        // Native APP_TO_CAPSULE expands past its destination even when old and
-        // new services have the same measured width. Retain that actual event
-        // travel before deriving inertial feedback; endpoint interpolation alone
-        // would otherwise turn the whole event into a stationary rectangle.
-        if(arrivalExcursion!=0&&(i==0||i==2))value+=arrivalExcursion*(i==0?-.5f:1)*arrivalExcursion(fraction,derivative);
-        return value;
+        sampleAll(fraction);
+        return samples[derivative][i];
     }
     private float arrivalExcursion(float fraction,int derivative) {
         float u=fraction,v=1-u,span=1-arrivalEventStart,at=arrivalEventStart+span*u;
@@ -100,83 +102,147 @@ final class CloudMotion {
     private static float pulse(float u,int derivative) {
         return derivative==2?32*(1-6*u+6*u*u):derivative==1?32*u*(1-u)*(1-2*u):16*u*u*(1-u)*(1-u);
     }
-    private float sampleBase(int i,float fraction,int derivative) {
-        if(fraction<=0)return derivative==0?start[i]:derivative==1?initial[i]:0;
-        if(fraction>=1)return derivative==0?end[i]:0;
-        boolean shape=closingCapsule||i==5;
-        if(linear&&(!closingCapsule||linearGeometrySafe)&&(i!=5||linearPhaseSafe)){
-            float delta=end[i]-start[i],u=1-fraction,correction=initial[i]*seconds-delta;
-            return derivative==2?correction*(-4+6*fraction)/(seconds*seconds):derivative==1?(delta+correction*u*(1-3*fraction))/seconds:start[i]+delta*fraction+correction*fraction*u*u;
+    private void sampleAll(float fraction) {
+        if(sampledFraction==fraction)return;
+        sampledFraction=fraction;
+        if(fraction<=0||fraction>=1) {
+            for(int i=0;i<6;i++) {
+                samples[0][i]=fraction<=0?start[i]:end[i];
+                samples[1][i]=fraction<=0?initial[i]:0;samples[2][i]=0;
+            }
+            return;
         }
-        // A closing card uses one critically damped response for the whole frame.
-        // Letting position rebound while dimensions settle carries the card past
-        // its capsule and makes followers gather around a moving, offset anchor.
-        // Material/reveal progress stays one-way even when expansion geometry
-        // rebounds, so a trailing card cannot vanish then reappear at the end.
-        double t=fraction*seconds,offset=start[i]-end[i],v=initial[i],w=i==5?phaseOmega:shape?geometryOmega:omega,z=shape?1:damping;
-        double decay=Math.exp(-z*w*t),value,speed;
-        if(z>=.9999){
-            double b=v+w*offset;
-            value=(offset+b*t)*decay;
-            speed=(b-w*(offset+b*t))*decay;
-        }else{
-            double wd=w*Math.sqrt(1-z*z),a=offset,b=(v+z*w*offset)/wd;
-            double sin=Math.sin(wd*t),cos=Math.cos(wd*t);
-            value=decay*(a*cos+b*sin);
-            speed=decay*((-a*wd*sin+b*wd*cos)-z*w*(a*cos+b*sin));
+        double u=fraction,t=fraction*seconds;
+        // Let the spring run freely through its main travel. Only its tiny
+        // settling tail is tapered, with C2 joins at both ends of the taper.
+        double tail=Math.max(0,(u-.6)/.4),tail2=tail*tail,tail3=tail2*tail;
+        double envelope=1-tail3*(10-15*tail+6*tail2);
+        double envelopeSpeed=-30*tail2*(1-tail)*(1-tail)/(.4*seconds);
+        double envelopeAcceleration=-60*tail*(1-tail)*(1-2*tail)/(.16*seconds*seconds);
+        float v=1-fraction;
+        float pulse=16*fraction*fraction*v*v;
+        float pulseSpeed=32*fraction*v*(1-2*fraction)/seconds;
+        float pulseAcceleration=32*(1-6*fraction+6*fraction*fraction)/(seconds*seconds);
+        float excursion=0,excursionSpeed=0,excursionAcceleration=0;
+        if(arrivalExcursion!=0) {
+            excursion=arrivalExcursion*arrivalExcursion(fraction,0);
+            excursionSpeed=arrivalExcursion*arrivalExcursion(fraction,1);
+            excursionAcceleration=arrivalExcursion*arrivalExcursion(fraction,2);
         }
-        // A physical spring only approaches its goal asymptotically. A quintic
-        // envelope closes the residual with zero velocity/acceleration rather
-        // than dropping the remaining displacement on the final animator frame.
-        double u=fraction,u2=u*u,u3=u2*u;
-        double envelope=1-u3*(10-15*u+6*u2);
-        double envelopeSpeed=-30*u2*(1-u)*(1-u)/seconds;
-        if(derivative==2) {
-            double acceleration=-2*z*w*speed-w*w*value;
-            double envelopeAcceleration=-60*u*(1-u)*(1-2*u)/(seconds*seconds);
-            return (float)(acceleration*envelope+2*speed*envelopeSpeed+value*envelopeAcceleration);
+        double decay=Math.exp(-damping*omega*t),phaseDecay=Math.exp(-phaseOmega*t),carryDecay=Math.exp(-carryOmega*t);
+        double wd=omega*Math.sqrt(Math.max(0,1-damping*damping));
+        double sin=Math.sin(wd*t),cos=Math.cos(wd*t);
+        for(int i=0;i<6;i++) {
+            boolean shape=i==5;
+            double delta=end[i]-start[i],value,speed,acceleration;
+            if(linear&&(shape?linearPhaseSafe:linearGeometrySafe)){
+                double correction=initial[i]*seconds-delta;
+                value=-delta*(1-u)+correction*u*v*v;
+                speed=(delta+correction*v*(1-3*u))/seconds;
+                acceleration=correction*(-4+6*u)/(seconds*seconds);
+                // A linear body needs a finite braking segment before its optional
+                // rebound. This branch never changes to an ease-out spring.
+                double tailLinear=Math.max(0,Math.min(1,(u-.55)/.25));
+                double e=1-tailLinear*tailLinear*tailLinear*(10+tailLinear*(-15+6*tailLinear));
+                double ev=-30*tailLinear*tailLinear*(1-tailLinear)*(1-tailLinear)/(.25*seconds);
+                double ea=-60*tailLinear*(1-tailLinear)*(1-2*tailLinear)/(.0625*seconds*seconds);
+                double rise=Math.max(0,Math.min(1,u<=.8?(u-.55)/.25:(1-u)/.2));
+                double rate=u<=.8?1/(.25*seconds):-1/(.2*seconds);
+                double bounce=shape?0:rebound*rise*rise*rise*(10+rise*(-15+6*rise));
+                double bv=shape?0:rebound*30*rise*rise*(1-rise)*(1-rise)*rate;
+                double ba=shape?0:rebound*60*rise*(1-rise)*(1-2*rise)*rate*rate;
+                samples[0][i]=(float)(end[i]+value*e+delta*bounce);
+                samples[1][i]=(float)(speed*e+value*ev+delta*bv);
+                samples[2][i]=(float)(acceleration*e+2*speed*ev+value*ea+delta*ba);
+            }else {
+                double offset=-delta,speed0=initial[i],w=shape?phaseOmega:omega,z=shape?1:damping;
+                double decayAt=shape?phaseDecay:decay;
+                if(z>=.9999){
+                    double b=(shape?speed0:0)+w*offset;
+                    value=(offset+b*t)*decayAt;
+                    speed=(b-w*(offset+b*t))*decayAt;
+                }else{
+                    double b=z*w*offset/wd;
+                    value=decayAt*(offset*cos+b*sin);
+                    speed=decayAt*((-offset*wd*sin+b*wd*cos)-z*w*(offset*cos+b*sin));
+                }
+                acceleration=-2*z*w*speed-w*w*value;
+                if(!shape) {
+                    // Damp carried gesture momentum independently; lowering the
+                    // rebound damping must not amplify a late reversal's speed.
+                    value+=speed0*t*carryDecay;
+                    speed+=speed0*(1-carryOmega*t)*carryDecay;
+                    acceleration+=speed0*(carryOmega*carryOmega*t-2*carryOmega)*carryDecay;
+                }
+                samples[0][i]=(float)(end[i]+value*envelope);
+                samples[1][i]=(float)(speed*envelope+value*envelopeSpeed);
+                samples[2][i]=(float)(acceleration*envelope+2*speed*envelopeSpeed+value*envelopeAcceleration);
+            }
+            samples[0][i]+=compression[i]*pulse;
+            samples[1][i]+=compression[i]*pulseSpeed;
+            samples[2][i]+=compression[i]*pulseAcceleration;
+            if(i==0||i==2) {
+                float factor=i==0?-.5f:1;
+                samples[0][i]+=factor*excursion;samples[1][i]+=factor*excursionSpeed;samples[2][i]+=factor*excursionAcceleration;
+            }
         }
-        return (float)(derivative==1?speed*envelope+value*envelopeSpeed:end[i]+value*envelope);
     }
     CloudMorphHook.Frame frame(float fraction){
-        return arrival&&fraction>0&&fraction<1?arrivalFrame(fraction,false):baseFrame(fraction);
+        present(fraction);return sampledFrame;
+    }
+    private void present(float fraction) {
+        if(presentedFraction==fraction)return;
+        if(arrival&&fraction>0&&fraction<1)arrivalFrame(fraction);
+        else {sampledFrame=baseFrame(fraction);sampledVelocity=baseVelocity(fraction);}
+        presentedFraction=fraction;
     }
     private CloudMorphHook.Frame baseFrame(float fraction){
         if(fraction<=0)return new CloudMorphHook.Frame(start[0],start[1],start[2],start[3],start[4],start[5]);
-        float width=Math.max(1,sample(2,fraction,false)),height=Math.max(1,sample(3,fraction,false));
-        return new CloudMorphHook.Frame(sample(0,fraction,false),sample(1,fraction,false),width,height,
+        float rawWidth=sample(2,fraction,false),rawHeight=sample(3,fraction,false);
+        float width=Math.max(1,rawWidth),height=Math.max(1,rawHeight);
+        return new CloudMorphHook.Frame(sample(0,fraction,false)+(rawWidth-width)/2,
+            sample(1,fraction,false)+(rawHeight-height)/2,width,height,
             Math.max(0,Math.min(sample(4,fraction,false),Math.min(width,height)/2)),Math.max(0,Math.min(1,sample(5,fraction,false))));
     }
     CloudMorphHook.Frame velocity(float fraction){
-        return arrival&&fraction>0&&fraction<1?arrivalFrame(fraction,true):baseVelocity(fraction);
+        present(fraction);return sampledVelocity;
     }
     private CloudMorphHook.Frame baseVelocity(float fraction){
-        return new CloudMorphHook.Frame(sample(0,fraction,true),sample(1,fraction,true),sample(2,fraction,true),sample(3,fraction,true),sample(4,fraction,true),sample(5,fraction,true));
+        if(fraction<=0)return new CloudMorphHook.Frame(initial[0],initial[1],initial[2],initial[3],initial[4],initial[5]);
+        float w=sample(2,fraction,false),h=sample(3,fraction,false),r=sample(4,fraction,false);
+        float vw=clampedSpeed(w,1,sample(2,fraction,true)),vh=clampedSpeed(h,1,sample(3,fraction,true));
+        float limit=Math.min(Math.max(1,w),Math.max(1,h))/2;
+        float limitSpeed=minSpeed(Math.max(1,w),Math.max(1,h),vw,vh)/2;
+        float vr=minSpeed(r,limit,clampedSpeed(r,0,sample(4,fraction,true)),limitSpeed);
+        if(r<0)vr=0;
+        return new CloudMorphHook.Frame(sample(0,fraction,true)+(sample(2,fraction,true)-vw)/2,
+            sample(1,fraction,true)+(sample(3,fraction,true)-vh)/2,vw,vh,vr,clampedPhaseVelocity(fraction));
     }
-    private CloudMorphHook.Frame arrivalFrame(float fraction,boolean derivative) {
-        CloudMorphHook.Frame base=baseFrame(fraction),speed=baseVelocity(fraction);
+    private void arrivalFrame(float fraction) {
         float rawWidth=sample(2,fraction,false),rawHeight=sample(3,fraction,false);
-        float vw=clampedSpeed(rawWidth,1,speed.width()),vh=clampedSpeed(rawHeight,1,speed.height());
-        float aw=rawWidth<1||rawWidth==1&&speed.width()<0?0:sample(2,fraction,2);
-        float ah=rawHeight<1||rawHeight==1&&speed.height()<0?0:sample(3,fraction,2);
-        float centerVX=speed.x()+vw/2,centerVY=speed.y()+vh/2;
+        float baseWidth=Math.max(1,rawWidth),baseHeight=Math.max(1,rawHeight);
+        float vw=clampedSpeed(rawWidth,1,sample(2,fraction,true)),vh=clampedSpeed(rawHeight,1,sample(3,fraction,true));
+        float aw=rawWidth<1||rawWidth==1&&sample(2,fraction,true)<0?0:sample(2,fraction,2);
+        float ah=rawHeight<1||rawHeight==1&&sample(3,fraction,true)<0?0:sample(3,fraction,2);
+        float centerVX=sample(0,fraction,true)+vw/2,centerVY=sample(1,fraction,true)+vh/2;
         float centerAX=sample(0,fraction,2)+aw/2,centerAY=sample(1,fraction,2)+ah/2;
         float gate=arrivalGate(fraction,false),gateSpeed=arrivalGate(fraction,true);
         float sx=1-strain(vw,centerVX,arrivalWidth,gate),sy=1-strain(vh,centerVY,arrivalHeight,gate);
         float sxSpeed=-strainSpeed(vw,aw,centerVX,centerAX,arrivalWidth,gate,gateSpeed);
         float sySpeed=-strainSpeed(vh,ah,centerVY,centerAY,arrivalHeight,gate,gateSpeed);
-        float rawNewWidth=base.width()*sx,rawNewHeight=base.height()*sy;
+        float rawNewWidth=baseWidth*sx,rawNewHeight=baseHeight*sy;
         float width=Math.max(1,rawNewWidth),height=Math.max(1,rawNewHeight);
-        float widthSpeed=clampedSpeed(rawNewWidth,1,vw*sx+base.width()*sxSpeed);
-        float heightSpeed=clampedSpeed(rawNewHeight,1,vh*sy+base.height()*sySpeed);
-        float shortSide=Math.min(base.width(),base.height()),newShortSide=Math.min(width,height);
-        float shortSpeed=minSpeed(base.width(),base.height(),vw,vh),newShortSpeed=minSpeed(width,height,widthSpeed,heightSpeed);
+        float widthSpeed=clampedSpeed(rawNewWidth,1,vw*sx+baseWidth*sxSpeed);
+        float heightSpeed=clampedSpeed(rawNewHeight,1,vh*sy+baseHeight*sySpeed);
+        float shortSide=Math.min(baseWidth,baseHeight),newShortSide=Math.min(width,height);
+        float shortSpeed=minSpeed(baseWidth,baseHeight,vw,vh),newShortSpeed=minSpeed(width,height,widthSpeed,heightSpeed);
         float rawRadius=sample(4,fraction,false),limit=shortSide/2;
-        float radiusSpeed=minSpeed(rawRadius,limit,clampedSpeed(rawRadius,0,speed.radius()),shortSpeed/2);
-        float radius=base.radius()*newShortSide/shortSide;
-        if(!derivative)return new CloudMorphHook.Frame(base.x()+(base.width()-width)/2,base.y()+(base.height()-height)/2,width,height,radius,base.progress());
-        float newRadiusSpeed=radiusSpeed*newShortSide/shortSide+base.radius()*(newShortSpeed*shortSide-newShortSide*shortSpeed)/(shortSide*shortSide);
-        return new CloudMorphHook.Frame(centerVX-widthSpeed/2,centerVY-heightSpeed/2,widthSpeed,heightSpeed,newRadiusSpeed,clampedPhaseVelocity(fraction));
+        float radiusSpeed=minSpeed(rawRadius,limit,clampedSpeed(rawRadius,0,sample(4,fraction,true)),shortSpeed/2);
+        float baseRadius=Math.max(0,Math.min(rawRadius,limit)),radius=baseRadius*newShortSide/shortSide;
+        sampledFrame=new CloudMorphHook.Frame(sample(0,fraction,false)+(baseWidth-width)/2,sample(1,fraction,false)+(baseHeight-height)/2,
+            width,height,radius,Math.max(0,Math.min(1,sample(5,fraction,false))));
+        float newRadiusSpeed=radiusSpeed*newShortSide/shortSide+baseRadius*(newShortSpeed*shortSide-newShortSide*shortSpeed)/(shortSide*shortSide);
+        sampledVelocity=new CloudMorphHook.Frame(centerVX-widthSpeed/2,centerVY-heightSpeed/2,widthSpeed,heightSpeed,newRadiusSpeed,clampedPhaseVelocity(fraction));
     }
     private static float clampedSpeed(float value,float lower,float speed){return value<lower||value==lower&&speed<0?0:speed;}
     private static float minSpeed(float a,float b,float av,float bv){return a<b?av:a>b?bv:Math.min(av,bv);}

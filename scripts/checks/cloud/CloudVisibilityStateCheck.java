@@ -106,6 +106,12 @@ public final class CloudVisibilityStateCheck {
                     "the host clock supplies resting endpoint speed without a second geometry ease");
             }
         }
+        CloudVisibilityState pausedGate=new CloudVisibilityState();
+        pausedGate.host(0);pausedGate.beginHost(1,500,3);pausedGate.sampleHost(.9f);
+        pausedGate.beginHost(0,500,3);pausedGate.sampleHost(0);
+        close(0,pausedGate.presentationVelocity(capsule,null).width());
+        pausedGate.sampleHost(.0001f);
+        check(1-pausedGate.host()<.00001f,"reversing a resting host phase retains zero tangent rather than injecting linear speed");
         verifyPresentationVelocity();
         verifyWidthHideShape();
         System.out.println("CloudVisibilityStateCheck: host/motion composition and interrupted input checks passed");
@@ -172,7 +178,7 @@ public final class CloudVisibilityStateCheck {
                 close(-stillProjected.width()/2,stillProjected.x());
                 var stillNext=CloudVisibilityState.presentation(logical,trajectory.frame(at+epsilon).progress());
                 closeVelocity(stillProjected,delta(current,stillNext,dt),1.5f,"a stationary capsule keeps its host contraction speed during ownership handoff");
-                CloudMotion handedOff=new CloudMotion(current,logical,stillProjected,500,curve,0);
+                CloudMotion handedOff=new CloudMotion(current,logical,stillProjected,500,curve,0,0,true);
                 closeVelocity(stillProjected,handedOff.velocity(0),.0001f,"handoff begins with the presentation derivative instead of the stale logical speed");
             }
         }
@@ -187,7 +193,9 @@ public final class CloudVisibilityStateCheck {
         // visible derivative is zero until it comes back inside the interval.
         for(int direction=0;direction<2;direction++){
             CloudVisibilityState clipped=new CloudVisibilityState();
-            clipped.host(direction);clipped.beginHost(1-direction,500,3);clipped.sampleHost(.94f);
+            // Reverse during the moving braking segment, before the new finite
+            // travel has settled. A reversal of a resting phase cannot saturate.
+            clipped.host(direction);clipped.beginHost(1-direction,500,3);clipped.sampleHost(.7f);
             clipped.beginHost(direction,500,3);
             for(float at:new float[]{.091f,.18f}){
                 clipped.sampleHost(at);close(1-direction,clipped.host());

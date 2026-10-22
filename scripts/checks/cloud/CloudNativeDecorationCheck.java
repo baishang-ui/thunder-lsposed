@@ -48,6 +48,11 @@ public final class CloudNativeDecorationCheck {
         check(copy.mGradientState.smooth,"expanded frame retains native smoothing");
         geometry(decoration,600,100,128,false);close(50,copy.getCornerRadius(),"changed height updates native circular ends");
 
+        for(float weight:new float[]{0,.0001f,.25f,1.5f,3,1.5f,.25f,.0001f,0}) {
+            decoration.geometry(600,100,40,weight);
+            close(weight,copy.mGradientState.mSmoothWeight,"continuous corner weight survives each forward/reverse frame");
+            check(copy.mGradientState.smooth,"continuous morph never switches path family at an endpoint threshold");
+        }
         GradientDrawable foreground=new GradientDrawable();foreground.setCornerRadius(30);foreground.setStroke(1,0x40eeeeee);
         CloudNativeDecoration edge=new CloudNativeDecoration(foreground,null,null);
         geometry(edge,600,100,128,false);

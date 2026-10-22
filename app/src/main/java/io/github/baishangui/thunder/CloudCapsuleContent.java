@@ -9,6 +9,44 @@ import java.util.function.Predicate;
 
 /** Draws the host's live children, with its native switch transforms and exterior moons. */
 final class CloudCapsuleContent {
+    /** Draw a retained live item without the native scene's wrapper transforms.
+     * Layout offsets inside the item remain native; entry/switch alpha and scale
+     * on its root are owned by the independent presentation instead. */
+    static void drawOwned(Canvas canvas,View source,View item,float sourceWidth,float sourceHeight,
+            float width,float height,float alpha,float offset) {
+        int opacity=Math.round(255*Math.max(0,Math.min(1,alpha)));
+        if(opacity==0||sourceWidth<=0||sourceHeight<=0)return;
+        // The native CapsuleView width spring is independent of our body.
+        // Fitting that animated wrapper repeatedly shrinks and releases its
+        // otherwise stationary icon/text. Fit the live content itself once in
+        // the presented body's coordinate space; retain its internal layout.
+        boolean retained=item!=null&&item!=source;
+        float contentWidth=retained?item.getWidth():sourceWidth;
+        float contentHeight=retained?item.getHeight():sourceHeight;
+        if(contentWidth<=0||contentHeight<=0)return;
+        CloudContentTransform fit=CloudContentTransform.fit(contentWidth,contentHeight,0,0,width,height);
+        int save=opacity==255?canvas.save():canvas.saveLayerAlpha(0,0,width,height,opacity);
+        canvas.translate(fit.x()+offset,fit.y());canvas.scale(fit.scale(),fit.scale());
+        if(retained)item.draw(canvas);
+        else if(source instanceof ViewGroup mini)drawMiniContent(canvas,mini);
+        canvas.restoreToCount(save);
+    }
+    static void moonBounds(View moon,float width,float height,float gap,boolean right,android.graphics.RectF bounds) {
+        float scale=Math.min(1,height/Math.max(1,moon.getHeight()));
+        float w=moon.getWidth()*scale,h=moon.getHeight()*scale;
+        float x=right?width+gap:-gap-w,y=(height-h)/2f;
+        bounds.set(x,y,x+w,y+h);
+    }
+    static void drawMoon(Canvas canvas,View moon,android.graphics.RectF bounds,float alpha) {
+        int opacity=Math.round(255*Math.max(0,Math.min(1,alpha)));
+        if(opacity==0||moon==null||moon.getWidth()<=0||moon.getHeight()<=0)return;
+        int save=opacity==255?canvas.save():canvas.saveLayerAlpha(null,opacity);
+        canvas.translate(bounds.left,bounds.top);
+        canvas.scale(bounds.width()/moon.getWidth(),bounds.height()/moon.getHeight());
+        // ImageView supplies the native crescent artwork. Its scene wrapper
+        // matrix/alpha are replaced by edge attachment and one owned fade.
+        moon.draw(canvas);canvas.restoreToCount(save);
+    }
     static CloudContentTransform placement(ViewGroup container,View anchor,float width,float height) {
         CloudContentTransform fit=CloudContentTransform.fit(anchor.getWidth(),anchor.getHeight(),0,0,width,height);
         return new CloudContentTransform(fit.scale(),fit.x()-(anchor.getLeft()-container.getScrollX())*fit.scale(),
@@ -38,7 +76,9 @@ final class CloudCapsuleContent {
         CloudContentTransform fit=placement(container,anchor,width,height);
         // Accessories deliberately have no anchor-bounded layer: native moons
         // sit outside the mini view, and the original parent does not clip them.
-        int save=canvas.saveLayerAlpha(null,Math.round(255*Math.min(1,alpha)));
+        int opacity=Math.round(255*Math.min(1,alpha));
+        if(opacity==0)return;
+        int save=opacity==255?canvas.save():canvas.saveLayerAlpha(null,opacity);
         canvas.translate(fit.x(),fit.y());canvas.scale(fit.scale(),fit.scale());
         for(int i=0;i<container.getChildCount();i++) {
             View child=container.getChildAt(i);

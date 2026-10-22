@@ -530,22 +530,23 @@ final class CloudHook {
         round(drawable,radius,true);
     }
     static void round(Drawable drawable,float radius,boolean smooth) {
+        roundContinuous(drawable,radius,smooth?CloudCornerGeometry.WEIGHT:-1f);
+    }
+    /** A zero weight is a circular endpoint in the same native G2 path family. */
+    static void roundContinuous(Drawable drawable,float radius,float weight) {
         if(drawable==null)return;
         drawable=drawable.mutate();
-        if(drawable instanceof GradientDrawable) {
-            if(smooth)new CloudCornerGeometry.Gradient((GradientDrawable)drawable).apply();
-            else Reflect.callMethod(Reflect.getObjectField(drawable,"mGradientDrawableExt"),"setSmoothRoundStyle",false,0f,0);
-            ((GradientDrawable)drawable).setCornerRadius(radius);
-        }
-        else if(drawable instanceof LayerDrawable) {
-            LayerDrawable layers=(LayerDrawable)drawable;
-            for(int i=0;i<layers.getNumberOfLayers();i++)round(layers.getDrawable(i),radius,smooth);
-        } else if(drawable instanceof DrawableWrapper)round(((DrawableWrapper)drawable).getDrawable(),radius,smooth);
+        boolean smooth=weight>=0;
+        if(drawable instanceof GradientDrawable gradient) {
+            Object extension=Reflect.getObjectField(drawable,"mGradientDrawableExt");
+            Reflect.callMethod(extension,"setSmoothRoundStyle",smooth,Math.max(0,weight),smooth?1:0);
+            gradient.setCornerRadius(radius);
+        }else if(drawable instanceof LayerDrawable layers) {
+            for(int i=0;i<layers.getNumberOfLayers();i++)roundContinuous(layers.getDrawable(i),radius,weight);
+        }else if(drawable instanceof DrawableWrapper wrapper)roundContinuous(wrapper.getDrawable(),radius,weight);
         else if(drawable.getClass().getName().equals(BASE+"util.d")) {
-            // C17's translucent gradient draws its own Path from a cached Kotlin Triple:
-            // (corner type, radius in px, smooth weight). Preserve type and weight.
             Object corners=Reflect.getObjectField(drawable,"d");
-            Reflect.setObjectField(drawable,"d",smooth?cornerConfig(corners,radius):Reflect.newInstance(corners.getClass(),0,radius,0f));
+            Reflect.setObjectField(drawable,"d",Reflect.newInstance(corners.getClass(),smooth?2:0,radius,Math.max(0,weight)));
             drawable.invalidateSelf();
         }
     }

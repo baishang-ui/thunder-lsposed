@@ -33,6 +33,8 @@ final class CloudMorphSurface {
     void syncCapsule(View capsule){this.capsule=capsule;}
     void capsuleMotionOwned(boolean owned){capsuleMotionOwned=owned;}
     boolean contentMotionOwned;Object contentRevision;int contentChanges;
+    int textSceneChanges;
+    void textSceneChanged(Object revision){textSceneChanges++;}
     void contentMotionOwned(boolean owned){contentMotionOwned=owned;}
     void contentChanged(Object revision){if(!java.util.Objects.equals(contentRevision,revision)){contentRevision=revision;contentChanges++;}}
     boolean contentChangedForSource(View source,Object revision){

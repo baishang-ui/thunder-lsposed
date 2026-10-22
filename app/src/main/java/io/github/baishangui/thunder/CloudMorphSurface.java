@@ -65,6 +65,12 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     private final ArrayList<ViewTreeObserver> observers=new ArrayList<>();
     private final Rect outlineRect=new Rect();
     private final Path inputPath=new Path();
+    private final Outline inputOutline=new Outline();
+    private final Matrix inputMatrix=new Matrix();
+    private final Region silhouetteRegion=new Region();
+    private CloudMorphHook.Frame inputGeometry;
+    private float inputPress;
+    private int inputEnvelopeWidth,inputEnvelopeHeight;
     private final Region inputRegion=new Region(),shapeInputRegion=new Region(),inputClip=new Region();
     private final Region windowInputRegion=new Region(),nextWindowInputRegion=new Region();
     private final CloudInputBridge nativeInput=new CloudInputBridge();
@@ -75,14 +81,55 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     private View capsule,card,owner,capsuleContent,cardContent,capsuleRoot,cardRoot,nativeMini;
     private boolean instant,attached,expanded,disposed,materialReady,settled,scaleListenerRegistered,capsuleMotionOwned,capsuleHideOwned,capsuleEntryPresentation;
     private boolean closingCapsuleGesture;
-    private boolean contentMotionOwned;
+    private boolean contentMotionOwned=true;
+    private record CapsuleLayer(View source,View item,float width,float height) { }
+    private final CloudContentSwitch<CapsuleLayer> contentSwitch=new CloudContentSwitch<>();
+    private CapsuleLayer selectedContent;
+    private ValueAnimator contentClock;
+    private float switchDirection=1;
+    private View leftMoon,rightMoon;
+    private final RectF leftMoonBounds=new RectF(),rightMoonBounds=new RectF();
+    private float moonOpacity,moonVelocity;
+    private Boolean moonsShown;
+    private ValueAnimator moonClock;
+    private float moonGap;
+    private void syncMoons() {
+        if(parent!=null)return;
+        if(leftMoon==null) {
+            leftMoon=(View)Reflect.callMethod(container,"getLeftMoon");
+            rightMoon=(View)Reflect.callMethod(container,"getRightMoon");
+            int resource=container.getResources().getIdentifier("capsule_moon_gap","dimen","com.oplus.systemui.plugins");
+            moonGap=resource==0?2*container.getResources().getDisplayMetrics().density:container.getResources().getDimension(resource);
+        }
+        boolean shown=leftMoon.getVisibility()==View.VISIBLE||rightMoon.getVisibility()==View.VISIBLE;
+        if(moonsShown!=null&&moonsShown==shown)return;
+        if(moonClock!=null){ValueAnimator previous=moonClock;moonClock=null;previous.cancel();}
+        if(moonsShown==null||!ValueAnimator.areAnimatorsEnabled()) {
+            moonsShown=shown;moonOpacity=shown?1:0;moonVelocity=0;return;
+        }
+        moonsShown=shown;
+        int duration=180;
+        CloudMotion fade=new CloudMotion(new CloudMorphHook.Frame(0,moonOpacity,1,1,0,0),
+            new CloudMorphHook.Frame(0,shown?1:0,1,1,0,0),new CloudMorphHook.Frame(0,moonVelocity,0,0,0,0),duration,2,0,0,true);
+        ValueAnimator clock=ValueAnimator.ofFloat(0,1);moonClock=clock;clock.setDuration(duration);
+        clock.setInterpolator(new android.view.animation.LinearInterpolator());
+        clock.addUpdateListener(value->{if(disposed||moonClock!=clock)return;
+            float t=((Number)value.getAnimatedValue()).floatValue();moonOpacity=fade.frame(t).y();moonVelocity=fade.velocity(t).y();
+            body.invalidate();updateInputRegion();});
+        clock.addListener(new AnimatorListenerAdapter(){@Override public void onAnimationEnd(Animator animation){
+            if(moonClock==clock){moonClock=null;moonOpacity=shown?1:0;moonVelocity=0;}
+        }});clock.start();
+    }
+    private void moonBounds(View moon,boolean right,RectF bounds) {
+        CloudCapsuleContent.moonBounds(moon,shape.getWidth(),shape.getHeight(),moonGap,right,bounds);
+    }
     private final CloudTextRenderer capsuleText=new CloudTextRenderer(this::invalidateContent);
     private final CloudTextRenderer cardText=new CloudTextRenderer(this::invalidateContent);
     private record ContentSources(View capsule,View card) { }
     private ContentSources contentSources;
     private int outlineWidth=-1,outlineHeight=-1;
     private float outlineRadius=-1;
-    private boolean outlineSmooth;
+    private float outlineWeight=-1;
     private float hostOpacityLimit=1f;
     private final ValueAnimator.DurationScaleChangeListener durationScaleChanged=this::onDurationScaleChanged;
     private final ArrayList<View> layoutSources=new ArrayList<>();
@@ -94,7 +141,7 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     private Drawable nativeCapsuleBackground,styledBackground,styledForeground,cardDecoration;
     private Drawable roundedCardDecoration;
     private float cardDecorationRadius=-1;
-    private boolean cardDecorationSmooth;
+    private float cardDecorationWeight=-1;
     private final CloudSurfacePolicy.CapsuleBackground<Drawable> capsuleBackground=new CloudSurfacePolicy.CapsuleBackground<>();
     private CloudNativeMaterial nativeMaterial;
     private CloudNativeDecoration capsuleDecoration,capsuleForeground;
@@ -305,6 +352,7 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
             if(capsule instanceof ViewGroup group&&group.getChildCount()>0)content=group.getChildAt(0);
         }
         if(this.capsule!=capsule||capsuleContent!=content) {
+            switchCapsuleContent(capsule,content);
             View nextRoot=findRoot(capsule,"capsule.ui.view.CapsuleContainerRoot","CapsuleContainerRoot",container);
             // Horizontal switching replaces the active content before UP. Its
             // native root still owns the same gesture, including velocity and UP.
@@ -326,6 +374,10 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     }
     /** Model/scene notifications refresh text bindings; only a changed string starts a transition. */
     void contentChanged(Object revision){if(!disposed)capsuleText.revision();}
+    void textSceneChanged(Object revision){
+        if(disposed)return;
+        capsuleText.reveal(revision);cardText.reveal(revision);
+    }
     private void invalidateContent(){if(!disposed){shape.invalidate();body.invalidate();}}
     boolean contentChangedForSource(View source,Object revision) {
         if(disposed||source==null)return false;
@@ -344,6 +396,39 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     }
     void contentMotionOwned(boolean owned){contentMotionOwned=owned;shape.invalidate();body.invalidate();}
     private boolean ownsContentMotion(){return contentMotionOwned;}
+    private void switchCapsuleContent(View source,View item) {
+        if(source==null)return;
+        // Reuse a retained layer when a swipe reverses before completing.
+        CapsuleLayer next=null;
+        for(var layer:contentSwitch.layers)
+            if(layer.source.source()==source&&layer.source.item()==item){next=layer.source;break;}
+        if(next==null)next=new CapsuleLayer(source,item,
+            Math.max(1,source.getMeasuredWidth()>0?source.getMeasuredWidth():source.getWidth()),
+            Math.max(1,source.getMeasuredHeight()>0?source.getMeasuredHeight():source.getHeight()));
+        selectedContent=next;
+        if(contentClock!=null){ValueAnimator previous=contentClock;contentClock=null;previous.cancel();}
+        HookConfig config=ShadeHook.snapshot();
+        // Content resolves ahead of the outline's settling tail. A long custom
+        // morph must not leave two service labels superimposed for its duration.
+        int duration=Math.max(120,Math.min(320,Math.round(config.cloudAnimationDuration*.65f)));
+        float distance=switchDirection*12*source.getResources().getDisplayMetrics().density;
+        ShadeHook.observed("cloud-content-switch","direction="+switchDirection+";source="+Integer.toHexString(System.identityHashCode(source))+";item="+item.getClass().getName()+";bounds="+source.getWidth()+"x"+source.getHeight()+";itemBounds="+item.getLeft()+","+item.getTop()+","+item.getWidth()+","+item.getHeight());
+        if(!contentSwitch.select(next,duration,distance))return;
+        if(!config.cloudAnimationEnabled||!ValueAnimator.areAnimatorsEnabled()){contentSwitch.finish();return;}
+        ValueAnimator clock=ValueAnimator.ofFloat(0,1);contentClock=clock;
+        clock.setDuration(duration);clock.setInterpolator(new android.view.animation.LinearInterpolator());
+        clock.addUpdateListener(value->{
+            if(disposed||contentClock!=clock)return;
+            contentSwitch.sample(((Number)value.getAnimatedValue()).floatValue());invalidateContent();
+        });
+        clock.addListener(new AnimatorListenerAdapter(){
+            @Override public void onAnimationEnd(Animator animation){
+                if(contentClock!=clock)return;
+                contentSwitch.finish();contentClock=null;invalidateContent();
+            }
+        });
+        clock.start();
+    }
     boolean ownsContentSource(View source) {
         if(disposed)return false;
         for(Object node=source;node instanceof View view;node=view.getParent())
@@ -429,33 +514,34 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         presented=frame;
         int width=Math.max(1,Math.round(frame.width())),height=Math.max(1,Math.round(frame.height()));
         FrameLayout.LayoutParams child=(FrameLayout.LayoutParams)shape.getLayoutParams();
-        if(child.width!=width||child.height!=height){child.width=width;child.height=height;shape.setLayoutParams(child);}
-        // LayoutParams are deferred until traversal. Material, content and outline need this frame's
-        // actual bounds now, including when a retarget arrives from the native pre-draw callback.
+        // This child is measured and laid out synchronously below. Updating its
+        // existing params keeps future parent traversals correct without scheduling
+        // another full envelope measure/layout on every animation frame.
+        child.width=width;child.height=height;
         if(shape.getMeasuredWidth()!=width||shape.getMeasuredHeight()!=height)
             shape.measure(View.MeasureSpec.makeMeasureSpec(width,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(height,View.MeasureSpec.EXACTLY));
         if(shape.getLeft()!=0||shape.getTop()!=0||shape.getWidth()!=width||shape.getHeight()!=height)shape.layout(0,0,width,height);
         shape.setTranslationX(frame.x()-params.x);shape.setTranslationY(frame.y()-params.y);
         float radius=Math.max(0,Math.min(frame.radius(),Math.min(width,height)/2f));
-        boolean smooth=frame.progress()>.001f;
+        float weight=CloudCornerGeometry.WEIGHT*CloudCardTiming.opacity(frame.progress());
         outlineRect.set(0,0,width,height);
-        if(outlineWidth!=width||outlineHeight!=height||outlineRadius!=radius||outlineSmooth!=smooth) {
+        if(outlineWidth!=width||outlineHeight!=height||outlineRadius!=radius||outlineWeight!=weight) {
             Object corners=Reflect.getObjectField(outline,"b");
-            Reflect.setObjectField(outline,"b",Reflect.newInstance(corners.getClass(),smooth?2:0,radius,smooth?CloudCornerGeometry.WEIGHT:0f));
+            Reflect.setObjectField(outline,"b",Reflect.newInstance(corners.getClass(),2,radius,weight));
             if(material!=null&&materialReady)Reflect.callMethod(material,"setCornerRadius",radius);
-            CloudHook.round(shape.getBackground(),radius,smooth);
-            outlineWidth=width;outlineHeight=height;outlineRadius=radius;outlineSmooth=smooth;
+            CloudHook.roundContinuous(shape.getBackground(),radius,weight);
+            outlineWidth=width;outlineHeight=height;outlineRadius=radius;outlineWeight=weight;
             shape.invalidateOutline();
         }
-        decorationGeometry(width,height,radius,smooth);
+        decorationGeometry(width,height,radius,weight);
         updateInputRegion();shape.invalidate();
     }
-    private void decorationGeometry(int width,int height,float radius,boolean smooth) {
-        if(capsuleDecoration!=null)capsuleDecoration.geometry(width,height,radius,smooth);
-        if(capsuleForeground!=null)capsuleForeground.geometry(width,height,radius,smooth);
-        if(cardDecoration!=null&&(cardDecoration!=roundedCardDecoration||radius!=cardDecorationRadius||smooth!=cardDecorationSmooth)) {
-            CloudHook.round(cardDecoration,radius,smooth);roundedCardDecoration=cardDecoration;
-            cardDecorationRadius=radius;cardDecorationSmooth=smooth;
+    private void decorationGeometry(int width,int height,float radius,float weight) {
+        if(capsuleDecoration!=null)capsuleDecoration.geometry(width,height,radius,weight);
+        if(capsuleForeground!=null)capsuleForeground.geometry(width,height,radius,weight);
+        if(cardDecoration!=null&&(cardDecoration!=roundedCardDecoration||radius!=cardDecorationRadius||weight!=cardDecorationWeight)) {
+            CloudHook.roundContinuous(cardDecoration,radius,weight);roundedCardDecoration=cardDecoration;
+            cardDecorationRadius=radius;cardDecorationWeight=weight;
         }
     }
     void settleInput(boolean expanded) {
@@ -553,8 +639,8 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         shape.setOutlineProvider((ViewOutlineProvider)outline);shape.setClipToOutline(true);
         if(presented!=null) {
             float radius=Math.max(0,Math.min(presented.radius(),Math.min(presented.width(),presented.height())/2f));
-            Reflect.callMethod(material,"setCornerRadius",radius);CloudHook.round(shape.getBackground(),radius,presented.progress()>.001f);
-            decorationGeometry(Math.max(1,Math.round(presented.width())),Math.max(1,Math.round(presented.height())),radius,presented.progress()>.001f);
+            Reflect.callMethod(material,"setCornerRadius",radius);CloudHook.roundContinuous(shape.getBackground(),radius,CloudCornerGeometry.WEIGHT*CloudCardTiming.opacity(presented.progress()));
+            decorationGeometry(Math.max(1,Math.round(presented.width())),Math.max(1,Math.round(presented.height())),radius,CloudCornerGeometry.WEIGHT*CloudCardTiming.opacity(presented.progress()));
         }
         shape.invalidate();
     }
@@ -629,7 +715,7 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         if(disposed)return true;
         try {
             if(!retainSurface())return true;
-            syncNativeCards();
+            syncNativeCards();syncMoons();
             KeyguardManager keyguard=(KeyguardManager)container.getContext().getSystemService(Context.KEYGUARD_SERVICE);
             boolean locked=keyguard!=null&&keyguard.isKeyguardLocked();
             lifetimeVisible=!locked&&container.isAttachedToWindow();
@@ -661,6 +747,9 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     }
     private void unwatch(){for(ViewTreeObserver observer:observers)if(observer.isAlive())observer.removeOnPreDrawListener(this);observers.clear();}
     void dispose() {
+        if(moonClock!=null){ValueAnimator previous=moonClock;moonClock=null;previous.cancel();}
+        if(contentClock!=null){ValueAnimator previous=contentClock;contentClock=null;previous.cancel();}
+        contentSwitch.clear();selectedContent=null;
         if(disposed)return;
         disposed=true;
         if(hostVisibilityClock!=null){hostVisibilityClock.cancel();hostVisibilityClock=null;}
@@ -715,15 +804,21 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         float press=shape.getScaleX(),width=shape.getWidth()*press,height=shape.getHeight()*press;
         float left=shape.getTranslationX()+(shape.getWidth()-width)/2f,top=shape.getTranslationY()+(shape.getHeight()-height)/2f;
         float radius=Math.max(0,Math.min(presented.radius()*press,Math.min(width,height)/2f));
-        inputPath.reset();
-        // The vendor outline can be a smooth path rather than a circular round rect.
-        Outline nativeOutline=new Outline();((ViewOutlineProvider)outline).getOutline(shape,nativeOutline);
-        Path nativePath=(Path)Reflect.getObjectField(nativeOutline,"mPath");
-        if(nativePath!=null&&!nativePath.isEmpty()) {
-            inputPath.set(nativePath);Matrix move=new Matrix();move.setScale(press,press);
-            move.postTranslate(left,top);inputPath.transform(move);
-        }else inputPath.addRoundRect(left,top,left+width,top+height,radius,radius,Path.Direction.CW);
-        inputClip.set(0,0,params.width,params.height);shapeInputRegion.setPath(inputPath,inputClip);inputRegion.set(shapeInputRegion);
+        // Frame, opacity and the native pre-draw may all observe one visual tick.
+        // Rasterize the exact native silhouette once; input gates and card unions
+        // still refresh immediately, even when the shape itself has not moved.
+        if(!presented.equals(inputGeometry)||press!=inputPress||inputEnvelopeWidth!=params.width||inputEnvelopeHeight!=params.height) {
+            inputPath.reset();inputOutline.setEmpty();
+            ((ViewOutlineProvider)outline).getOutline(shape,inputOutline);
+            Path nativePath=(Path)Reflect.getObjectField(inputOutline,"mPath");
+            if(nativePath!=null&&!nativePath.isEmpty()) {
+                inputPath.set(nativePath);inputMatrix.setScale(press,press);
+                inputMatrix.postTranslate(left,top);inputPath.transform(inputMatrix);
+            }else inputPath.addRoundRect(left,top,left+width,top+height,radius,radius,Path.Direction.CW);
+            inputClip.set(0,0,params.width,params.height);silhouetteRegion.setPath(inputPath,inputClip);
+            inputGeometry=presented;inputPress=press;inputEnvelopeWidth=params.width;inputEnvelopeHeight=params.height;
+        }
+        shapeInputRegion.set(silhouetteRegion);inputRegion.set(shapeInputRegion);
         if(capsuleOnly) {
             // Keep the closing card and every outside pixel transparent. Only
             // the already visible part of its actual capsule destination can
@@ -732,15 +827,11 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
             inputRegion.set(shapeInputRegion);
             nextWindowInputRegion.set(inputRegion);releaseInactiveNativeInputTree();submitInputRegion(false);return;
         }
-        if(current.progress()<.4f&&capsule!=null&&container instanceof ViewGroup group) {
-            CloudContentTransform fit=placement(container);
-            for(int i=0;i<group.getChildCount();i++) {
-                View child=group.getChildAt(i);
-                if(child==capsule||isNativeCapsule(child)||child.getVisibility()!=View.VISIBLE||child.getAlpha()<=0)continue;
-                RectF bounds=new RectF(0,0,child.getWidth(),child.getHeight());child.getMatrix().mapRect(bounds);
-                bounds.offset(child.getLeft()-group.getScrollX(),child.getTop()-group.getScrollY());
-                bounds.set(fit.screenX(bounds.left),fit.screenY(bounds.top),fit.screenX(bounds.right),fit.screenY(bounds.bottom));
-                shape.getMatrix().mapRect(bounds);Rect rect=new Rect();bounds.roundOut(rect);
+        if(current.progress()<.4f&&moonOpacity>.01f&&leftMoon!=null) {
+            for(int side=0;side<2;side++) {
+                View moon=side==0?leftMoon:rightMoon;RectF bounds=side==0?leftMoonBounds:rightMoonBounds;
+                moonBounds(moon,side==1,bounds);RectF mapped=new RectF(bounds);
+                shape.getMatrix().mapRect(mapped);Rect rect=new Rect();mapped.roundOut(rect);
                 shapeInputRegion.op(rect,Region.Op.UNION);inputRegion.op(rect,Region.Op.UNION);
             }
         }
@@ -762,7 +853,7 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         if(expandedInput!=expandedWindowInput)expandedRegionSubmitted=false;
         expandedWindowInput=expandedInput;
         // Traversal recomputes WindowManager's input region; the envelope dimensions stay constant.
-        body.requestLayout();
+        body.invalidate();
     }
     private int statusBarBottom() {
         WindowInsets insets=body.getRootWindowInsets();
@@ -795,6 +886,7 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         final View root,source;
         final Matrix bodyToRoot;
         MotionEvent last;
+        float downX;
         Gesture(View root,View source,boolean nativeAnchor) {
             this.root=root;this.source=source;
             if(nativeAnchor){bodyToRoot=sourceToRoot(body,root);return;}
@@ -804,6 +896,13 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
             bodyToRoot=new Matrix();bodyToRoot.setConcat(sourceToRoot(source,root),toSource);
         }
         boolean dispatch(MotionEvent event) {
+            if(source==container) {
+                if(event.getActionMasked()==MotionEvent.ACTION_DOWN)downX=event.getX();
+                else if(event.getActionMasked()==MotionEvent.ACTION_MOVE||event.getActionMasked()==MotionEvent.ACTION_UP) {
+                    float dx=event.getX()-downX;
+                    if(Math.abs(dx)>container.getResources().getDisplayMetrics().density*4)switchDirection=dx<0?1:-1;
+                }
+            }
             if(last!=null)last.recycle();last=MotionEvent.obtain(event);
             MotionEvent forwarded=MotionEvent.obtain(event);forwarded.transform(bodyToRoot);
             nativeInputDepth.set(nativeInputDepth.get()+1);
@@ -833,9 +932,11 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
             if(current==null||capsule==null||!(container instanceof ViewGroup group))return;
             float alpha=1f-Math.max(0,Math.min(1,current.progress()));if(alpha<=0)return;
             int save=canvas.save();canvas.concat(shape.getMatrix());
-            // Moons remain native accessories; a text change never blurs them.
-            CloudCapsuleContent.draw(canvas,group,capsule,shape.getWidth(),shape.getHeight(),alpha,true,
-                CloudMorphSurface::isNativeCapsule,CloudMorphSurface.this::capsuleItemContent,capsuleMotionOwned,ownsContentMotion(),nativeMini);
+            if(leftMoon!=null) {
+                moonBounds(leftMoon,false,leftMoonBounds);moonBounds(rightMoon,true,rightMoonBounds);
+                CloudCapsuleContent.drawMoon(canvas,leftMoon,leftMoonBounds,alpha*moonOpacity);
+                CloudCapsuleContent.drawMoon(canvas,rightMoon,rightMoonBounds,alpha*moonOpacity);
+            }
             canvas.restoreToCount(save);
         }
         @Override protected void onAttachedToWindow(){super.onAttachedToWindow();if(parent==null)installInsets();updateInputRegion();}
@@ -917,28 +1018,43 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         @Override protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);if(current==null)return;
             float form=Math.max(0,Math.min(1,current.progress()));
-            if(form<1&&capsuleDecoration!=null) {
-                int alpha=canvas.saveLayerAlpha(0,0,getWidth(),getHeight(),Math.round(255*(1-form)));
+            int capsuleAlpha=Math.round(255*(1-form)),cardAlpha=Math.round(255*form);
+            if(capsuleAlpha>0&&capsuleDecoration!=null) {
+                int alpha=saveOpacity(canvas,capsuleAlpha);
                 // Never sample the host animator's insetting bounds or visibility alpha.
                 capsuleDecoration.drawable.setBounds(0,0,getWidth(),getHeight());capsuleDecoration.drawable.draw(canvas);
                 canvas.restoreToCount(alpha);
             }
-            if(form>0&&cardDecoration!=null) {
-                int decoration=canvas.saveLayerAlpha(0,0,getWidth(),getHeight(),Math.round(255*form));
+            if(cardAlpha>0&&cardDecoration!=null) {
+                int decoration=saveOpacity(canvas,cardAlpha);
                 cardDecoration.setBounds(0,0,getWidth(),getHeight());drawDecoration(canvas,cardDecoration);
                 canvas.restoreToCount(decoration);
             }
             // Form changes crossfade the native trees. Individual changed text
             // regions own their blur inside TextView.onDraw; stable siblings stay sharp.
-            drawCapsule(canvas,1f-form);
-            drawContent(canvas,cardContent,form,instant);
-            if(form<1&&capsuleForeground!=null) {
-                int foreground=canvas.saveLayerAlpha(0,0,getWidth(),getHeight(),Math.round(255*(1-form)));
+            float contentBlend=CloudCardTiming.opacity(form);
+            drawCapsule(canvas,1f-contentBlend);
+            drawContent(canvas,cardContent,contentBlend,instant);
+            if(capsuleAlpha>0&&capsuleForeground!=null) {
+                int foreground=saveOpacity(canvas,capsuleAlpha);
                 capsuleForeground.drawable.draw(canvas);canvas.restoreToCount(foreground);
             }
         }
         private void drawCapsule(Canvas canvas,float alpha) {
             if(capsule==null||!(container instanceof ViewGroup group))return;
+            if(ownsContentMotion()&&selectedContent!=null) {
+                for(var layer:contentSwitch.layers) {
+                    CapsuleLayer source=layer.source;
+                    // Layout coordinates and their extent must be sampled from
+                    // the same layout. Measured bounds may already describe the
+                    // next frame while native children still use the old one.
+                    float width=source.source().getWidth()>0?source.source().getWidth():source.width();
+                    float height=source.source().getHeight()>0?source.source().getHeight():source.height();
+                    CloudCapsuleContent.drawOwned(canvas,source.source(),source.item(),width,height,
+                        getWidth(),getHeight(),alpha*layer.opacity,layer.offset);
+                }
+                return;
+            }
             CloudCapsuleContent.draw(canvas,group,capsule,getWidth(),getHeight(),alpha,false,
                 CloudMorphSurface::isNativeCapsule,CloudMorphSurface.this::capsuleItemContent,capsuleMotionOwned,ownsContentMotion(),nativeMini);
         }
@@ -949,10 +1065,17 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
             } else if(drawable instanceof DrawableWrapper wrapper)drawDecoration(canvas,wrapper.getDrawable());
             else drawable.draw(canvas);
         }
+        private int saveOpacity(Canvas canvas,int opacity) {
+            return opacity==255?canvas.save():canvas.saveLayerAlpha(0,0,getWidth(),getHeight(),opacity);
+        }
         private void drawContent(Canvas canvas,View source,float alpha,boolean childrenOnly) {
             if(source==null||alpha<=0||source.getWidth()<=0||source.getHeight()<=0)return;
             CloudContentTransform fit=placement(source);
-            int layer=canvas.saveLayerAlpha(0,0,getWidth(),getHeight(),Math.round(255*Math.min(1,alpha)));
+            int opacity=Math.round(255*Math.min(1,alpha));
+            if(opacity==0)return;
+            // Stable endpoints draw directly; group alpha needs an offscreen
+            // surface only during the short crossfade, not every timer tick.
+            int layer=saveOpacity(canvas,opacity);
             canvas.translate(fit.x(),fit.y());canvas.scale(fit.scale(),fit.scale());
             if(childrenOnly&&source instanceof ViewGroup group) {
                 for(int i=0;i<group.getChildCount();i++) {
@@ -1055,6 +1178,10 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
             for(CloudMorphSurface layer:layers.values())for(Object ancestor=view;ancestor instanceof View v;ancestor=v.getParent())
                 if(v==layer.cardContent){surface=layer;break;}
             View source=surface.body.nodes.source();
+            if((view==surface.leftMoon||view==surface.rightMoon)&&surface.leftMoon!=null) {
+                RectF bounds=new RectF();surface.moonBounds(view,view==surface.rightMoon,bounds);
+                surface.shape.getMatrix().mapRect(bounds);return bounds;
+            }
             Matrix sourceGlobal=new Matrix(),inverse=new Matrix(),local=new Matrix();
             source.transformMatrixToGlobal(sourceGlobal);sourceGlobal.invert(inverse);
             RectF bounds;

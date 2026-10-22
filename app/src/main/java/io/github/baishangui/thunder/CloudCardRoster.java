@@ -12,7 +12,16 @@ final class CloudCardRoster<T> {
     }
     private List<T> order=List.of();
     private IdentityHashMap<T,Object> content=new IdentityHashMap<>();
+    private Change<T> unchanged=new Change<>(order,List.of(),List.of(),false);
     Change<T> sync(List<T> nativeOrder,Function<T,Object> source) {
+        // The normal pre-draw has identical wrappers and bound content. Compare
+        // identities without allocating another map, lists or Change snapshot.
+        boolean stable=nativeOrder.size()==order.size();
+        if(stable)for(int i=0;i<order.size();i++) {
+            T item=nativeOrder.get(i);
+            if(item!=order.get(i)||content.get(item)!=source.apply(item)){stable=false;break;}
+        }
+        if(stable)return unchanged;
         ArrayList<T> next=new ArrayList<>(),removed=new ArrayList<>(),rebound=new ArrayList<>();
         IdentityHashMap<T,Object> nextContent=new IdentityHashMap<>();
         for(T item:nativeOrder)if(item!=null&&!nextContent.containsKey(item)) {
@@ -23,6 +32,7 @@ final class CloudCardRoster<T> {
         boolean reordered=order.size()!=next.size();
         if(!reordered)for(int i=0;i<order.size();i++)if(order.get(i)!=next.get(i)){reordered=true;break;}
         order=List.copyOf(next);content=nextContent;
+        unchanged=new Change<>(order,List.of(),List.of(),false);
         return new Change<>(order,List.copyOf(removed),List.copyOf(rebound),reordered);
     }
 }

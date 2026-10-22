@@ -25,6 +25,18 @@ final class CloudMorphHook {
     private static final Map<View,CloudMorphSurface> sessions=new IdentityHashMap<>();
     // w belongs to the persistent outer host window, including periods without a Body.
     private static final Map<View,Boolean> hostVisibility=new WeakHashMap<>();
+    private static boolean shadeExpanded;
+    static void shadeExpanded(boolean expanded) {
+        if(shadeExpanded==expanded)return;
+        shadeExpanded=expanded;
+        // Native card->capsule completion can emit a late w(true). The shade
+        // owns a separate gate, so that completion cannot reopen above it.
+        for(var entry:new ArrayList<>(sessions.entrySet())) {
+            CloudMorphSurface surface=entry.getValue();
+            if(!surface.disposed())surface.hostVisibility(!expanded&&hostVisibility.getOrDefault(entry.getKey(),true));
+        }
+        ShadeHook.observed("cloud-shade-gate",expanded?"blocked":"released");
+    }
     private static final Map<View,ValueAnimator> capsuleClocks=new IdentityHashMap<>();
     private static final Map<View,Frame> capsuleGoals=new WeakHashMap<>();
     private static final Map<View,Motion> containerMotions=new IdentityHashMap<>();
@@ -96,6 +108,11 @@ final class CloudMorphHook {
         CloudTextHook.install(loader);
         bind("text-renderer",CloudTextRenderer::install);
         installContentRevisions(loader);
+        bind("shade-visibility",()->Api102Runtime.findAndHookMethod(
+            "com.android.systemui.shade.NotificationShadeWindowControllerImpl",loader,"onShadeOrQsExpanded",Boolean.class,
+            new HookCallback(){@Override protected void afterHookedMethod(Param p){
+                if(!p.hasThrowable())shadeExpanded(Boolean.TRUE.equals(p.args[0]));
+            }}));
         for(String method:new String[]{"j","e"})bind("window-"+method,() -> {
             HookCallback callback=new HookCallback() {
                 @Override protected void beforeHookedMethod(Param p) {
@@ -213,7 +230,7 @@ final class CloudMorphHook {
                 Object view=Reflect.callMethod(p.thisObject,"l");
                 if(view instanceof View container){
                     boolean shown=(Boolean)p.args[0];hostVisibility.put(container,shown);
-                    CloudMorphSurface shared=sessions.get(container);if(shared!=null)shared.hostVisibility(shown);
+                    CloudMorphSurface shared=sessions.get(container);if(shared!=null)shared.hostVisibility(shown&&!shadeExpanded);
                 }
             }
         }));
@@ -394,7 +411,7 @@ final class CloudMorphHook {
     private static CloudMorphSurface newSession(View container,ClassLoader loader) {
         CloudMorphSurface body=new CloudMorphSurface(container,loader);
         Boolean shown=hostVisibility.get(container);
-        if(shown!=null)body.hostVisibility(shown);
+        if(shown!=null||shadeExpanded)body.hostVisibility(!shadeExpanded&&(shown==null||shown));
         return body;
     }
     private static void releaseEntry(Object builder,boolean resume) {
@@ -470,11 +487,6 @@ final class CloudMorphHook {
     }
     private static float mix(float a,float b,float p){return a+(b-a)*p;}
     private static Frame withProgress(Frame frame,float progress){return new Frame(frame.x,frame.y,frame.width,frame.height,frame.radius,progress);}
-    private static Frame mix(Frame a,Frame b,float p) {
-        float width=Math.max(1f,mix(a.width,b.width,p)),height=Math.max(1f,mix(a.height,b.height,p));
-        return new Frame(mix(a.x,b.x,p),mix(a.y,b.y,p),width,height,
-            Math.max(0f,Math.min(mix(a.radius,b.radius,p),Math.min(width,height)/2f)),Math.max(0f,Math.min(1f,mix(a.progress,b.progress,p))));
-    }
     private static float[] location(View view) {
         int[] xy=new int[2];view.getLocationOnScreen(xy);
         return new float[]{xy[0]-view.getTranslationX()-view.getPivotX()*(1f-view.getScaleX()),
@@ -555,7 +567,7 @@ final class CloudMorphHook {
             shared.capsuleEntryPresentation(mode==Mode.CAPSULE_ENTER&&presentationHandoff);
             shared.capsuleHideOwned(mode==Mode.CAPSULE_HIDE);
             shared.capsuleMotionOwned(mode==Mode.CAPSULE_ENTER||mode==Mode.CAPSULE_HIDE);
-            shared.contentMotionOwned(mode!=Mode.CAPSULE_HIDE);
+            shared.contentMotionOwned(true);
             Frame enter=entrance(capsule);
             Frame behind=expanded;
             if(index>0){
@@ -570,16 +582,17 @@ final class CloudMorphHook {
             else shared.syncCapsule(spec.capsule);
         }
         void acquire(boolean opening){shared.beginTransition(cardTransition,opening);shared.show();}
-        void frame(Frame frame,boolean primary){current=frame;shared.frame(frame);}
+        void frame(Frame frame){current=frame;shared.frame(frame);}
         void restore(boolean opening,boolean cancelled){
             if(!cancelled){
                 shared.capsuleMotionOwned(false);
                 shared.capsuleHideOwned(false);
-                shared.contentMotionOwned(false);
+                // The native switch graph may still be resetting wrapper/item
+                // transforms. Keep the independent content's coordinate owner.
+                shared.contentMotionOwned(true);
                 if(index==0||opening)shared.settle(opening);
             }
         }
-        void releaseClips(){}
     }
     /** Native timeline owns mounting/events. Only the last visual state before draw is ours. */
     private static final class Motion extends AnimatorListenerAdapter implements ViewTreeObserver.OnPreDrawListener {
@@ -594,11 +607,10 @@ final class CloudMorphHook {
         final java.util.LinkedHashMap<String,Object[]> deferred=new java.util.LinkedHashMap<>();
         final int curve,bounce,duration;
         final boolean appArrival;
-        CloudMotion trajectory;
         Spec spec;
         boolean closed,started,nativeEnded,visualEnded,retargeting,inheritPhase;
         int attempts;
-        float progress,nativeExcursionWidth;
+        float progress,nativeExcursionWidth,arrivalPhase;
         Motion(Request request,Animator original) {
             this.request=request;this.original=original;
             Object scene=Reflect.callMethod(request.builder,"f");
@@ -678,7 +690,8 @@ final class CloudMorphHook {
             }
             for(Surface surface:surfaces) {
                 if(surface.view!=null){active.put(surface.view,this);watch(surface.view);}surface.acquire(spec.opening);
-                if(request.mode==Mode.CAPSULE_ENTER||request.mode==Mode.CAPSULE_UPDATE)surface.shared.contentChanged(contentRevision);
+                if(request.mode!=Mode.CAPSULE_HIDE&&request.mode!=Mode.CAPSULE_UPDATE)surface.shared.textSceneChanged(contentRevision);
+                else if(request.mode==Mode.CAPSULE_UPDATE)surface.shared.contentChanged(contentRevision);
             }
             Surface primary=surfaces.get(0);
             primary.shared.retainCards(spec.cards.stream().skip(1).map(Target::view).toList());
@@ -691,9 +704,8 @@ final class CloudMorphHook {
                 Frame velocity=surface.shared.transitionVelocity(surface.start,surface.startVelocity);
                 if(request.mode==Mode.CAPSULE_HIDE&&velocity!=null)
                     velocity=CloudVisibilityState.velocityForWidth(surface.start,surface.start,velocity);
-                surface.trajectory=createTrajectory(from,to,velocity,Math.max(1,Math.round(duration*span)),surface.shared.capsuleEntryClosedHandoff(),0);
+                surface.trajectory=createTrajectory(from,to,velocity,Math.max(1,Math.round(duration*span)),!appArrival&&continuing||surface.shared.capsuleEntryClosedHandoff(),0);
             }
-            trajectory=primary.trajectory;
             started=true;clock.start();
             ShadeHook.observed("cloud-morph-geometry",Math.round(primary.start.width)+"x"+Math.round(primary.start.height)+" -> "+
                 Math.round((spec.opening?primary.expanded:primary.capsule).width)+"x"+Math.round((spec.opening?primary.expanded:primary.capsule).height));
@@ -703,7 +715,7 @@ final class CloudMorphHook {
         }
         private CloudMotion createTrajectory(Frame from,Frame to,Frame velocity,int remaining,boolean preserveZeroVelocity,float eventStart) {
             return appArrival?CloudMotion.arrival(from,to,velocity,remaining,curve,bounce,preserveZeroVelocity,nativeExcursionWidth,eventStart):
-                new CloudMotion(from,to,velocity,remaining,curve,bounce,0,preserveZeroVelocity);
+                new CloudMotion(from,to,velocity,remaining,curve,request.mode==Mode.CAPSULE_HIDE?0:bounce,0,preserveZeroVelocity);
         }
         void retargetCapsule(Frame goal){
             if(!started||spec.opening||request.mode==Mode.CAPSULE_HIDE||surfaces.isEmpty())return;
@@ -711,9 +723,8 @@ final class CloudMorphHook {
             Frame current=surface.shared.current();
             if(goal.equals(surface.target)||current==null)return;
             surface.target=goal;
-            boolean restart=visualEnded||progress>=1;
-            float phaseStart=restart?0:progress;
-            int remaining=restart?duration:Math.max(1,Math.round(duration*(1-progress)));
+            float eventStart=visualEnded?1:arrivalPhase+(1-arrivalPhase)*progress;
+            arrivalPhase=eventStart;
             for(Surface item:surfaces){
                 Frame presented=item.shared.current();
                 if(presented==null)continue;
@@ -722,17 +733,14 @@ final class CloudMorphHook {
                 Frame to=item.index==0?item.target:withProgress(item.target,item.targetOpacity);
                 // A late measurement after arrival settles must not replay that
                 // event. During arrival, keep its original clock through retargets.
-                item.trajectory=createTrajectory(from,to,velocities.get(item.index==0?spec.container:item.view),remaining,item.shared.capsuleEntryClosedHandoff(),restart?1:progress);
-                item.phaseStart=phaseStart;item.phaseEnd=1;
+                item.trajectory=createTrajectory(from,to,velocities.get(item.index==0?spec.container:item.view),duration,!appArrival||item.shared.capsuleEntryClosedHandoff(),eventStart);
+                item.phaseStart=0;item.phaseEnd=1;
             }
-            trajectory=surface.trajectory;
-            // Measurement can keep changing while native e/m animate their
-            // wrapper bounds. Retarget the remaining portion of this clock;
-            // restarting a full duration on every layout postpones settlement.
-            if(restart){
-                retargeting=true;clock.cancel();retargeting=false;
-                visualEnded=false;progress=0;clock.start();
-            }else render();
+            // A new target changes force, never spring stiffness. Squeezing the
+            // response into the old deadline causes arbitrarily high acceleration
+            // on a late layout. Identical layouts returned above do not restart it.
+            retargeting=true;clock.cancel();retargeting=false;
+            visualEnded=false;progress=0;clock.start();render();
             ShadeHook.resourceHit("cloud-morph-layout-retarget");
         }
         void render() {
@@ -751,9 +759,12 @@ final class CloudMorphHook {
                         // long before its width reaches the capsule's height.
                         velocity=CloudVisibilityState.velocityForWidth(surface.start,presented,velocity);
                         presented=CloudVisibilityState.shapeForWidth(surface.start,presented);
+                        presented=new Frame(surface.start.x+(surface.start.width-presented.width)/2,
+                            surface.start.y,presented.width,surface.start.height,presented.radius,presented.progress);
+                        velocity=new Frame(-velocity.width/2,0,velocity.width,0,velocity.radius,velocity.progress);
                     }
                     if(i==0){
-                        surface.frame(presented,true);
+                        surface.frame(presented);
                         float fade=CloudCardTiming.opacity(phase);
                         surface.shared.opacity(request.mode==Mode.CAPSULE_HIDE?surface.startOpacity*Math.min(1f,4f*(1f-fade)):
                             mix(surface.startOpacity,surface.targetOpacity,fade));
@@ -762,7 +773,7 @@ final class CloudMorphHook {
                         // card. Its current form is their anchor throughout contraction.
                         float reveal=presented.progress();
                         surface.shared.opacity(reveal);
-                        surface.frame(CloudCardTiming.follower(surfaces.get(0).current,surfaces.get(0).expanded,surface.expanded,reveal),false);
+                        surface.frame(CloudCardTiming.follower(surfaces.get(0).current,surfaces.get(0).expanded,surface.expanded,reveal));
                     }
                     velocities.put(i==0?spec.container:surface.view,velocity);
                 }
@@ -846,7 +857,6 @@ final class CloudMorphHook {
                 catch(Throwable error){ShadeHook.frameworkFailure("cloud-morph-restore",error);}
                 finally {
                     if(surface.view!=null)surface.view.setVisibility(visibility.get(i)[0]);if(surface.owner!=null)surface.owner.setVisibility(visibility.get(i)[1]);
-                    surface.releaseClips();
                 }
             }
             if(cancelled&&!superseded&&spec!=null){
@@ -859,8 +869,18 @@ final class CloudMorphHook {
             if(!cancelled&&request.mode==Mode.CAPSULE_HIDE)for(Surface surface:surfaces)surface.shared.dispose();
         }
     }
-    static void forget(View container,CloudMorphSurface surface){if(sessions.get(container)==surface){sessions.remove(container);stopCapsuleClock(container);velocities.remove(container);pendingEntries.remove(container);capsuleEndpoints.remove(container);
-        for(Object window:new ArrayList<>(windowOwners.keySet()))if(windowOwners.get(window)==container){windowOwners.remove(window);windowTargets.remove(window);}}}
+    static void forget(View container,CloudMorphSurface surface) {
+        if(sessions.get(container)!=surface)return;
+        sessions.remove(container);stopCapsuleClock(container);
+        // Screen-off/detach can stop display ticks. Release the owner now,
+        // rather than waiting for render() to notice its disposed surface.
+        Motion motion=containerMotions.get(container);
+        if(motion!=null)motion.finish(true,true);
+        velocities.remove(container);pendingEntries.remove(container);capsuleEndpoints.remove(container);
+        for(Object window:new ArrayList<>(windowOwners.keySet()))if(windowOwners.get(window)==container){
+            windowOwners.remove(window);windowTargets.remove(window);
+        }
+    }
     static void refresh() {
         if(enabled()){for(CloudMorphSurface shared:new ArrayList<>(sessions.values()))shared.refreshStyle();return;}
         for(View container:new ArrayList<>(capsuleClocks.keySet()))stopCapsuleClock(container);

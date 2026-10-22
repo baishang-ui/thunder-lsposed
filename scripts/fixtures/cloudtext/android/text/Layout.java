@@ -1,0 +1,1 @@
+package android.text; public class Layout {private final String text;public Layout(String text){this.text=text;}public CharSequence getText(){return text;}public void getSelectionPath(int start,int end,android.graphics.Path path){path.start=start;path.end=end;}}

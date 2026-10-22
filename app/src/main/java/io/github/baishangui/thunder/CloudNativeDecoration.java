@@ -19,7 +19,7 @@ final class CloudNativeDecoration {
     private final IdentityHashMap<Drawable,Stroke> strokes=new IdentityHashMap<>();
     private int width=-1,height=-1;
     private float radius=-1;
-    private boolean smooth;
+    private float weight=Float.NaN;
     private record Stroke(int width,ColorStateList color,float dashWidth,float dashGap) { }
     CloudNativeDecoration(Drawable source,Resources resources,Resources.Theme theme) {
         this.source=source;
@@ -50,10 +50,13 @@ final class CloudNativeDecoration {
         return (resources==null?state.newDrawable():state.newDrawable(resources,theme)).mutate();
     }
     void geometry(int width,int height,float radius,boolean smooth) {
+        geometry(width,height,radius,smooth?CloudCornerGeometry.WEIGHT:-1f);
+    }
+    void geometry(int width,int height,float radius,float weight) {
         float value=Math.max(0,Math.min(radius,Math.min(width,height)/2f));
-        if(this.width==width&&this.height==height&&this.radius==value&&this.smooth==smooth)return;
-        this.width=width;this.height=height;this.radius=value;this.smooth=smooth;
-        drawable.setBounds(0,0,width,height);CloudHook.round(drawable,value,smooth);
+        if(this.width==width&&this.height==height&&this.radius==value&&this.weight==weight)return;
+        this.width=width;this.height=height;this.radius=value;this.weight=weight;
+        drawable.setBounds(0,0,width,height);CloudHook.roundContinuous(drawable,value,weight);
     }
     void refresh(){refresh(source,drawable);}
     private void refresh(Drawable source,Drawable copy) {

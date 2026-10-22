@@ -9,11 +9,11 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
 
-/** app_process contract probe with real Android text; native APK branches are audited separately. */
+/** App-process contract probe with real Android text; native APK branches are audited separately. */
 public final class CloudTextHookDeviceCheck {
     static int checks;
     static void check(boolean value,String message){checks++;if(!value)throw new AssertionError(message);}
-    public static final class Module {public boolean a=true;public View d;}
+    public static final class Module {public boolean a=true;public View d;public int commits;public void p(String text){commits++;((TextView)((FrameLayout)d).getChildAt(0)).setText(text);}}
     public static final class Media {public View b,c;}
     static final class Param extends HookCallback.Param {
         Object result;boolean returned;Throwable failure;
@@ -25,9 +25,8 @@ public final class CloudTextHookDeviceCheck {
     public static void main(String[] args)throws Throwable {
         if(Looper.myLooper()==null)Looper.prepareMainLooper();
         Class<?> activityThread=Class.forName("android.app.ActivityThread");
-        var constructor=activityThread.getDeclaredConstructor();constructor.setAccessible(true);
-        Object thread=constructor.newInstance();
-        Context context=(Context)activityThread.getMethod("getSystemContext").invoke(thread);
+        Context context=(Context)activityThread.getMethod("currentApplication").invoke(null);
+        if(context==null)throw new IllegalStateException("Run this native text probe in an Android app process");
         FrameLayout slot=new FrameLayout(context);TextView title=new TextView(context),time=new TextView(context);
         View icon=new View(context);slot.addView(title);slot.addView(time);slot.addView(icon);
         title.setText("before");time.setText("00:01");icon.setAlpha(.65f);icon.setTranslationX(11);
@@ -56,6 +55,10 @@ public final class CloudTextHookDeviceCheck {
             "native media text commit remains live and parameter restores");
         check(time.getTranslationX()==0&&title.getTranslationX()==0&&icon.getTranslationX()==11,
             "scoped callbacks never rewrite text or icon position");
+        owned.clear();Param early=new Param(owner,"appearing");module.before(early);owner.p("appearing");module.after(early);
+        CloudTextHook.adopt(slot);
+        check(owner.commits==2&&owner.a&&"appearing".contentEquals(title.getText()),"acquisition settles a pre-existing native text update and restores its permission");
+        CloudTextHook.adopt(slot);check(owner.commits==2,"repeated acquisition cannot repeat native text commit");
         System.out.println("Verified "+checks+" Android native text callback contracts.");
     }
 }

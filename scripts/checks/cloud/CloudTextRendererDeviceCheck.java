@@ -13,13 +13,13 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
-/** app_process: real native TextView.onDraw interception and software pixels, no mounted window. */
+/** Android app-process probe: native TextView pixels and hardware recording, no mounted window. */
 public final class CloudTextRendererDeviceCheck {
     static int checks;
     static void check(boolean value,String message){checks++;if(!value)throw new AssertionError(message);}
     static final class Label extends TextView {
         int effectWrites;
-        Label(Context context){super(context);setTextSize(24);setTextColor(Color.WHITE);setTypeface(Typeface.MONOSPACE);setPadding(0,0,0,0);setIncludeFontPadding(false);}
+        Label(Context context){super(context);setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,24);setTextColor(Color.WHITE);setTypeface(Typeface.MONOSPACE);setPadding(0,0,0,0);setIncludeFontPadding(false);}
         @Override public void setRenderEffect(android.graphics.RenderEffect effect){effectWrites++;super.setRenderEffect(effect);}
         @Override protected void onDraw(Canvas canvas) {
             CloudTextRenderer.Draw draw=CloudTextRenderer.beginDraw(this,canvas);
@@ -38,8 +38,8 @@ public final class CloudTextRendererDeviceCheck {
     public static void main(String[] args)throws Throwable {
         if(Looper.myLooper()==null)Looper.prepareMainLooper();
         Class<?> activityThread=Class.forName("android.app.ActivityThread");
-        var constructor=activityThread.getDeclaredConstructor();constructor.setAccessible(true);
-        Context context=(Context)activityThread.getMethod("getSystemContext").invoke(constructor.newInstance());
+        Context context=(Context)activityThread.getMethod("currentApplication").invoke(null);
+        if(context==null)throw new IllegalStateException("Run this rendering probe in an Android app process");
         FrameLayout root=new FrameLayout(context);root.setBackgroundColor(Color.BLUE);
         Label stable=new Label(context),timer=new Label(context);stable.setText("TITLE");timer.setText("00:00");
         stable.setId(101);timer.setId(102);timer.setBackgroundColor(Color.GREEN);
@@ -51,7 +51,9 @@ public final class CloudTextRendererDeviceCheck {
         CloudTextRenderer renderer=new CloudTextRenderer(()->{},()->1000000,()->12f);renderer.bind(root,false);
         Bitmap original=draw(root);int effectWrites=timer.effectWrites;timer.setText("00:01");Bitmap active=draw(root);
         check(different(original,active,0,0,240,45)==0,"unchanged native TextView pixels must remain exact");
-        check(different(original,active,0,50,200,95)>0,"only updated TextView text must fade on software Canvas");
+        int prefixRight=(int)timer.getLayout().getPrimaryHorizontal(4);
+        check(different(original,active,0,50,prefixRight,95)==0,"unchanged timer digits retain exact native pixels during the local edit");
+        check(different(original,active,prefixRight,50,200,95)>0,"only changed digit must fade and rise on software Canvas");
         check(active.getPixel(220,70)==Color.RED,"overlapping sibling icon cannot be erased by a text rectangle cutout");
         check(active.getPixel(200,85)==Color.GREEN,"TextView background must remain outside onDraw opacity layer");
         check(active.getPixel(200,48)==Color.BLUE,"parent background stays unchanged");
@@ -62,6 +64,9 @@ public final class CloudTextRendererDeviceCheck {
         Paint paint=new Paint();paint.setColor(Color.WHITE);recording.canvas.drawRect(0,0,30,30,paint);
         CloudTextRenderer.endDraw(recording,true);target.endRecording();
         check(target.hasDisplayList(),"hardware recording produces a composite display list");
+        renderer.reveal(new Object());Bitmap scene=draw(root);
+        check(different(original,scene,0,0,200,45)>0,"whole-scene reveal also fades the unchanged title");
+        check(scene.getPixel(220,70)==Color.RED&&scene.getPixel(200,85)==Color.GREEN,"whole-scene reveal cannot fade icons or backgrounds");
         CloudTextRenderer extra=new CloudTextRenderer(()->{});extra.bind(root,false);renderer.clear();
         check(CloudTextRenderer.owns(timer)&&extra.running(),"multiple real owners retain the active text lease when one releases");
         extra.clear();check(!CloudTextRenderer.owns(timer),"last real owner releases TextWatcher scope");

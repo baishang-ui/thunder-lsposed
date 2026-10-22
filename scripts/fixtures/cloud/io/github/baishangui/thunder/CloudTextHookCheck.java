@@ -13,12 +13,12 @@ public final class CloudTextHookCheck {
         public boolean a=true;
         public View d=new View();
         int commits,slides;String text;
-        void p(String text){commits++;if(a)slides++;this.text=text;}
+        public void p(String text){commits++;if(a)slides++;this.text=text;}
     }
     public static final class Media {
         public View b=new View(),c=new View();
         int commits,fades;String text;
-        void c(String text,boolean direct){commits++;if(!direct)fades++;this.text=text;}
+        public void c(String text,boolean direct){commits++;if(!direct)fades++;this.text=text;}
     }
     static HookCallback.Param param(Object owner,Object...args){
         var p=CloudCheck.param(owner,null,args);p.returnEarly=false;return p;
@@ -60,6 +60,16 @@ public final class CloudTextHookCheck {
         media.after(p);check(Boolean.FALSE.equals(p.args[1]),"outer media argument restores independently");
         owned.clear();p=param(pair,"native",false);media.before(p);pair.c((String)p.args[0],(Boolean)p.args[1]);media.after(p);
         check(pair.fades==1&&Boolean.FALSE.equals(p.args[1]),"unowned media preserves native fade");
+        Module early=new Module();p=param(early,"appearing");module.before(p);early.p("appearing");module.after(p);
+        check(early.slides==1,"before acquisition the host may already have started its inner slide");
+        CloudTextHook.adopt(early.d);
+        check(early.commits==2&&early.slides==1&&early.a&&"appearing".equals(early.text),"acquisition settles the pending inner slide through native direct commit and restores its permission");
+        CloudTextHook.adopt(early.d);check(early.commits==2,"repeated bind cannot replay an already adopted update");
+        Media earlyMedia=new Media();p=param(earlyMedia,"media appears",false);media.before(p);earlyMedia.c("media appears",false);media.after(p);
+        CloudTextHook.adopt(earlyMedia.b);
+        check(earlyMedia.commits==2&&earlyMedia.fades==1&&"media appears".equals(earlyMedia.text),"media pending animation settles through its own direct commit on acquisition");
+        Module broken=new Module();p=param(broken,"failed");module.before(p);p.failure=new IllegalStateException();module.after(p);CloudTextHook.adopt(broken.d);
+        check(broken.commits==0,"failed unowned updates must never be replayed on acquisition");
         System.out.println("Verified "+checks+" scoped native text update checks.");
     }
 }

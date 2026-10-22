@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.RectF;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Looper;
 import android.view.View;
@@ -12,6 +13,11 @@ import java.util.IdentityHashMap;
 
 /** app_process: real View matrices, alpha layers and exterior moon pixels, without mounting a window. */
 public final class CloudCapsuleContentDeviceCheck {
+    static final class LayerCanvas extends Canvas {
+        int alphaLayers;
+        LayerCanvas(Bitmap bitmap){super(bitmap);}
+        @Override public int saveLayerAlpha(RectF bounds,int alpha){alphaLayers++;return super.saveLayerAlpha(bounds,alpha);}
+    }
     static int checks;
     static void check(boolean value,String message){checks++;if(!value)throw new AssertionError(message);}
     static FrameLayout frame(Context context,int left,int top,int width,int height) {
@@ -73,6 +79,18 @@ public final class CloudCapsuleContentDeviceCheck {
             "centered content ownership must preserve exterior native moons");
         check(incoming.getTranslationX()==60&&red.getTranslationX()==5&&incoming.getAlpha()==.5f&&red.getAlpha()==.5f,
             "centered blur transition must not mutate native source animation properties");
+        pixels.eraseColor(Color.TRANSPARENT);LayerCanvas direct=new LayerCanvas(pixels);direct.translate(20,0);
+        CloudCapsuleContent.draw(direct,container,incoming,200,40,1,false,content::containsKey,content::get,false,true);
+        check(direct.alphaLayers==0&&pixels.getPixel(25,20)==Color.RED,
+            "opaque owned content keeps native pixels without an offscreen alpha layer");
+        pixels.eraseColor(Color.TRANSPARENT);direct.alphaLayers=0;
+        CloudCapsuleContent.draw(direct,container,incoming,200,40,.5f,false,content::containsKey,content::get,false,true);
+        check(direct.alphaLayers==1&&Color.alpha(pixels.getPixel(25,20))>=126&&Color.alpha(pixels.getPixel(25,20))<=129,
+            "a real crossfade retains exactly one group-alpha layer and correct native pixels");
+        pixels.eraseColor(Color.TRANSPARENT);direct.alphaLayers=0;
+        CloudCapsuleContent.draw(direct,container,incoming,200,40,.001f,false,content::containsKey,content::get,false,true);
+        check(direct.alphaLayers==0&&Color.alpha(pixels.getPixel(25,20))==0,
+            "subpixel alpha skips invisible content without allocating an offscreen layer");
         FrameLayout oldMini=frame(context,30,0,200,40);oldMini.setBackgroundColor(Color.MAGENTA);
         View staleMiniItem=fill(context,Color.CYAN,60,0,20,40);oldMini.addView(staleMiniItem);
         container.addView(oldMini);oldMini.layout(30,0,230,40);staleMiniItem.layout(60,0,80,40);
@@ -100,6 +118,60 @@ public final class CloudCapsuleContentDeviceCheck {
             "mini fixed-radius background and foreground must not paint over the unified shape");
         check(mini.getBackground()==nativeBackground&&mini.getForeground()==nativeForeground,
             "drawing mini content must not mutate native source decoration");
+        pixels.eraseColor(Color.TRANSPARENT);direct.alphaLayers=0;
+        CloudCapsuleContent.drawOwned(direct,incoming,red,200,40,200,40,1,0);
+        check(pixels.getPixel(115,20)==Color.RED&&Color.alpha(pixels.getPixel(25,20))==0,
+            "stable owned coordinates ignore all native wrapper/item alpha and translation");
+        check(direct.alphaLayers==0,"settled live content allocates no offscreen alpha layer");
+        incoming.setTranslationX(-80);incoming.setScaleX(.5f);incoming.setAlpha(0);red.setAlpha(0);red.setTranslationX(-60);
+        pixels.eraseColor(Color.TRANSPARENT);
+        CloudCapsuleContent.drawOwned(direct,incoming,red,200,40,200,40,1,0);
+        check(pixels.getPixel(115,20)==Color.RED,"native cancellation/reset cannot pull owned content to another position or hide it");
+        incoming.removeView(red);pixels.eraseColor(Color.TRANSPARENT);
+        CloudCapsuleContent.drawOwned(direct,incoming,red,200,40,200,40,.5f,-4);
+        check(Color.red(pixels.getPixel(111,20))>240&&Color.alpha(pixels.getPixel(111,20))>=126,
+            "native graph detaching outgoing content must not erase its independent fade: "+Integer.toHexString(pixels.getPixel(111,20))+";left="+red.getLeft()+";width="+red.getWidth());
+        // The host repositions its content root while changing drawable width.
+        // Owned placement must follow our envelope, never that layout offset.
+        red.layout(75,0,95,40);pixels.eraseColor(Color.TRANSPARENT);
+        CloudCapsuleContent.drawOwned(direct,incoming,red,200,40,200,40,1,0);
+        check(pixels.getPixel(115,20)==Color.RED&&Color.alpha(pixels.getPixel(195,20))==0,
+            "native root relayout must not add a fixed-direction text slide");
+        // A native width spring is still running after the independent body
+        // has settled. It must not rescale the live icon/text a second time.
+        pixels.eraseColor(Color.TRANSPARENT);
+        CloudCapsuleContent.drawOwned(direct,incoming,red,200,40,200,40,1,0);
+        Bitmap stable=pixels.copy(Bitmap.Config.ARGB_8888,false);
+        for(int nativeWidth:new int[]{204,198,202,199,200}) {
+            incoming.layout(30,0,30+nativeWidth,40);
+            pixels.eraseColor(Color.TRANSPARENT);
+            CloudCapsuleContent.drawOwned(direct,incoming,red,nativeWidth,40,200,40,1,0);
+            check(pixels.sameAs(stable),"native shell width rebound must not shake or shrink owned content: "+nativeWidth);
+        }
+        stable.recycle();
+        RectF moonBounds=new RectF();
+        for(int bodyWidth:new int[]{100,200,320,160}) {
+            CloudCapsuleContent.moonBounds(rightMoon,bodyWidth,40,6,true,moonBounds);
+            check(moonBounds.left==bodyWidth+6&&moonBounds.centerY()==20,"right crescent follows the presented width exactly");
+            CloudCapsuleContent.moonBounds(leftMoon,bodyWidth,40,6,false,moonBounds);
+            check(moonBounds.right==-6&&moonBounds.centerY()==20,"left crescent stays attached to the left edge");
+        }
+        rightMoon.setTranslationX(-100);rightMoon.setTranslationY(15);rightMoon.setScaleX(.2f);rightMoon.setAlpha(0);
+        CloudCapsuleContent.moonBounds(rightMoon,200,40,6,true,moonBounds);pixels.eraseColor(Color.TRANSPARENT);
+        CloudCapsuleContent.drawMoon(canvas,rightMoon,moonBounds,1);
+        check(pixels.getPixel(228,20)==Color.YELLOW,"crescent artwork ignores the native width fragment's conflicting matrix/alpha");
+        // Native zero G2 weight must preserve the circular capsule endpoint.
+        android.graphics.Path circle=new android.graphics.Path(),continuous=new android.graphics.Path();
+        circle.addRoundRect(0,0,200,100,50,50,android.graphics.Path.Direction.CW);
+        Object adapter=Class.forName("com.oplus.graphics.OplusPathAdapter").getConstructor(android.graphics.Path.class,int.class).newInstance(continuous,1);
+        adapter.getClass().getMethod("addSmoothRoundRect",RectF.class,float[].class,android.graphics.Path.Direction.class,float.class)
+            .invoke(adapter,new RectF(0,0,200,100),new float[]{50,50,50,50,50,50,50,50},android.graphics.Path.Direction.CW,0f);
+        android.graphics.Region aRegion=new android.graphics.Region(),bRegion=new android.graphics.Region(),clipRegion=new android.graphics.Region(0,0,200,100);
+        aRegion.setPath(circle,clipRegion);bRegion.setPath(continuous,clipRegion);
+        bRegion.op(aRegion,android.graphics.Region.Op.XOR);
+        android.graphics.RegionIterator iterator=new android.graphics.RegionIterator(bRegion);android.graphics.Rect difference=new android.graphics.Rect();int area=0;
+        while(iterator.next(difference))area+=difference.width()*difference.height();
+        check(area<200,"zero-weight G2 endpoint must agree with the native circular capsule; differing pixels="+area);
         System.out.println("CloudCapsuleContentDeviceCheck: "+checks+" real Android switch/moon/alpha checks passed");
     }
 }

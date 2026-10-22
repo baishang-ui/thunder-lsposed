@@ -81,8 +81,8 @@ public final class CloudStackCheck {
         float revealSecond=1,revealThird=1;
         for(int tick=0;tick<=100;tick++){
             CloudMorphCheck.clock().advance(tick/100f);
-            check(lead.frame.x()>=100-.001f&&lead.frame.x()<=360+.001f&&lead.frame.y()>=10-.001f&&lead.frame.y()<=120+.001f,
-                "maximum rebound never carries the shrinking first card beyond its capsule position");
+            check(lead.frame.x()>=99&&lead.frame.x()<=371&&lead.frame.y()>=5&&lead.frame.y()<=121,
+                "maximum closing rebound is bounded to four percent of travel");
             check(second.opacity<=revealSecond+.00001f&&third.opacity<=revealThird+.00001f,
                 "gathered cards do not return after merging at maximum rebound");
             revealSecond=second.opacity;revealThird=third.opacity;

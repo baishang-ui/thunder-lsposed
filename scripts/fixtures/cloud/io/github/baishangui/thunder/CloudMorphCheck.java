@@ -334,17 +334,17 @@ public class CloudMorphCheck {
         check(!CloudMorphSurface.created.isEmpty(),"first app entrance must create independent capsule before any card exists");
         var entering=surface();
         check(entering.capsuleMotionOwned,"app entry owns capsule movement instead of multiplying native wrapper alpha and scale");
-        check(entering.contentMotionOwned&&entering.contentChanges>0,"app entry requests a text-tree scan and suppresses native directional content transforms");
-        int entryContentChanges=entering.contentChanges;
+        check(entering.contentMotionOwned&&entering.textSceneChanges==1,"app entry reveals every text region and suppresses native directional content transforms");
+        int entryContentChanges=entering.textSceneChanges;
         check(entering.frame.width()<40&&entering.frame.height()<40&&entering.opacity==0,"first reliable native start presents the retracted dot instead of a nearly complete capsule");
         clock().advance(.3f);check(entering.frame.width()>40&&entering.frame.width()<300&&entering.opacity>0&&entering.opacity<1,"first direct entry morphs into a capsule on the configured clock");
         clock().advance(.5f);check(entering.frame.width()>240,"first actual app entry retains the native width excursion before settling");
         clock().end();
         check(entering.capsuleMotionOwned,"early visual completion keeps native entry transforms suppressed until its graph ends");
-        check(entering.contentMotionOwned&&entering.contentChanges==entryContentChanges,"content ownership survives early visual completion without repeating its text-tree hint");
+        check(entering.contentMotionOwned&&entering.textSceneChanges==entryContentChanges,"content ownership survives early visual completion without repeating its all-text reveal");
         first.end();var initialBody=surface();
         check(!initialBody.capsuleMotionOwned,"settled entry returns native swipe transforms to the host");
-        check(!initialBody.contentMotionOwned,"native lifecycle completion releases content motion ownership");
+        check(initialBody.contentMotionOwned,"native lifecycle completion keeps the same centered content coordinates; no end-of-swipe transform handback");
         check(initialBody.attached&&!initialBody.expanded&&initialBody.frame.width()==240,"first app entrance settles as capsule");
         check(!initialBody.visible(),"entry created after w(false) must inherit the hidden host gate");
         nativeBusinessVisibility(true);
@@ -402,22 +402,33 @@ public class CloudMorphCheck {
         Animator measuredRetarget=new Animator();directBuild(entry,"e","APP_TO_CAPSULE",measuredRetarget).start();
         var retargetClock=clock();retargetClock.advance(.4f);var beforeRetarget=initialBody.frame;
         var beforeRetargetVelocity=logicalVelocity(initialBody);
-        int beforeRetargetContent=initialBody.contentChanges;
+        int beforeRetargetContent=initialBody.contentChanges;int beforeRetargetScene=initialBody.textSceneChanges;
         incoming.targetWidth=380;
         hook("capsule.ui.view.CapsuleContainer#onLayout").after(CloudCheck.param(container,null,false,0,0,240,80));
-        check(clock()==retargetClock&&!retargetClock.cancelled,"late native measurement retargets within the original entry clock instead of restarting a full duration");
+        check(clock()==retargetClock&&retargetClock.duration==entryConfig.cloudAnimationDuration,"late native measurement retains the full spring response duration");
         checkFrame(beforeRetarget,initialBody.frame,.0001f,"late measurement retains the current entry geometry");
         checkFrame(beforeRetargetVelocity,logicalVelocity(initialBody),.0001f,"late measurement retains the app excursion velocity");
-        retargetClock.advance(.4001f);
+        retargetClock.advance(.0001f);
         checkPresentationVelocity(beforeRetarget,initialBody.frame,beforeRetargetVelocity,.0001f*retargetClock.duration/1000f,"late measurement continues the app event without replaying its starting impulse");
-        check(initialBody.contentChanges==beforeRetargetContent,"measurement-only retarget cannot repeat the text-tree scan hint");
+        check(initialBody.contentChanges==beforeRetargetContent&&initialBody.textSceneChanges==beforeRetargetScene,"measurement-only retarget cannot repeat a text hint or whole-scene reveal");
         retargetClock.advance(.8f);var beforeSecondRetarget=initialBody.frame;var beforeSecondVelocity=logicalVelocity(initialBody);incoming.targetWidth=360;
         hook("capsule.ui.view.CapsuleContainer#onLayout").after(CloudCheck.param(container,null,false,0,0,240,80));
-        check(clock()==retargetClock&&!retargetClock.cancelled,"repeated native layouts cannot keep extending the service switch deadline");
+        check(clock()==retargetClock&&retargetClock.duration==entryConfig.cloudAnimationDuration,"late target changes cannot compress the spring response into the remaining deadline");
         checkFrame(beforeSecondRetarget,initialBody.frame,.0001f,"repeated retarget preserves its current rectangle");
-        checkFrame(beforeSecondVelocity,logicalVelocity(initialBody),.0001f,"remaining-clock retarget inherits its current geometry speed");
+        checkFrame(beforeSecondVelocity,logicalVelocity(initialBody),.0001f,"full-response retarget inherits its current geometry speed");
+        retargetClock.advance(.01f);
+        // The old remaining-time implementation accelerated a late target by
+        // (1 / remainingFraction)^2. Compare the presented first 1% against a
+        // fresh full-response continuation, including the original event tail.
+        var fullResponse=CloudMotion.arrival(beforeSecondRetarget,new CloudMorphHook.Frame(300,10,360,80,40,0),beforeSecondVelocity,
+            entryConfig.cloudAnimationDuration,entryConfig.cloudAnimationCurve,entryConfig.cloudAnimationBounce,false,
+            16*incoming.getResources().getDisplayMetrics().density,.88f);
+        checkFrame(fullResponse.frame(.01f),initialBody.frame,.01f,"late layout uses unchanged physical response instead of accelerating to an old deadline");
+        float afterRepeat=initialBody.frame.width();
+        hook("capsule.ui.view.CapsuleContainer#onLayout").after(CloudCheck.param(container,null,false,0,0,240,80));
+        check(initialBody.frame.width()==afterRepeat,"an identical repeated layout cannot restart the spring or replay content");
         retargetClock.end();
-        check(initialBody.frame.width()==360&&ValueAnimator.running.isEmpty(),"the latest native target settles at the original visual deadline");
+        check(initialBody.frame.width()==360&&ValueAnimator.running.isEmpty(),"the latest native target settles after one physical response");
         var lateStart=initialBody.frame;var lateVelocity=logicalVelocity(initialBody);incoming.targetWidth=390;
         hook("capsule.ui.view.CapsuleContainer#onLayout").after(CloudCheck.param(container,null,false,0,0,240,80));
         var lateClock=clock();lateClock.advance(.5f);
@@ -438,7 +449,9 @@ public class CloudMorphCheck {
         check(initialBody.frame.width()==320&&initialBody.frame.x()==320&&initialBody.frame.y()==10,"measurement before first layout uses the native parent center rather than a negative zero-layout origin");
         // A slide is CAPSULE_SEIZE and can return a graph directly, bypassing B0.
         entry.state=new com.oplus.systemui.plugins.seedling.statemachine.fluid.d("current");
+        int beforeLocalScene=initialBody.textSceneChanges;
         Animator slide=new Animator();directBuild(entry,"m","CAPSULE_SEIZE",slide).start();
+        check(initialBody.textSceneChanges==beforeLocalScene,"within-capsule content update keeps character-level transitions");
         check(initialBody.frame.width()==320,"swipe inherits its currently presented shape");
         check(initialBody.contentMotionOwned,"service swipe uses centered content blur while native swipe business still runs");
         clock().advance(.5f);check(initialBody.frame.width()>240&&initialBody.frame.width()<320,"native swipe changes the capsule shape along with text and moons");
@@ -519,7 +532,9 @@ public class CloudMorphCheck {
         hook("animatorscenes.e#p").before(CloudCheck.param(entry,null,new Object(),new Object(),new Object()));
         // Native pre-open y(false) precedes the Motion listener and must be cleared by card entry.
         nativeBusinessVisibility(false);
+        int beforeOpenScene=initialBody.textSceneChanges;
         build(scene,"CAPSULE_TO_CARD",original).start();var shared=surface();
+        check(shared.textSceneChanges==beforeOpenScene+1,"capsule to card reveals every label even with unchanged text");
         check(shared.visible()&&shared.cardTransition,"card transition clears only the pre-open business hide");
         check(shared==initialBody,"opening reuses first app entrance body");
         check(shared.frame.width()==240&&shared.attached,"independent surface starts at measured capsule geometry, including zero override");
@@ -540,9 +555,23 @@ public class CloudMorphCheck {
         check(!shared.visible(),"expanded business show cannot bypass an outer host hide");
         nativeHostVisibility(true);
         check(shared.visible(),"expanded card recovers after the host gate opens");
+        var shade=Api102Runtime.callbacks.get("com.android.systemui.shade.NotificationShadeWindowControllerImpl#onShadeOrQsExpanded");
+        check(shade!=null,"shade/quick-settings union has a host boundary");
+        shade.after(CloudCheck.param(new Object(),null,true));
+        check(!shared.visible(),"pulling the shade over an expanded card hides the independent surface");
+        nativeHostVisibility(true);nativeBusinessVisibility(true);
+        check(!shared.visible(),"late card-to-capsule show cannot bypass the shade gate");
+        shade.after(CloudCheck.param(new Object(),null,false));
+        check(shared.visible(),"closing the shade releases its own gate");
+        nativeHostVisibility(false);shade.after(CloudCheck.param(new Object(),null,true));
+        shade.after(CloudCheck.param(new Object(),null,false));
+        check(!shared.visible(),"shade close cannot override a separate native host hide");
+        nativeHostVisibility(true);
         check(starts[0]==1&&ends[0]==1,"host callbacks run exactly once");
         Animator close=new Animator();close.addListener(new AnimatorListenerAdapter(){public void onAnimationEnd(Animator a){try{nativeHide(scene.j);}catch(Throwable e){throw new RuntimeException(e);}}});
+        int beforeCloseScene=shared.textSceneChanges;
         build(scene,"CARD_TO_CAPSULE",close).start();
+        check(shared.textSceneChanges==beforeCloseScene+1,"card to capsule reveals every label even with unchanged text");
         check(surface()==shared&&shared.frame.width()==800,"close reuses the identical persistent object");
         check(!shared.inputOwnership.captureOutside(),"close start immediately releases outside capture before any visual contraction");
         check(!shared.inputOwnership.acceptsInput(),"close start releases the entire Body input region immediately");
@@ -594,7 +623,9 @@ public class CloudMorphCheck {
 
         for(String kind:new String[]{"CAPSULE_TO_LARGE_INSTANT_CARD","CAPSULE_TO_SMALL_INSTANT_CARD","CAPSULE_TO_SMALL_INSTANT_CARD_WITH_BLANK","LARGE_INSTANT_CARD_TO_CAPSULE","SMALL_INSTANT_CARD_TO_CAPSULE","SMALL_INSTANT_CARD_TO_CAPSULE_WITH_BLANK"}) {
             Scene s=new Scene();s.j.g.instant.content=card(700,300);s.j.h.r.content=card(700,300);
+            int beforeScene=shared.textSceneChanges;
             Animator n=new Animator();build(s,kind,n).start();clock().advance(.5f);complete(n);
+            check(shared.textSceneChanges==beforeScene+1,"instant card transition reveals all labels once: "+kind);
             check(surface()==shared&&shared.attached,"all status bar scenes retain one body: "+kind);
         }
         for(String kind:new String[]{"CARD_TO_APP","LOCKSCREEN_TO_CARD","CARD_TO_CAPSULE_WITHOUT_ANIM"}) {
@@ -622,6 +653,18 @@ public class CloudMorphCheck {
         check(!surface().visible(),"w(false) observed while disabled survives re-enabling and late Body creation");
         nativeBusinessVisibility(true);check(!surface().visible(),"re-enabled business show still respects the cached outer host gate");
         nativeHostVisibility(true);check(surface().visible(),"re-enabled session recovers on the real outer host show");
+        Animator detached=new Animator();build(scene,"CAPSULE_TO_CARD",detached).start();
+        CloudMorphSurface detachedBody=surface();var detachedClock=clock();detachedClock.advance(.25f);
+        detachedBody.dispose();CloudMorphHook.forget(container,detachedBody);
+        check(ValueAnimator.running.isEmpty(),"source disposal stops its visual owner immediately without waiting for another display tick");
+        var motionsField=CloudMorphHook.class.getDeclaredField("containerMotions");motionsField.setAccessible(true);
+        check(((Map<?,?>)motionsField.get(null)).isEmpty(),"source disposal releases the container's active motion reference");
+        for(String fieldName:new String[]{"active","windows","running"}) {
+            var field=CloudMorphHook.class.getDeclaredField(fieldName);field.setAccessible(true);
+            check(((Map<?,?>)field.get(null)).isEmpty(),"source disposal releases "+fieldName+" without another frame");
+        }
+        check(detached.getListeners().isEmpty(),"source disposal detaches the visual listener from the still-native graph");
+        detached.end();check(ValueAnimator.running.isEmpty(),"late native completion cannot restart a disposed session");
         System.out.println("Verified "+checks+" unified-object lifecycle checks (platform rendering requires separate device validation).");
     }
 }

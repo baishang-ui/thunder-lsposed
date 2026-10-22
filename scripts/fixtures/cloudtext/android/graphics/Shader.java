@@ -1,2 +1,2 @@
 package android.graphics;
-public class Shader { public enum TileMode {CLAMP} }
+public class Shader { public enum TileMode {CLAMP,DECAL} }
