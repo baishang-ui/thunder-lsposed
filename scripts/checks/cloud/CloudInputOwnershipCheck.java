@@ -11,6 +11,7 @@ public final class CloudInputOwnershipCheck {
         check(state.capsuleRoot(other),"replacing the native capsule root cancels the old gesture stream");
         check(state.bind(window),"first root is a root change");state.begin(true,true);
         check(state.captureOutside()&&state.keepLease(true),"morph must own input at progress zero");
+        check(state.keepsCardPresentation(),"opening owns the card even before form progress advances");
         check(!state.bind(window),"same-root reversal must not release native lease");
         state.begin(true,true);check(state.keepLease(true),"reversal preserves transition ownership");
         state.settle(false);
@@ -20,12 +21,15 @@ public final class CloudInputOwnershipCheck {
         check(!state.keepLease(true),"a later unrelated native show must not resurrect the closed session");
         state.begin(true,true);state.settle(true);
         check(state.captureOutside()&&state.keepLease(true),"expanded card owns its outside dismissal");
-        state.dismiss();
-        check(!state.acceptsInput()&&!state.captureOutside(),"accepted outside dismissal immediately releases all Body input");
-        check(state.keepLease(true),"dismissal must not hand input to the transparent native window");
+        check(state.keepsCardPresentation(),"background capsule events must preserve expanded presentation");
+        // A handled OUTSIDE only queues a request. Until native begin(close),
+        // rejected/deferred requests must leave the visible card interactive.
+        check(state.acceptsInput()&&state.captureOutside(),"waiting for native close must preserve visible card input");
+        check(state.keepLease(true),"pending close must not hand input to the transparent native window");
         state.settle(true);
-        check(!state.acceptsInput(),"late opening end cannot restore input after accepted dismissal");
+        check(state.acceptsInput(),"late opening end keeps input when no native close has started");
         state.begin(true,false);
+        check(!state.keepsCardPresentation(),"a real card close allows capsule ownership handoff");
         check(!state.acceptsInput()&&!state.captureOutside()&&state.keepLease(true),"close begins without Body input and retains the native lease");
         check(state.acceptsCapsuleInput(),"closing must accept a fresh capsule DOWN without waiting for visual/native end");
         check(!state.captureOutside(),"capsule reversal input cannot restore outside capture");

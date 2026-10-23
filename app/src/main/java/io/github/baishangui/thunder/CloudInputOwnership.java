@@ -16,13 +16,13 @@ final class CloudInputOwnership {
         if(cardTransition){transitioning=true;handoff=false;dismissing=!opening;}
         else {handoff|=transitioning||expanded;transitioning=false;expanded=false;}
     }
-    /** Accepted dismissal releases Body input while native input stays disabled. */
-    void dismiss(){dismissing=true;}
     void settle(boolean cardExpanded) {
         handoff=!cardExpanded&&(transitioning||expanded||handoff);
         transitioning=false;closing=false;expanded=cardExpanded;dismissing=cardExpanded&&dismissing;
     }
     boolean acceptsInput(){return !dismissing;}
+    /** Capsule data/width scenes cannot replace a card until its own close scene starts. */
+    boolean keepsCardPresentation(){return (transitioning||expanded)&&!closing;}
     /** Closing can be reversed only through the visible capsule target. */
     boolean acceptsCapsuleInput(){return transitioning&&closing;}
     boolean captureOutside(){return acceptsInput()&&(transitioning||expanded);}

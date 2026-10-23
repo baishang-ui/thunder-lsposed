@@ -538,17 +538,33 @@ public class CloudMorphCheck {
         check(shared.visible()&&shared.cardTransition,"card transition clears only the pre-open business hide");
         check(shared==initialBody,"opening reuses first app entrance body");
         check(shared.frame.width()==240&&shared.attached,"independent surface starts at measured capsule geometry, including zero override");
+        ValueAnimator openingClock=clock();
+        Animator duringOpen=new Animator();build(entry,"CAPSULE_WIDTH_CHANGE",duringOpen).start();
+        check(clock()==openingClock&&surface()==shared&&shared.cardTransition,
+            "capsule updates during expansion must preserve the active card clock and gesture owner");
+        duringOpen.end();
         float last=240;
         for(float t:new float[]{.1f,.25f,.5f,.75f}) {
             clock().advance(t);float width=shared.frame.width();
             check(width>last&&width<800,"single continuous expansion");last=width;
+            int frameWrites=shared.frameWrites;
             normal.setAlpha(1);normal.getViewTreeObserver().dispatchOnPreDraw();
             check(normal.getAlpha()==0&&surface()==shared,"native stage cannot replace unified visual object");
+            check(shared.frameWrites==frameWrites,"a native traversal at unchanged clock progress must not replay the entire card frame");
         }
         complete(original);
         check(shared.attached&&shared.expanded&&normal.getAlpha()==0&&container.getAlpha()==0,"expanded endpoint stays in unified surface");
         check(shared.inputOwnership.captureOutside(),"expanded card captures outside dismissal");
         check(shared.inputOwnership.acceptsInput(),"expanded card accepts content input");
+        for(String updateKind:new String[]{"CAPSULE_WIDTH_CHANGE","CAPSULE_UPDATE_DATA_WITHOUT_ANIM","CAPSULE_APPEAR","CAPSULE_DISAPPEAR"}) {
+            var cardFrame=shared.frame;
+            Animator capsuleUpdate=new Animator();build(entry,updateKind,capsuleUpdate).start();
+            check(shared.frame.equals(cardFrame)&&shared.expanded&&ValueAnimator.running.isEmpty(),
+                "background capsule scene must not steal the expanded card or its input: "+updateKind);
+            capsuleUpdate.end();
+            check(shared.frame.equals(cardFrame)&&shared.inputOwnership.captureOutside(),
+                "late capsule scene completion must preserve card ownership: "+updateKind);
+        }
         nativeBusinessVisibility(false);
         check(shared.visible(),"native capsule hide at the end of expansion cannot hide the displayed card");
         nativeHostVisibility(false);nativeBusinessVisibility(true);

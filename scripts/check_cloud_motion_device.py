@@ -34,12 +34,16 @@ with tempfile.TemporaryDirectory(prefix='thunder-motion-device-') as folder:
     sources = [source / package / 'CloudMotion.java', root / 'scripts/fixtures/cloud' / package / 'CloudMotionCheck.java',
                root / 'scripts/checks/cloud/CloudMotionDeviceCheck.java', root / 'scripts/checks/cloud/CloudCapsuleContentDeviceCheck.java',
                root / 'scripts/checks/cloud/CloudMotionInstrumentation.java']
+    sources += [root / 'scripts/checks/cloud/CloudCardFeedbackDeviceCheck.java', root / 'scripts/checks/cloud/CloudInputBridgeDeviceCheck.java']
     subprocess.run([str(jdk / 'bin/javac'), '-encoding', 'UTF-8', '-cp', os.pathsep.join(map(str, [android, production])),
                     '-d', str(classes), *map(str, sources)], check=True)
     # Use the actual production Frame record, visibility, drawing and input transform.
     with zipfile.ZipFile(production) as archive:
         for name in ['CloudMorphHook', 'CloudMorphHook$Frame', 'CloudVisibilityState', 'CloudCardTiming', 'CloudContentTransform', 'CloudCapsuleContent']:
             archive.extract(package + name + '.class', classes)
+        for entry in archive.namelist():
+            if entry.startswith(tuple(package + name for name in ['CloudCardFeedback', 'CloudInputBridge', 'CloudInputWindowPolicy', 'Reflect'])) and entry.endswith('.class'):
+                archive.extract(entry, classes)
     subprocess.run([str(jdk / 'bin/jar'), '--create', '--file', str(folder / 'classes.jar'), '-C', str(classes), '.'], check=True)
     subprocess.run([str(jdk / 'bin/java'), '-cp', str(sdk / 'build-tools/35.0.0/lib/d8.jar'), 'com.android.tools.r8.D8',
                     '--min-api', '37', '--lib', str(android), '--classpath', str(production), '--output', str(folder / 'probe.jar'),

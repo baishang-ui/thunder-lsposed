@@ -79,6 +79,7 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     private Object material,insetsListener;
     private View capsule,card,owner,capsuleContent,cardContent,capsuleRoot,cardRoot,nativeMini;
     private Object cardPress;
+    private final CloudCardFeedback.Transform cardTransform=new CloudCardFeedback.Transform();
     private boolean instant,attached,expanded,disposed,materialReady,settled,scaleListenerRegistered,capsuleMotionOwned,capsuleHideOwned,capsuleEntryPresentation;
     private boolean closingCapsuleGesture;
     private boolean contentMotionOwned=true;
@@ -154,6 +155,17 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     private java.util.List<View> cardGroup=java.util.List.of();
     void cardGroup(java.util.List<View> group){cardGroup=group;}
     private final Map<View,CloudMorphSurface> layers=new java.util.LinkedHashMap<>();
+    private final CloudFrameBatch inputBatch=new CloudFrameBatch();
+    void beginFrameBatch(){inputBatch.begin();}
+    void endFrameBatch(){
+        if(!inputBatch.end())return;
+        // Each child computes its own silhouette once; merge after all peers
+        // have their final geometry/alpha for this tick.
+        inputBatch.begin();
+        try{for(CloudMorphSurface layer:layers.values())layer.refreshInputRegion();}
+        finally{inputBatch.end();}
+        updateInputRegion();
+    }
     private Gesture gesture;
     private record Hidden(float alpha,int accessibility) { }
     private final BroadcastReceiver screenLifetime=new BroadcastReceiver(){
@@ -199,6 +211,8 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         if(scale<=0)container.post(()->{if(!disposed)retainSurface();});
     }
     boolean disposed(){return disposed;}
+    boolean keepsCardPresentation(){return !disposed&&inputOwnership.keepsCardPresentation()&&
+        cardRoot!=null&&cardRoot.isAttachedToWindow()&&cardRoot.isShown();}
     CloudMorphHook.Frame current(){return disposed?null:current;}
     CloudMorphHook.Frame presentation(){return disposed?null:presented;}
     CloudMorphHook.Frame presentationVelocity(CloudMorphHook.Frame logicalVelocity) {
@@ -302,14 +316,14 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         MotionEvent forwarded=CloudInputBridge.outsideToRoot(event,body,cardRoot);
         nativeInputDepth.set(nativeInputDepth.get()+1);
         try{
-            if(cardRoot.dispatchTouchEvent(forwarded)){
-                CloudMorphSurface root=parent==null?this:parent;
-                root.dismissInputTree();root.cancelInputTree();root.updateInputRegion();root.queueNativeInputSync();
-            }
+            // A handled OUTSIDE only posts a native state-machine event. That
+            // event can be rejected/deferred while a drag or scene is active.
+            // beginTransition(close) is the authoritative input release; a
+            // dispatch return value must never leave a visible card inert.
+            cardRoot.dispatchTouchEvent(forwarded);
         }
         finally{int depth=nativeInputDepth.get()-1;if(depth==0)nativeInputDepth.remove();else nativeInputDepth.set(depth);forwarded.recycle();}
     }
-    private void dismissInputTree(){inputOwnership.dismiss();for(CloudMorphSurface layer:layers.values())layer.dismissInputTree();}
     CloudMorphSurface cardLayer(View card){
         CloudMorphSurface layer=layers.get(card);
         if(layer==null||layer.disposed){layer=new CloudMorphSurface(container,loader,this);layers.put(card,layer);}
@@ -444,6 +458,9 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     }
     private void watch(View view) {
         if(view==null)return;
+        // All card layers share the same native roots. One root listener walks
+        // the group; registering every peer multiplies work on each traversal.
+        if(parent!=null){parent.watch(view);return;}
         ViewTreeObserver observer=view.getViewTreeObserver();
         if(observer.isAlive()&&!observers.contains(observer)){observer.addOnPreDrawListener(this);observers.add(observer);}
     }
@@ -520,7 +537,10 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         if(shape.getMeasuredWidth()!=width||shape.getMeasuredHeight()!=height)
             shape.measure(View.MeasureSpec.makeMeasureSpec(width,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(height,View.MeasureSpec.EXACTLY));
         if(shape.getLeft()!=0||shape.getTop()!=0||shape.getWidth()!=width||shape.getHeight()!=height)shape.layout(0,0,width,height);
-        CloudCardFeedback.transform(shape,card,frame.x()-params.x,frame.y()-params.y,settled&&expanded);
+        // The endpoint includes the current parent/window origin. Later native
+        // scroll/drag changes are deltas, so settings/layout rebases cannot double them.
+        cardTransform.anchor(card);
+        cardTransform.apply(shape,card,frame.x()-params.x,frame.y()-params.y,settled&&expanded);
         float radius=Math.max(0,Math.min(frame.radius(),Math.min(width,height)/2f));
         float weight=CloudCornerGeometry.WEIGHT*CloudCardTiming.opacity(frame.progress());
         outlineRect.set(0,0,width,height);
@@ -666,7 +686,7 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         if(view.getImportantForAccessibility()!=View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS)
             view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
     }
-    private void suppressNative(){if(!disposed){if(parent==null)hide(container);hide(card);hide(owner);}}
+    void suppressNative(){if(!disposed){if(parent==null)hide(container);hide(card);hide(owner);}}
     private static Object nativeCardContent(View view) {
         Object content=Reflect.callMethod(view,"getContentView");return content instanceof View?content:view;
     }
@@ -714,29 +734,39 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         if(disposed)return true;
         try {
             if(!retainSurface())return true;
-            syncNativeCards();syncMoons();
-            KeyguardManager keyguard=(KeyguardManager)container.getContext().getSystemService(Context.KEYGUARD_SERVICE);
-            boolean locked=keyguard!=null&&keyguard.isKeyguardLocked();
-            lifetimeVisible=!locked&&container.isAttachedToWindow();
-            if(!lifetimeVisible)cancelInputTree();
-            // A fallback for hosts without a w/y event. An explicit event remains authoritative
-            // while the native View reaches GONE at the end of its own alpha animation.
-            if(parent==null&&!hostVisibilityObserved&&!businessVisibilityObserved&&current!=null&&current.progress()==0f)
-                setHostVisibility(container.isShown());
-            applyOpacity();
-            queueNativeInputSync();
-            suppressNative();updateStyle();
-            syncFeedbackTransform();
-            // Invalidate the separate content only for a real native traversal. Never invalidate its root.
-            shape.invalidate();
+            beginFrameBatch();
+            try {
+                syncNativeCards();syncMoons();
+                KeyguardManager keyguard=(KeyguardManager)container.getContext().getSystemService(Context.KEYGUARD_SERVICE);
+                boolean locked=keyguard!=null&&keyguard.isKeyguardLocked();
+                boolean visible=!locked&&container.isAttachedToWindow();
+                if(!visible)cancelInputTree();
+                // A fallback for hosts without a w/y event. An explicit event remains authoritative
+                // while the native View reaches GONE at the end of its own alpha animation.
+                if(parent==null&&!hostVisibilityObserved&&!businessVisibilityObserved&&current!=null&&current.progress()==0f)
+                    setHostVisibility(container.isShown());
+                syncNativeTree(visible);
+                queueNativeInputSync();
+            }finally{endFrameBatch();}
         }catch(Throwable error){ShadeHook.frameworkFailure("cloud-unified-predraw",error);dispose();}
         return true;
+    }
+    private void syncNativeTree(boolean visible) {
+        lifetimeVisible=visible;applyOpacity();suppressNative();updateStyle();syncFeedbackTransform();
+        // Native text/RemoteViews still invalidate their separate content on a
+        // real traversal, including timers and controls that update in place.
+        shape.invalidate();
+        for(CloudMorphSurface layer:layers.values())layer.syncNativeTree(visible);
+    }
+    private void syncFeedbackTree() {
+        syncFeedbackTransform();
+        for(CloudMorphSurface layer:layers.values())layer.syncFeedbackTree();
     }
     private void syncFeedbackTransform() {
         if(presented==null)return;
         if(settled&&expanded) {
             // O3 press/drag/return animations mutate the native View without layout.
-            CloudCardFeedback.transform(shape,card,presented.x()-params.x,presented.y()-params.y,true);
+            cardTransform.apply(shape,card,presented.x()-params.x,presented.y()-params.y,true);
         }else {
             float press=settled&&current.progress()==0f&&!expanded&&capsule!=null&&
                 visibility.shown()&&visibility.host()==1f&&!capsuleMotionOwned?
@@ -803,6 +833,10 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         insetsListener=null;
     }
     private void updateInputRegion() {
+        if((parent==null?inputBatch:parent.inputBatch).defer())return;
+        refreshInputRegion();
+    }
+    private void refreshInputRegion() {
         inputRegion.setEmpty();shapeInputRegion.setEmpty();
         boolean capsuleOnly=!inputEnabled()&&capsuleReversalEnabled();
         if(!inputEnabled()&&!capsuleOnly) {
@@ -937,6 +971,14 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         final NativeNodes nodes=new NativeNodes();
         CloudMorphSurface touchLayer;
         boolean outsideGesture;
+        final ViewTreeObserver.OnPreDrawListener feedbackBeforeDraw=()->{
+            if(!disposed)try{
+                beginFrameBatch();
+                try{syncFeedbackTree();}finally{endFrameBatch();}
+            }
+            catch(Throwable error){ShadeHook.frameworkFailure("cloud-unified-feedback",error);dispose();}
+            return true;
+        };
         Body(Context context){super(context);setClipChildren(false);setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);}
         @Override protected void dispatchDraw(Canvas canvas) {
             super.dispatchDraw(canvas);
@@ -950,7 +992,11 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
             }
             canvas.restoreToCount(save);
         }
-        @Override protected void onAttachedToWindow(){super.onAttachedToWindow();if(parent==null)installInsets();updateInputRegion();}
+        @Override protected void onAttachedToWindow(){super.onAttachedToWindow();if(parent==null){getViewTreeObserver().addOnPreDrawListener(feedbackBeforeDraw);installInsets();}updateInputRegion();}
+        @Override protected void onDetachedFromWindow(){
+            if(getViewTreeObserver().isAlive())getViewTreeObserver().removeOnPreDrawListener(feedbackBeforeDraw);
+            super.onDetachedFromWindow();
+        }
         @Override protected void onConfigurationChanged(Configuration config) {
             super.onConfigurationChanged(config);cancelGesture();
             if(disposed||!retainSurface())return;
@@ -996,7 +1042,12 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
                 ShadeHook.observed("cloud-unified-input",root.getClass().getName()+";source="+source.getClass().getName());
             }
             Gesture active=gesture;if(active==null)return false;
-            try {active.dispatch(event);}
+            try {
+                active.dispatch(event);
+                // Native MOVE mutates properties without requiring layout or a
+                // traversal of its alpha-zero window. Present it in this input tick.
+                if(!disposed){syncFeedbackTransform();shape.invalidate();}
+            }
             finally {if((action==MotionEvent.ACTION_UP||action==MotionEvent.ACTION_CANCEL)&&gesture==active){gesture=null;closingCapsuleGesture=false;active.release();}}
             return true;
         }

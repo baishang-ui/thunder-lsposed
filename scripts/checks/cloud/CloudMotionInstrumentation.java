@@ -12,11 +12,15 @@ public final class CloudMotionInstrumentation extends Instrumentation {
         try {
             java.util.concurrent.atomic.AtomicReference<Throwable> failure=new java.util.concurrent.atomic.AtomicReference<>();
             runOnMainSync(()->{
-                try{CloudCapsuleContentDeviceCheck.main(new String[0]);}
+                try{
+                    CloudCapsuleContentDeviceCheck.main(new String[0]);
+                    CloudCardFeedbackDeviceCheck.run(getTargetContext());
+                    CloudInputBridgeDeviceCheck.main(new String[0]);
+                }
                 catch(Throwable error){failure.set(error);}
             });
             if(failure.get()!=null)throw new RuntimeException(failure.get());
-            result.putString("stream","Native capsule pixels and alpha-layer checks: PASS ("+CloudCapsuleContentDeviceCheck.checks+")\n");
+            result.putString("stream","Native capsule pixels and alpha-layer checks: PASS ("+CloudCapsuleContentDeviceCheck.checks+"); card ancestor/input checks: PASS ("+CloudCardFeedbackDeviceCheck.checks+")\n");
             finish(Activity.RESULT_OK,result);
         }catch(Throwable error) {
             result.putString("stream",android.util.Log.getStackTraceString(error));

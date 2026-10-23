@@ -52,6 +52,22 @@ public final class CloudCardFeedbackCheck {
         CloudCardFeedback.draw(canvas,null,400,200,200,100);
         CloudCardFeedback.draw(canvas,card.f,0,200,200,100);
         check(card.f.draws==1,"unbound/zero-sized feedback must be skipped");
+        View parent=new View();parent.screenX=20;parent.screenY=140;
+        card.parent=parent;card.left=36;card.top=52;
+        card.setScaleX(1);card.setScaleY(1);card.setTranslationX(0);card.setTranslationY(0);
+        CloudCardFeedback.Transform motion=new CloudCardFeedback.Transform();motion.anchor(card);
+        motion.apply(shape,card,80,300,true);
+        parent.setTranslationX(45);parent.setTranslationY(90);
+        motion.apply(shape,card,80,300,true);
+        close(125,shape.getTranslationX());close(390,shape.getTranslationY());
+        // Native RecyclerView offsets and overscroll do not require child onLayout.
+        card.top-=25;parent.scrollY=11;
+        motion.apply(shape,card,80,300,true);close(354,shape.getTranslationY());
+        card.setTranslationX(18);card.setTranslationY(-7);
+        motion.apply(shape,card,80,300,true);close(143,shape.getTranslationX());close(347,shape.getTranslationY());
+        motion.anchor(card);motion.apply(shape,card,200,500,true);
+        close(218,shape.getTranslationX());close(493,shape.getTranslationY());
+        motion.apply(shape,card,200,500,false);close(200,shape.getTranslationX());close(500,shape.getTranslationY());
         System.out.println("CloudCardFeedbackCheck: "+checks+" native feedback checks passed");
     }
 }

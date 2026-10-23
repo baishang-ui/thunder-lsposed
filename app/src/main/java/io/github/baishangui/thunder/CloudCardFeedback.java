@@ -1,10 +1,40 @@
 package io.github.baishangui.thunder;
 
 import android.graphics.Canvas;
+import android.graphics.Matrix;
 import android.view.View;
 
 /** Native card feedback shared by the independent visual and input silhouette. */
 final class CloudCardFeedback {
+    static final class Transform {
+        private final Matrix matrix=new Matrix();
+        private final float[] point=new float[2];
+        private View anchored;
+        private float originX,originY;
+        void anchor(View card) {
+            anchored=card;
+            if(card!=null){origin(card);originX=point[0];originY=point[1];}
+        }
+        private void origin(View card) {
+            matrix.reset();
+            if(card.getParent() instanceof View parent) {
+                parent.transformMatrixToGlobal(matrix);
+                point[0]=card.getLeft()-parent.getScrollX();point[1]=card.getTop()-parent.getScrollY();
+                matrix.mapPoints(point);
+            }else {
+                card.transformMatrixToGlobal(matrix);point[0]=point[1]=0;matrix.mapPoints(point);
+                point[0]-=card.getTranslationX()+card.getPivotX()*(1-card.getScaleX());
+                point[1]-=card.getTranslationY()+card.getPivotY()*(1-card.getScaleY());
+            }
+        }
+        void apply(View shape,View card,float x,float y,boolean follow) {
+            if(anchored!=card)anchor(card);
+            if(follow&&card!=null) {
+                origin(card);x+=point[0]-originX;y+=point[1]-originY;
+            }
+            transform(shape,card,x,y,follow);
+        }
+    }
     static void transform(View shape,View card,float x,float y,boolean follow) {
         boolean active=follow&&card!=null&&card.getWidth()>0&&card.getHeight()>0;
         shape.setPivotX(active?card.getPivotX()*shape.getWidth()/card.getWidth():shape.getWidth()/2f);

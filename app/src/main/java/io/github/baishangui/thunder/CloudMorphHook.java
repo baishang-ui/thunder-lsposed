@@ -611,6 +611,7 @@ final class CloudMorphHook {
         boolean closed,started,nativeEnded,visualEnded,retargeting,inheritPhase;
         int attempts;
         float progress,nativeExcursionWidth,arrivalPhase;
+        float renderedProgress=Float.NaN;
         Motion(Request request,Animator original) {
             this.request=request;this.original=original;
             Object scene=Reflect.callMethod(request.builder,"f");
@@ -740,7 +741,7 @@ final class CloudMorphHook {
             // response into the old deadline causes arbitrarily high acceleration
             // on a late layout. Identical layouts returned above do not restart it.
             retargeting=true;clock.cancel();retargeting=false;
-            visualEnded=false;progress=0;clock.start();render();
+            visualEnded=false;progress=0;renderedProgress=Float.NaN;clock.start();render();
             ShadeHook.resourceHit("cloud-morph-layout-retarget");
         }
         void render() {
@@ -748,46 +749,72 @@ final class CloudMorphHook {
             try {
                 if(!enabled()){finish(true);return;}
                 for(Surface surface:surfaces)if(surface.shared.disposed()){finish(true,true);return;}
-                for(int i=0;i<surfaces.size();i++) {
-                    Surface surface=surfaces.get(i);
-                    float phase=CloudCardTiming.fraction(progress,surface.phaseStart,surface.phaseEnd);
-                    Frame presented=surface.trajectory.frame(phase);
-                    Frame velocity=surface.trajectory.velocity(phase);
-                    if(request.mode==Mode.CAPSULE_HIDE) {
-                        // A width-only exit keeps its end caps. Interpolating
-                        // radius toward the final sliver would square the body
-                        // long before its width reaches the capsule's height.
-                        velocity=CloudVisibilityState.velocityForWidth(surface.start,presented,velocity);
-                        presented=CloudVisibilityState.shapeForWidth(surface.start,presented);
-                        presented=new Frame(surface.start.x+(surface.start.width-presented.width)/2,
-                            surface.start.y,presented.width,surface.start.height,presented.radius,presented.progress);
-                        velocity=new Frame(-velocity.width/2,0,velocity.width,0,velocity.radius,velocity.progress);
-                    }
-                    if(i==0){
-                        surface.frame(presented);
-                        float fade=CloudCardTiming.opacity(phase);
-                        surface.shared.opacity(request.mode==Mode.CAPSULE_HIDE?surface.startOpacity*Math.min(1f,4f*(1f-fade)):
-                            mix(surface.startOpacity,surface.targetOpacity,fade));
-                    }else{
-                        // Followers emerge from and gather beneath the moving first
-                        // card. Its current form is their anchor throughout contraction.
-                        float reveal=presented.progress();
-                        surface.shared.opacity(reveal);
-                        surface.frame(CloudCardTiming.follower(surfaces.get(0).current,surfaces.get(0).expanded,surface.expanded,reveal));
-                    }
-                    velocities.put(i==0?spec.container:surface.view,velocity);
+                // Several native roots can traverse after the same animation
+                // tick. Reassert hiding without replaying every peer's geometry,
+                // material and input-region work at an unchanged clock position.
+                if(progress==renderedProgress){
+                    for(Surface surface:surfaces)surface.shared.suppressNative();
+                    return;
                 }
+                CloudMorphSurface batchRoot=surfaces.get(0).shared;
+                batchRoot.beginFrameBatch();
+                try {
+                    for(int i=0;i<surfaces.size();i++) {
+                        Surface surface=surfaces.get(i);
+                        float phase=CloudCardTiming.fraction(progress,surface.phaseStart,surface.phaseEnd);
+                        Frame presented=surface.trajectory.frame(phase);
+                        Frame velocity=surface.trajectory.velocity(phase);
+                        if(request.mode==Mode.CAPSULE_HIDE) {
+                            // A width-only exit keeps its end caps. Interpolating
+                            // radius toward the final sliver would square the body
+                            // long before its width reaches the capsule's height.
+                            velocity=CloudVisibilityState.velocityForWidth(surface.start,presented,velocity);
+                            presented=CloudVisibilityState.shapeForWidth(surface.start,presented);
+                            presented=new Frame(surface.start.x+(surface.start.width-presented.width)/2,
+                                surface.start.y,presented.width,surface.start.height,presented.radius,presented.progress);
+                            velocity=new Frame(-velocity.width/2,0,velocity.width,0,velocity.radius,velocity.progress);
+                        }
+                        if(i==0){
+                            surface.frame(presented);
+                            float fade=CloudCardTiming.opacity(phase);
+                            surface.shared.opacity(request.mode==Mode.CAPSULE_HIDE?surface.startOpacity*Math.min(1f,4f*(1f-fade)):
+                                mix(surface.startOpacity,surface.targetOpacity,fade));
+                        }else{
+                            // Followers emerge from and gather beneath the moving first
+                            // card. Its current form is their anchor throughout contraction.
+                            float reveal=presented.progress();
+                            surface.shared.opacity(reveal);
+                            surface.frame(CloudCardTiming.follower(surfaces.get(0).current,surfaces.get(0).expanded,surface.expanded,reveal));
+                        }
+                        velocities.put(i==0?spec.container:surface.view,velocity);
+                    }
+                }finally{batchRoot.endFrameBatch();}
+                renderedProgress=progress;
 
             } catch(Throwable error){ShadeHook.frameworkFailure("cloud-morph-frame",error);finish(true);}
         }
         @Override public void onAnimationStart(Animator ignored) {
-            Motion previous=windows.get(window);
-            inheritPhase=previous!=null&&previous.started&&!previous.visualEnded;
-            if(previous!=null&&previous!=this)previous.finish(true,true);
-            windows.put(window,this);
-            running.put(this,true);
-            ShadeHook.resourceHit("cloud-morph-native-start");
             try {
+                if(capsuleOnly(request.mode)) {
+                    View container=resolveContainer(request);
+                    CloudMorphSurface shared=sessions.get(container);
+                    if(shared!=null&&shared.keepsCardPresentation()) {
+                        // The native capsule model also updates while its card is open.
+                        // Observe its content, but leave visual/input ownership with the
+                        // card graph. Native lifecycle and callbacks still run normally.
+                        View capsule=capsuleSurface(container,request);
+                        if(capsule!=null)shared.syncCapsule(capsule);
+                        shared.contentChanged();releaseEntry(request.builder,false);
+                        closed=true;original.removeListener(this);
+                        ShadeHook.resourceHit("cloud-morph-card-kept-for-capsule-update");return;
+                    }
+                }
+                Motion previous=windows.get(window);
+                inheritPhase=previous!=null&&previous.started&&!previous.visualEnded;
+                if(previous!=null&&previous!=this)previous.finish(true,true);
+                windows.put(window,this);
+                running.put(this,true);
+                ShadeHook.resourceHit("cloud-morph-native-start");
                 watchHosts();
                 if(!prepare())layoutHandler.postDelayed(awaitLayout,16L);
             } catch(Throwable error){ShadeHook.frameworkFailure("cloud-morph-start",error);finish(true);}

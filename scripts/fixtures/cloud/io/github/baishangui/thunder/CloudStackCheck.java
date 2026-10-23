@@ -25,6 +25,11 @@ public final class CloudStackCheck {
             "followers begin under the first capsule instead of materializing at expanded-card size");
         CloudMorphCheck.clock().advance(.4f);
         check(lead.frame.width()>240&&second.opacity>0&&third.opacity>0,"cards must overlap in motion instead of waiting at phase boundaries");
+        int frameWrites=lead.frameWrites+second.frameWrites+third.frameWrites;
+        for(var card:scene.j.g.cards.cards){card.setAlpha(1);card.getViewTreeObserver().dispatchOnPreDraw();}
+        check(lead.frameWrites+second.frameWrites+third.frameWrites==frameWrites,
+            "native traversals for three cards must not multiply identical animation submissions");
+        for(var card:scene.j.g.cards.cards)check(card.getAlpha()==0,"deduplicated peers still suppress native presentation");
         check(second.frame.width()<=lead.frame.width()&&third.frame.width()<=lead.frame.width()&&
             second.frame.height()<=lead.frame.height()&&third.frame.height()<=lead.frame.height(),
             "followers inherit the first card's current size while emerging from underneath it");

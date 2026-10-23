@@ -12,6 +12,7 @@ final class CloudMorphSurface {
     float hostOpacityLimit=1,entryAlpha,initialLimit=1;boolean hostGateRunning,hostGateShowing;
     CloudMorphSurface(View container,ClassLoader loader){this.container=container;created.add(this);}
     boolean disposed(){return disposed;}
+    boolean keepsCardPresentation(){return !disposed&&inputOwnership.keepsCardPresentation()&&card!=null&&card.isAttachedToWindow()&&card.isShown();}
     boolean ownsContentSource(View source){
         if(disposed)return false;
         for(Object node=source;node instanceof View view;node=view.getParent())
@@ -28,6 +29,8 @@ final class CloudMorphSurface {
     CloudMorphSurface cardLayer(View card){return layers.computeIfAbsent(card,key->new CloudMorphSurface(container,null));}
     void cardGroup(java.util.List<View> group){}
     void retainCards(java.util.List<View> cards){}
+    void beginFrameBatch(){}
+    void endFrameBatch(){}
     void opacity(float value){opacity=value;}
     void bind(View capsule,View card,View owner,boolean instant){this.capsule=capsule;this.card=card;this.owner=owner;inputOwnership.bind(card);}
     void syncCapsule(View capsule){this.capsule=capsule;}
@@ -88,7 +91,9 @@ final class CloudMorphSurface {
     }
     boolean visible(){return hostAllowed&&businessAllowed&&opacity>0;}
     void show(){attached=true;}
-    void frame(CloudMorphHook.Frame value){frame=value;container.setAlpha(0);if(card!=null)card.setAlpha(0);if(owner!=null)owner.setAlpha(0);}
+    int frameWrites;
+    void suppressNative(){container.setAlpha(0);if(card!=null)card.setAlpha(0);if(owner!=null)owner.setAlpha(0);}
+    void frame(CloudMorphHook.Frame value){frameWrites++;frame=value;suppressNative();}
     void settleInput(boolean value){expanded=value;inputOwnership.settle(value);}
     void settle(boolean value){settleInput(value);}
     void dispose(){disposed=true;attached=false;container.setAlpha(1);if(card!=null)card.setAlpha(1);if(owner!=null)owner.setAlpha(1);}
