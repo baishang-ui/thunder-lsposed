@@ -17,7 +17,7 @@ required = {
         {'initDialog', 'updateRowsH', 'showSliderVolume', 'updateState', 'adaptThemeDrawable', 'expandPanel', 'resetSliderState','getIconHalfDelta','startBtnThickAnim','getMIsDefaultVolumeTheme'},
         {'volumeInteractor','volumeListAdapter','mDialogView','mVolumeRecyclerview','mSettingsButton','mMoreRowStreamLl','mAppVolumeAdjustFl','mODICaptionsView','mVolumePanelTitleIcon','mVolumePanelTitleText','mVolumePanelTipsText','mVolumeSettingText','mSnackBar'}),
     base+'view/OplusVolumeDialogView$CustomDialog;': ({'dispatchTouchEvent'}, {'this$0'}),
-    base+'OplusVolumeDialogImpl;': ({'getActiveRow','dismissH$1','destroy','onConfigChanged','onThemeChanged','onUiModeChanged','rescheduleTimeoutH'}, {'mRows','mOplusVolumeDialogView','mController','mState'}),
+    base+'OplusVolumeDialogImpl;': ({'getActiveRow','dismissH$1','destroy','onConfigChanged','onThemeChanged','onUiModeChanged','rescheduleTimeoutH'}, {'mRows','mOplusVolumeDialogView','mController','mState','mExpanded'}),
     base+'view/OplusVolumeRow;': (set(), {'slider','sliderFrame','view'}),
     base+'VolumeListAdapter;': ({'switchToDataSourcePanel','onBindViewHolder','getPanelShowList'}, set()),
     base+'anim/VolumeItemAnimator;': ({'getEndX','getTranslationY','resolvePanelStartTranslationX','animateAddImpl','animateMoveImpl','runPendingAnimations'}, {'adapter','cachedPanelBiasTranslationY'}),

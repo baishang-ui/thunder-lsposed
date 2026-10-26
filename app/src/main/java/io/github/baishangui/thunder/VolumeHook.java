@@ -29,6 +29,7 @@ final class VolumeHook {
     private static final String BASE="com.oplus.systemui.volume.", MATERIAL=BASE+"utils.material.";
     private static final Map<Object,Boolean> dialogs=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<Object,Compact> panels=Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Object,DialogLayout> dialogLayouts=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View,int[]> layouts=Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View,Map<String,Object>> barDefaults=Collections.synchronizedMap(new WeakHashMap<>());
     private static final String[] MORPH_FIELDS={"mCurBackgroundWidth","mCurProgressWidth","mCurBackgroundRadius","mCurProgressRadius","mCurPaddingVertical"};
@@ -49,7 +50,7 @@ final class VolumeHook {
             @Override protected void afterHookedMethod(Param p) { if(!p.hasThrowable())dialogs.put(p.thisObject,true); }
         }));
         hook(loader,BASE+"view.OplusVolumeDialogView",new String[]{"initDialog"},new HookCallback() {
-            @Override protected void beforeHookedMethod(Param p) { VolumeLiquidEntrance.finishDialog(p.thisObject);restorePanel(p.thisObject); }
+            @Override protected void beforeHookedMethod(Param p) { VolumeLiquidEntrance.finishDialog(p.thisObject);restorePanel(p.thisObject);unwatchDialog(p.thisObject); }
             @Override protected void afterHookedMethod(Param p) { if(!p.hasThrowable())updateDialog(p.thisObject); }
         });
         hook(loader,BASE+"view.OplusVolumeDialogView",new String[]{"updateRowsH","showSliderVolume","updateState","adaptThemeDrawable"},new HookCallback() {
@@ -213,8 +214,11 @@ final class VolumeHook {
             @Override protected void beforeHookedMethod(Param p) {VolumeLiquidEntrance.finishDialog(p.thisObject);}
             @Override protected void afterHookedMethod(Param p) { restorePanel(p.thisObject);updateDialog(p.thisObject); }
         });
-        hook(loader,BASE+"OplusVolumeDialogImpl",new String[]{"destroy","onConfigChanged","onThemeChanged","onUiModeChanged"},new HookCallback() {
-            @Override protected void beforeHookedMethod(Param p) { Object dialog=Reflect.getObjectField(p.thisObject,"mOplusVolumeDialogView");VolumeLiquidEntrance.finishDialog(dialog);restorePanel(dialog); }
+        for(String lifecycle:new String[]{"destroy","onConfigChanged","onThemeChanged","onUiModeChanged"})hook(loader,BASE+"OplusVolumeDialogImpl",new String[]{lifecycle},new HookCallback() {
+            @Override protected void beforeHookedMethod(Param p) {
+                Object dialog=Reflect.getObjectField(p.thisObject,"mOplusVolumeDialogView");VolumeLiquidEntrance.finishDialog(dialog);restorePanel(dialog);
+                if(lifecycle.equals("destroy")){unwatchDialog(dialog);dialogs.remove(dialog);}
+            }
         });
         hook(loader,BASE+"OplusVolumeSeekBar",new String[]{"onAttachedToWindow","onMeasure"},new HookCallback() {
             @Override protected void beforeHookedMethod(Param p) { styleBar((View)p.thisObject); }
@@ -322,6 +326,17 @@ final class VolumeHook {
         Object proxy=Reflect.callMethod(auto,"getViewBlurProxy"),blur=Reflect.callMethod(proxy,"getBlurConfig");
         Reflect.setAdditionalInstanceField(blur,"volume.host",new WeakReference<>(host));
         Reflect.setAdditionalInstanceField(host,"volume.proxy",new WeakReference<>(proxy));
+        if(!Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(host,"volume.shortcut"))
+                &&!Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(host,"volume.material-layout"))) {
+            // A cached blur may be configured while the host still has its old dimensions.
+            // The layout callback submits the corner again against the actual new bounds.
+            host.addOnLayoutChangeListener((v,l,t,r,b,oldL,oldT,oldR,oldB)->{
+                if(r-l==oldR-oldL&&b-t==oldB-oldT)return;
+                try {refreshMaterial(v);}
+                catch(Throwable error) {ShadeHook.frameworkFailure("volume-material-layout",error);}
+            });
+            Reflect.setAdditionalInstanceField(host,"volume.material-layout",true);
+        }
         if(!role.equals(Reflect.getAdditionalInstanceField(blur,"thunder.role")))ShadeHook.trackVolume(proxy,role);
         return original;
     }
@@ -439,7 +454,7 @@ final class VolumeHook {
             Reflect.setAdditionalInstanceField(v,"volume.recalculating",true);
             try {Reflect.callMethod(v,"ensureSize");}
             finally {for(int i=0;i<current.length;i++)Reflect.setObjectField(v,current[i],pose[i]);Reflect.removeAdditionalInstanceField(v,"volume.recalculating");}
-            Reflect.callMethod(v,"preCalcMaterialClipPath");Reflect.callMethod(v,"updatePixPerProgress");v.invalidate();v.invalidateOutline();
+            Reflect.callMethod(v,"preCalcMaterialClipPath");Reflect.callMethod(v,"updatePixPerProgress");refreshMaterial(v);
         }
     }
     private static void styleRow(Object row,HookConfig c) {
@@ -453,6 +468,7 @@ final class VolumeHook {
         bar.invalidate();bar.invalidateOutline();
     }
     private static void updateDialog(Object dialog) {
+        watchDialog(dialog);
         dialogs.put(dialog,true);Compact panel=panels.get(dialog);HookConfig c=panel==null?ShadeHook.snapshot():panel.config;Object owner=Reflect.getObjectField(dialog,"volumeInteractor");
         for(Object row:(Iterable<?>)Reflect.getObjectField(owner,"mRows"))styleRow(row,c);
         View recycler=view(dialog,"mVolumeRecyclerview");
@@ -516,6 +532,47 @@ final class VolumeHook {
     }
     private static void restorePanel(Object dialog) {
         Compact panel=panels.remove(dialog);if(panel!=null)panel.restore();
+    }
+    private static void watchDialog(Object dialog) {
+        View root=view(dialog,"mDialogView");DialogLayout current=dialogLayouts.get(dialog);
+        if(current!=null&&current.root.get()==root)return;
+        unwatchDialog(dialog);
+        if(root!=null)dialogLayouts.put(dialog,new DialogLayout(dialog,root));
+    }
+    private static void unwatchDialog(Object dialog) {
+        DialogLayout current=dialogLayouts.remove(dialog);if(current!=null)current.dispose();
+    }
+    /** updateRowsH returns before its coroutine and posted row-overflow layout finish. */
+    private static final class DialogLayout implements ViewTreeObserver.OnGlobalLayoutListener,View.OnAttachStateChangeListener {
+        final WeakReference<Object> dialog;
+        final WeakReference<View> root;
+        ViewTreeObserver observer;
+        DialogLayout(Object owner,View view) {
+            dialog=new WeakReference<>(owner);root=new WeakReference<>(view);
+            view.addOnAttachStateChangeListener(this);
+            if(view.isAttachedToWindow())onViewAttachedToWindow(view);
+        }
+        @Override public void onGlobalLayout() {
+            Object owner=dialog.get();if(owner==null){dispose();return;}
+            // Compact keeps its captured geometry until native terminal hide.
+            if(panels.containsKey(owner))return;
+            try {
+                if(!Reflect.getBooleanField(Reflect.getObjectField(owner,"volumeInteractor"),"mExpanded"))updateDialog(owner);
+            }
+            catch(Throwable error) {ShadeHook.frameworkFailure("volume-layout",error);}
+        }
+        @Override public void onViewAttachedToWindow(View view) {
+            onViewDetachedFromWindow(view);
+            observer=view.getViewTreeObserver();observer.addOnGlobalLayoutListener(this);
+        }
+        @Override public void onViewDetachedFromWindow(View view) {
+            if(observer!=null&&observer.isAlive())observer.removeOnGlobalLayoutListener(this);
+            observer=null;
+        }
+        void dispose() {
+            View view=root.get();onViewDetachedFromWindow(view);
+            if(view!=null)view.removeOnAttachStateChangeListener(this);
+        }
     }
     static void refresh() {
         VolumeLiquidEntrance.refresh();

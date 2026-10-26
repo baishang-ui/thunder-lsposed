@@ -163,8 +163,95 @@ public final class VolumePanelCheck {
         shape.fail=false;settings.putBoolean("volume_bar_corner_enabled",false);CloudCheck.config(settings);background.draw(new Canvas());
         check(shape.drawnCorner==90,"disabling button corner customization immediately draws its original native corner");
     }
+    static void materialRefreshScenario()throws Throwable {
+        Bundle settings=config();CloudCheck.config(settings);
+        OplusVolumeDialogImpl owner=new OplusVolumeDialogImpl();OplusVolumeDialogView d=owner.mOplusVolumeDialogView;
+        OplusVolumeRow row=new OplusVolumeRow();owner.mRows.add(row);
+        CloudCheck.after(VIEW+"#initDialog",d,null);
+        class CachedProxy extends ViewBlurProxy {
+            float submittedCorner;
+            CachedProxy(){super(new BlurConfig());}
+            @Override public void applyBlurConfig() {
+                super.applyBlurConfig();Float radius=VolumeHook.cornerRadius(config,ShadeHook.snapshot().volumeBar);
+                if(radius!=null)submittedCorner=radius;
+            }
+        }
+        CachedProxy track=new CachedProxy();
+        HookCallback.Param factory=CloudCheck.param(null,new AutoBlurDrawable(track),new android.content.Context(),d.mDialogView,row.slider,28f,true);
+        Api102Runtime.callbacks.get(BASE+"utils.material.VolumeBlurManager#getVolumeBarBackground").after(factory);
+        settings.putInt("volume_bar_corner",24);CloudCheck.config(settings);
+        java.lang.reflect.Method refresh=ShadeHook.class.getDeclaredMethod("refreshProxies");refresh.setAccessible(true);refresh.invoke(null);
+        check(row.slider.mCurBackgroundRadius==66&&track.submittedCorner==66,
+                "live corner changes resubmit cached material after updating the native track geometry");
+        CachedProxy button=new CachedProxy();View host=d.mMoreRowStreamLl;host.actualWidth=host.actualHeight=209;
+        factory=CloudCheck.param(null,new AutoBlurDrawable(button),new android.content.Context(),d.mDialogView,host,true);
+        Api102Runtime.callbacks.get(BASE+"utils.material.VolumeBlurManager#getVolumeSideAccessoryBackground").after(factory);
+        settings.putInt("volume_width",32);settings.putInt("volume_bar_corner",64);CloudCheck.config(settings);refresh.invoke(null);
+        host.actualWidth=host.actualHeight=88;
+        for(View.OnLayoutChangeListener listener:new java.util.ArrayList<>(host.layoutListeners))listener.onLayoutChange(host,0,0,88,88,0,0,209,209);
+        check(button.submittedCorner==44,"native button material recomputes its clamped corner after the requested size is actually laid out");
+        int applied=button.applied;
+        for(View.OnLayoutChangeListener listener:new java.util.ArrayList<>(host.layoutListeners))listener.onLayoutChange(host,0,0,88,88,0,0,88,88);
+        check(button.applied==applied,"unchanged native material bounds do not resubmit blur configuration");
+        before(OWNER+"#destroy",owner);
+    }
+    static void sidebarLayoutScenario()throws Throwable {
+        Bundle settings=config();CloudCheck.config(settings);
+        OplusVolumeDialogImpl owner=new OplusVolumeDialogImpl();OplusVolumeDialogView d=owner.mOplusVolumeDialogView;
+        OplusVolumeRow row=new OplusVolumeRow();owner.mRows.add(row);
+        row.slider.actualHeight=0;
+        CloudCheck.after(VIEW+"#initDialog",d,null);
+        check(d.mVolumeRecyclerview.layout.height==300,"unmeasured sidebar waits for native layout before deriving height overhead");
+        row.slider.actualHeight=240;
+        d.mDialogView.observer.dispatchOnGlobalLayout();
+        check(d.mVolumeRecyclerview.layout.height==940,"first real layout applies the requested length even without another state callback");
+        // updateRowsH launches a coroutine; its later bind/theme work can replace these inputs
+        // after the method's after-hook has already returned.
+        d.mVolumeRecyclerview.layout.height=300;row.slider.layout.width=56;
+        row.sliderFrame.layout.width=56;row.view.layout.width=-1;
+        row.slider.mBackgroundWidth=row.slider.mCurBackgroundWidth=56;
+        row.slider.mBackgroundRadius=row.slider.mCurBackgroundRadius=28;
+        d.mMoreRowStreamLl.layout.width=d.mMoreRowStreamLl.layout.height=48;
+        d.mDialogView.observer.dispatchOnGlobalLayout();
+        check(d.mVolumeRecyclerview.layout.height==940&&row.slider.layout.width==209&&row.view.layout.width==237,
+                "late native rebinding cannot discard sidebar length or row widths");
+        check(row.slider.mBackgroundWidth==209&&row.slider.mBackgroundRadius==50&&d.mMoreRowStreamLl.layout.width==209&&d.mMoreRowStreamLl.layout.height==209,
+                "late native theme/layout updates retain configured track corners and square buttons");
+        int ensured=row.slider.ensured;
+        row.slider.mCurBackgroundWidth=250.8f;row.slider.mCurBackgroundRadius=60f;
+        d.mDialogView.observer.dispatchOnGlobalLayout();
+        check(row.slider.ensured==ensured&&Math.abs(row.slider.mCurBackgroundWidth-250.8f)<.01f&&row.slider.mCurBackgroundRadius==60f,
+                "unchanged layout notifications preserve native press animation without recalculation");
+        CloudCheck.after(VIEW+"#updateState",d,null);
+        check(d.mDialogView.observer.layoutListeners.size()==1,"repeated state updates register only one layout observer");
+        owner.mExpanded=true;d.mVolumeRecyclerview.layout.height=1500;
+        d.mDialogView.observer.dispatchOnGlobalLayout();
+        check(d.mVolumeRecyclerview.layout.height==1500,"sidebar layout observer preserves the native fullscreen expansion geometry");
+        owner.mExpanded=false;d.mDialogView.observer.dispatchOnGlobalLayout();
+        check(d.mVolumeRecyclerview.layout.height==940,"returning from native expansion reapplies sidebar dimensions");
+        View oldRoot=d.mDialogView;
+        before(VIEW+"#initDialog",d);
+        d.mDialogView=new androidx.constraintlayout.widget.ConstraintLayout();
+        CloudCheck.after(VIEW+"#initDialog",d,null);
+        check(oldRoot.observer.layoutListeners.isEmpty()&&oldRoot.attachListeners.isEmpty()&&d.mDialogView.observer.layoutListeners.size()==1,
+                "dialog recreation removes observers from the old root and watches the replacement");
+        View root=d.mDialogView;ViewTreeObserver oldObserver=root.observer;
+        for(View.OnAttachStateChangeListener listener:new java.util.ArrayList<>(root.attachListeners))listener.onViewDetachedFromWindow(root);
+        check(oldObserver.layoutListeners.isEmpty(),"detaching the native window releases its layout observer");
+        root.observer=new ViewTreeObserver();
+        for(View.OnAttachStateChangeListener listener:new java.util.ArrayList<>(root.attachListeners))listener.onViewAttachedToWindow(root);
+        check(root.observer.layoutListeners.size()==1,"reattaching uses the new live window observer");
+        settings.putBoolean("volume_size",false);settings.putBoolean("volume_bar_corner_enabled",false);CloudCheck.config(settings);VolumeHook.refresh();
+        root.observer.dispatchOnGlobalLayout();
+        check(d.mVolumeRecyclerview.layout.height==300&&row.slider.layout.width==37&&row.slider.mBackgroundWidth==56&&row.slider.mBackgroundRadius==28&&d.mMoreRowStreamLl.layout.width==37,
+                "disabling customization restores native dimensions and later layouts leave them intact");
+        before(OWNER+"#destroy",owner);
+        check(root.observer.layoutListeners.isEmpty()&&root.attachListeners.isEmpty(),"destroying the native dialog removes all sidebar layout callbacks");
+    }
     public static void main(String[] args)throws Throwable {
         ShadeHook.install("com.android.systemui","com.android.systemui",VolumePanelCheck.class.getClassLoader());
+        sidebarLayoutScenario();
+        materialRefreshScenario();
         check(java.util.Arrays.stream(com.oplus.systemui.qs.base.res.SepQSResPool.Builder.class.getDeclaredMethods()).filter(m->m.getName().equals("build")).count()==2,"native builder fixture includes both the covariant implementation and its synthetic bridge");
         failedShortcutInitializationRestoresAnUnmountedPanel();
         check(!Api102Runtime.callbacks.containsKey(OWNER+"#computeTimeoutH$1"),"compact mode preserves native timeout policy");
