@@ -46,7 +46,7 @@ internal data class VolumeSettings(
     SettingsDivider()
     SettingsSectionTitle("音量条尺寸")
     LiquidSwitchRow("自定义尺寸", "按钮边长跟随音量条宽度", value.size) { change(value.copy(size = it)) }
-    if (value.size) {
+    SettingsReveal(value.size) {
         LiquidValueSlider("音量条宽度", value.width, 32..96, " dp") { change(value.copy(width = it)) }
         LiquidValueSlider("音量条长度", value.height, 80..400, " dp") { change(value.copy(height = it)) }
     }

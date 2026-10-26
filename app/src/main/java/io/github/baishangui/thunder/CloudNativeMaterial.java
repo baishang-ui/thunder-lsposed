@@ -12,6 +12,9 @@ final class CloudNativeMaterial {
     private float[] capsule,card,mixed;
     private int capsuleRadius,cardRadius;
     private float applied=Float.NaN;
+    private boolean appliedCapsuleBlur;
+    private float opacity=1f,formAlpha=1f;
+    private int appliedAlpha=-1;
 
     CloudNativeMaterial(Object manager,ClassLoader loader) {
         this.manager=manager;
@@ -25,10 +28,11 @@ final class CloudNativeMaterial {
         Drawable original=capsuleBlur?findBlur(capsuleBackground):null;
         capsule=original==null?card.clone():snapshot(original);
         capsuleRadius=original==null?0:Reflect.getIntField(original,"mBlurRadius");
-        mixed=new float[card.length];applied=Float.NaN;
+        mixed=new float[card.length];applied=Float.NaN;appliedAlpha=-1;
     }
     void apply(float progress,boolean capsuleBlur) {
-        float p=Math.max(0,Math.min(1,progress));if(p==applied||card==null)return;applied=p;
+        float p=Math.max(0,Math.min(1,progress));if(card==null||p==applied&&capsuleBlur==appliedCapsuleBlur)return;
+        applied=p;appliedCapsuleBlur=capsuleBlur;
         CloudMaterialBlend.mix(capsule,card,p,mixed);
         Reflect.callMethod(params,"fromFloatArray",mixed);
         // The folded capsule uses the host's circular end caps; expanded cards
@@ -38,7 +42,15 @@ final class CloudNativeMaterial {
         Reflect.callMethod(params,"setSmoothCornerWeight",p>.001f?CloudCornerGeometry.WEIGHT:roundWeight);
         Reflect.callMethod(manager,"setBlurParams",params);
         Reflect.callMethod(manager,"setBlurRadius",Math.round(capsuleRadius+(cardRadius-capsuleRadius)*p));
-        blur.setAlpha(Math.round(255*(capsuleBlur?1:p)));
+        formAlpha=capsuleBlur?1f:CloudCardTiming.opacity(p);applyAlpha();
+    }
+    /** Compositor blur regions do not inherit the containing View's alpha. */
+    void opacity(float value) {
+        opacity=Math.max(0,Math.min(1,value));applyAlpha();
+    }
+    private void applyAlpha() {
+        int alpha=Math.round(255*formAlpha*opacity);
+        if(alpha!=appliedAlpha){appliedAlpha=alpha;blur.setAlpha(alpha);}
     }
     private static float[] snapshot(Drawable drawable) {
         Object extension=Reflect.getObjectField(drawable,"mBackgroundBlurDrawableExtImpl");

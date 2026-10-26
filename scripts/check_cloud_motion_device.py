@@ -8,8 +8,9 @@ import zipfile
 
 root = Path(__file__).resolve().parent.parent
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--java-source-root', type=Path, help='Motion source snapshot for a baseline CPU comparison')
+parser.add_argument('--java-source-root', type=Path, help='Motion/Surface source snapshot for baseline comparisons')
 parser.add_argument('--benchmark-only', action='store_true')
+parser.add_argument('--render-only', action='store_true', help='Run isolated Android rendering checks without opening windows or injecting touches')
 parser.add_argument('--root-probe-install', action='store_true', help='Use an already-authorized rooted device to install the temporary test package')
 args = parser.parse_args()
 jdk = Path(os.environ.get('JAVA_HOME', root / '.local/work/android-tools/jdk-17.0.20.1+1/Contents/Home'))
@@ -31,10 +32,12 @@ with tempfile.TemporaryDirectory(prefix='thunder-motion-device-') as folder:
     classes = folder / 'classes'
     classes.mkdir()
     source = root / 'app/src/main/java' if args.java_source_root is None else args.java_source_root
-    sources = [source / package / 'CloudMotion.java', root / 'scripts/fixtures/cloud' / package / 'CloudMotionCheck.java',
+    sources = [source / package / 'CloudMotion.java', source / package / 'CloudMorphSurface.java', root / 'scripts/fixtures/cloud' / package / 'CloudMotionCheck.java',
                root / 'scripts/checks/cloud/CloudMotionDeviceCheck.java', root / 'scripts/checks/cloud/CloudCapsuleContentDeviceCheck.java',
                root / 'scripts/checks/cloud/CloudMotionInstrumentation.java']
-    sources += [root / 'scripts/checks/cloud/CloudCardFeedbackDeviceCheck.java', root / 'scripts/checks/cloud/CloudInputBridgeDeviceCheck.java']
+    sources += [root / 'scripts/checks/cloud/CloudCardFeedbackDeviceCheck.java', root / 'scripts/checks/cloud/CloudInputBridgeDeviceCheck.java',
+                root / 'scripts/checks/cloud/CloudTextHookDeviceCheck.java', root / 'scripts/checks/cloud/CloudDismissalWindowDeviceCheck.java',
+                root / 'scripts/checks/cloud/CloudMultiCardOpacityDeviceCheck.java']
     subprocess.run([str(jdk / 'bin/javac'), '-encoding', 'UTF-8', '-cp', os.pathsep.join(map(str, [android, production])),
                     '-d', str(classes), *map(str, sources)], check=True)
     # Use the actual production Frame record, visibility, drawing and input transform.
@@ -42,7 +45,7 @@ with tempfile.TemporaryDirectory(prefix='thunder-motion-device-') as folder:
         for name in ['CloudMorphHook', 'CloudMorphHook$Frame', 'CloudVisibilityState', 'CloudCardTiming', 'CloudContentTransform', 'CloudCapsuleContent']:
             archive.extract(package + name + '.class', classes)
         for entry in archive.namelist():
-            if entry.startswith(tuple(package + name for name in ['CloudCardFeedback', 'CloudInputBridge', 'CloudInputWindowPolicy', 'Reflect'])) and entry.endswith('.class'):
+            if entry.startswith(tuple(package + name for name in ['CloudCardFeedback', 'CloudInputBridge', 'CloudInputWindowPolicy', 'CloudInputOwnership', 'CloudTextRenderer', 'CloudTextTransition', 'CloudNativeMaterial', 'CloudNativeDecoration', 'CloudContentSwitch', 'CloudFrameBatch', 'CloudCardRoster', 'CloudSurfacePolicy', 'CloudCornerGeometry', 'HookConfig', 'CloudTextHook', 'HookCallback', 'Reflect'])) and entry.endswith('.class'):
                 archive.extract(entry, classes)
     subprocess.run([str(jdk / 'bin/jar'), '--create', '--file', str(folder / 'classes.jar'), '-C', str(classes), '.'], check=True)
     subprocess.run([str(jdk / 'bin/java'), '-cp', str(sdk / 'build-tools/35.0.0/lib/d8.jar'), 'com.android.tools.r8.D8',
@@ -66,6 +69,7 @@ with tempfile.TemporaryDirectory(prefix='thunder-motion-device-') as folder:
             manifest = folder / 'AndroidManifest.xml'
             manifest.write_text('<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="' + probe_package + '">'
                                 '<uses-sdk android:minSdkVersion="37" android:targetSdkVersion="37"/>'
+                                '<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>'
                                 '<application android:debuggable="true" android:label="Cloud motion probe"/>'
                                 '<instrumentation android:name="io.github.baishangui.thunder.CloudMotionInstrumentation" '
                                 'android:targetPackage="' + probe_package + '"/></manifest>')
@@ -90,7 +94,11 @@ with tempfile.TemporaryDirectory(prefix='thunder-motion-device-') as folder:
             else:
                 subprocess.run([adb, 'install', '--no-incremental', '-t', str(folder / 'signed.apk')], check=True, timeout=45)
             try:
-                report = subprocess.run([adb, 'shell', 'am', 'instrument', '-w', '-r', probe_package +
+                appops = 'appops set ' + probe_package + ' SYSTEM_ALERT_WINDOW allow'
+                subprocess.run([adb, 'shell', 'su', '-c', appops] if args.root_probe_install else
+                               [adb, 'shell', 'appops', 'set', probe_package, 'SYSTEM_ALERT_WINDOW', 'allow'], check=True)
+                instrumentation_args = ['-e', 'render_only', 'true'] if args.render_only else []
+                report = subprocess.run([adb, 'shell', 'am', 'instrument', '-w', '-r', *instrumentation_args, probe_package +
                                          '/io.github.baishangui.thunder.CloudMotionInstrumentation'], capture_output=True, text=True, check=True, timeout=45)
                 print(report.stdout, flush=True)
                 if 'INSTRUMENTATION_CODE: -1' not in report.stdout or 'checks: PASS' not in report.stdout:

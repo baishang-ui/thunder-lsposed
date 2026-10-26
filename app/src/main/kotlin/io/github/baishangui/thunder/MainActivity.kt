@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowCompat
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -172,13 +173,14 @@ class MainActivity : ComponentActivity() {
                                     verticalArrangement=Arrangement.spacedBy(20.dp)) {
                                     val currentDetail = destination.detail
                                     if (currentDetail != null) {
+                                        SettingsPageLead(currentDetail, draft)
                                         when (currentDetail) {
                                             SettingsPage.Appearance -> AppearanceSettings(draft) { editor.draft = it }
                                             SettingsPage.Configuration -> {
                                                 SettingsSection("导入与导出") {
                                                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                                        LiquidAction("导入配置", Modifier.weight(1f), enabled = !busy) { importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
-                                                        LiquidAction("导出配置", Modifier.weight(1f), enabled = !busy) {
+                                                        LiquidAction("导入配置", Modifier.weight(1f), enabled = !busy, leadingIcon = MiuixIcons.Regular.Import) { importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
+                                                        LiquidAction("导出配置", Modifier.weight(1f), enabled = !busy, leadingIcon = MiuixIcons.Regular.Share) {
                                                             exportText = draft.json()
                                                             exportLauncher.launch("thunder-${SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())}.json")
                                                         }
@@ -186,7 +188,7 @@ class MainActivity : ComponentActivity() {
                                                 }
                                                 SettingsSection("恢复默认") {
                                                     UiText("恢复界面外观和全部效果参数。", 13, muted = true)
-                                                    LiquidAction("恢复全部默认设置", Modifier.fillMaxWidth(), enabled = !busy) { reset = true }
+                                                    LiquidAction("恢复全部默认设置", Modifier.fillMaxWidth(), enabled = !busy, leadingIcon = MiuixIcons.Regular.Reset) { reset = true }
                                                 }
                                             }
                                             SettingsPage.Runtime -> {
@@ -195,8 +197,8 @@ class MainActivity : ComponentActivity() {
                                                     UiText(status.first, 18, bold = true)
                                                     UiText(status.second, 12, muted = true)
                                                 }
-                                                LiquidAction("刷新状态", Modifier.fillMaxWidth(), enabled = !busy) { RemoteSettings.refreshScope(); refresh++ }
-                                                LiquidAction("复制运行报告", Modifier.fillMaxWidth()) {
+                                                LiquidAction("刷新状态", Modifier.fillMaxWidth(), enabled = !busy, leadingIcon = MiuixIcons.Regular.Refresh) { RemoteSettings.refreshScope(); refresh++ }
+                                                LiquidAction("复制运行报告", Modifier.fillMaxWidth(), leadingIcon = MiuixIcons.Regular.Copy) {
                                                     val text = "thunder ${BuildConfig.VERSION_NAME} · ${android.os.Build.DISPLAY}\n${runtimeStatus().second}"
                                                     getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText("thunder 运行报告", text))
                                                     message = "运行报告已复制"
@@ -212,9 +214,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     } else when(destination.page) {
                                         0 -> {
-                                            SettingsGroup {
-                                                LiquidSwitchRow("启用效果调整", "ColorOS 17", draft.enabled) { editor.draft = draft.copy(enabled = it) }
-                                            }
+                                            AdjustmentOverview(draft) { editor.draft = it }
                                             AdjustmentMenu { detail = it }
                                         }
                                         else -> {
@@ -237,7 +237,8 @@ class MainActivity : ComponentActivity() {
                                                     if (rootState !in setOf(RootAccessState.Unchecked, RootAccessState.Granted)) rootState.hint else "",
                                                     rootState == RootAccessState.Granted, rootState == RootAccessState.Checking)
                                                 LiquidAction(if (rootState == RootAccessState.Checking) "正在验证…" else "验证 Root 权限",
-                                                    Modifier.fillMaxWidth(), enabled = rootState != RootAccessState.Checking && !restartState.running) { RootAccess.verify() }
+                                                    Modifier.fillMaxWidth(), enabled = rootState != RootAccessState.Checking && !restartState.running,
+                                                    leadingIcon = MiuixIcons.Regular.Lock) { RootAccess.verify() }
                                             }
                                             PreferencesMenu(draft) { detail = it }
                                         }
@@ -254,7 +255,7 @@ class MainActivity : ComponentActivity() {
                             contentAlignment = Alignment.TopCenter) {
                             SmallTopAppBar(
                                 title = detail?.title ?: listOf("调节", "设置")[page],
-                                subtitle = detail?.category.orEmpty(),
+                                subtitle = detail?.category ?: if (page == 0) "thunder · ColorOS 17" else "thunder · 模块与个性化",
                                 modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().height(headerHeight),
                                 color = Color.Transparent,
                                 defaultWindowInsetsPadding = false,
@@ -370,10 +371,18 @@ private fun alphaPercent(c: Int)=TintColor.percent(c)
         summary = hint.takeIf { it.isNotEmpty() },
         insideMargin = PaddingValues(vertical = 8.dp),
         startAction = {
-            if (checking) InfiniteProgressIndicator(Modifier.padding(end = 12.dp).size(20.dp))
-            else Icon(MiuixIcons.Regular.Info, contentDescription = null,
-                modifier = Modifier.padding(end = 12.dp).size(20.dp),
-                tint = if (ready) LocalGlass.current.accent else LocalGlass.current.muted)
+            Box(Modifier.padding(end = 12.dp).size(36.dp), contentAlignment = Alignment.Center) {
+                Crossfade(checking, animationSpec = tween(180), label = "Module permission state") { loading ->
+                    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                        if (loading) InfiniteProgressIndicator(Modifier.size(20.dp))
+                        else SettingsIcon(when (title) {
+                            "LSPosed" -> MiuixIcons.Regular.Link
+                            "作用域" -> MiuixIcons.Regular.GridView
+                            else -> MiuixIcons.Regular.Lock
+                        }, active = ready)
+                    }
+                }
+            }
         },
         endActions = { UiText(status, 13, muted = !ready) }
     )
@@ -396,15 +405,15 @@ private fun alphaPercent(c: Int)=TintColor.percent(c)
         SettingsSection(title) {
             if (blur) {
                 LiquidSwitchRow("自定义模糊", "", area.blur) { onChange(area.copy(blur=it)) }
-                if (area.blur) LiquidValueSlider("模糊半径",area.radius,0..200," px") { onChange(area.copy(radius=it)) }
+                SettingsReveal(area.blur) { LiquidValueSlider("模糊半径",area.radius,0..200," px") { onChange(area.copy(radius=it)) } }
                 SettingsDivider()
             }
             LiquidSwitchRow("自定义混色", "", area.tint) { onChange(area.copy(tint=it)) }
-            if (area.tint) LiquidColorSetting("混色颜色",area.color) { onChange(area.copy(color=it)) }
+            SettingsReveal(area.tint) { LiquidColorSetting("混色颜色",area.color) { onChange(area.copy(color=it)) } }
             if (corner) {
                 SettingsDivider()
                 LiquidSwitchRow("自定义圆角", if(unifiedCorners) "所有磁贴统一半径，与通知条使用相同的 dp 单位" else "", area.cornerEnabled) { onChange(area.copy(cornerEnabled=it)) }
-                if (area.cornerEnabled) LiquidValueSlider("圆角半径",area.corner,cornerRange," dp") { onChange(area.copy(corner=it)) }
+                SettingsReveal(area.cornerEnabled) { LiquidValueSlider("圆角半径",area.corner,cornerRange," dp") { onChange(area.copy(corner=it)) } }
             }
             if (area.blur || area.tint || area.cornerEnabled || onRestore != null) {
                 SettingsDivider()

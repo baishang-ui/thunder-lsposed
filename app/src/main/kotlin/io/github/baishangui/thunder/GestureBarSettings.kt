@@ -46,7 +46,7 @@ internal data class GestureBarSettings(
     AreaControls("手势条材质", value.area) { change(value.copy(area = it)) }
     SettingsSection("亮暗颜色") {
         LiquidSwitchRow("自定义亮暗颜色", "替换手势条颜色，保留材质混色透明度", value.colors) { change(value.copy(colors = it)) }
-        if (value.colors) {
+        SettingsReveal(value.colors) {
             SettingsChoice("颜色切换依据", listOf(
                 SettingOption("背景明暗", "使用系统背景采样，在浅色与深色背景间自动切换"),
                 SettingOption("系统主题", "跟随系统的浅色与深色模式切换")

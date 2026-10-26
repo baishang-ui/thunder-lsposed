@@ -1,6 +1,9 @@
 package io.github.baishangui.thunder;
 
 import android.view.View;
+import android.widget.TextView;
+import android.animation.Animator;
+import android.animation.ValueAnimator;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Map;
@@ -83,18 +86,43 @@ final class CloudTextHook {
                         return;
                     }
                     pending.remove(first);
+                    // Both ordinary progress delivery and native force/rebind
+                    // commits repeat the current lyric. Even c(text,true) calls
+                    // setText again, restarting marquee and producing a flash.
+                    if(Reflect.getObjectField(p.thisObject,"f") instanceof TextView current&&
+                        current.getVisibility()==View.VISIBLE&&java.util.Objects.equals(current.getText().toString(),p.args[0])) {
+                        cancelMediaFade(p.thisObject);
+                        View other=current==first?(View)second:(View)first;
+                        current.setAlpha(1f);other.setAlpha(0f);other.setVisibility(View.INVISIBLE);
+                        p.setResult(null);return;
+                    }
                     // MediaTextSwitcher.c(text,true) cancels its old 300ms fade,
                     // commits text to the current view and clears the other one.
-                    // A same-value setText is left to the local text observer.
+                    // Explicit native direct commits keep their cleanup semantics.
                     p.setObjectExtra(MEDIA_ARGUMENT,p.args[1]);p.args[1]=true;
                 }catch(Throwable error){ShadeHook.frameworkFailure("cloud-text-media-before",error);}
             }
             @Override protected void afterHookedMethod(Param p) {
                 if(p.hasThrowable())try{pending.remove(Reflect.getObjectField(p.thisObject,"b"));}catch(Throwable ignored){}
                 Object previous=p.getObjectExtra(MEDIA_ARGUMENT);
-                if(previous instanceof Boolean)p.args[1]=previous;
+                if(previous instanceof Boolean) {
+                    p.args[1]=previous;
+                    // The direct branch omits the fade listener that normally
+                    // restarts native marquee for the newly committed line.
+                    if(!p.hasThrowable())try{Reflect.callMethod(p.thisObject,"a");}
+                    catch(Throwable error){ShadeHook.frameworkFailure("cloud-text-media-marquee",error);}
+                }
             }
         };
+    }
+    private static void cancelMediaFade(Object owner) {
+        Object animator=Reflect.getObjectField(owner,"d");
+        if(animator instanceof Animator fade) {
+            if(fade instanceof ValueAnimator value)value.removeAllUpdateListeners();
+            fade.removeAllListeners();fade.cancel();
+            Reflect.setObjectField(owner,"d",null);
+        }
+        Reflect.setObjectField(owner,"e",null);
     }
     private static void bind(String name,Runnable action) {
         try{action.run();ShadeHook.hookRegistered("cloud-text-"+name);}

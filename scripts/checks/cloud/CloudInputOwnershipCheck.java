@@ -54,6 +54,12 @@ public final class CloudInputOwnershipCheck {
         state.settle(false);check(!state.keepLease(false),"replaced motion must release after native hide");
         state.begin(true,true);check(!state.keepLease(false),"native hidden while transitioning stops window lease");
         check(state.captureOutside(),"a waiting transition can capture after native mounting");
+        state.settle(true);state.dismiss();
+        check(!state.acceptsInput()&&!state.captureOutside()&&!state.acceptsCapsuleInput(),"terminal card removal cannot capture touches or reopen a deleted capsule");
+        check(!state.keepsCardPresentation()&&state.keepLease(true),"terminal deletion preserves only the transparent native window's lease");
+        check(!state.keepLease(false),"actual native hide releases the terminal lease");
+        state.begin(true,true);state.settle(true);
+        check(state.acceptsInput()&&state.captureOutside(),"a later new card can acquire input after terminal deletion");
         System.out.println("CloudInputOwnershipCheck: lifecycle, reversal and late-hide checks passed");
     }
 }

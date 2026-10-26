@@ -1,6 +1,13 @@
 package io.github.baishangui.thunder
 
 import android.graphics.RenderEffect
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
@@ -11,6 +18,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.shape.CircleShape
@@ -126,6 +135,21 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
     HorizontalDivider(color = LocalGlass.current.colors.dividerLine)
 }
 
+/** Animate layout/state only; the library components retain their own appearance and input. */
+@Composable internal fun SettingsReveal(visible: Boolean, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    AnimatedVisibility(visible,
+        enter = expandVertically(tween(260, easing = FastOutSlowInEasing), expandFrom = Alignment.Top) + fadeIn(tween(180)),
+        exit = shrinkVertically(tween(200, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Top) + fadeOut(tween(120))) {
+        Column(modifier.fillMaxWidth().then(
+            if (!visible) Modifier.clearAndSetSemantics {}.pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+                }
+            } else Modifier
+        ), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+    }
+}
+
 @Composable internal fun SettingsSectionTitle(title: String) {
     UiText(title, 13, muted = true, bold = true,
         modifier = Modifier.padding(horizontal = 8.dp).semantics { heading() })
@@ -140,7 +164,7 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
 }
 
 @Composable internal fun LiquidAction(text: String, modifier: Modifier = Modifier, enabled: Boolean = true,
-    selected: Boolean = false, icon: ImageVector? = null, onClick: () -> Unit) {
+    selected: Boolean = false, icon: ImageVector? = null, leadingIcon: ImageVector? = null, onClick: () -> Unit) {
     val s = LocalGlass.current
     val contentColor = if (selected) s.colors.onPrimary else s.ink
     // Remove gesture handlers altogether while disabled, including the author's press animation.
@@ -158,7 +182,10 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
                 else PaddingValues(horizontal = 24.dp, vertical = 12.dp)) {
             if (icon != null) Icon(icon, contentDescription = null,
                 modifier = Modifier.size(22.dp), tint = contentColor)
-            else UiText(text, 14, bold = true, color = contentColor)
+            else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (leadingIcon != null) Icon(leadingIcon, contentDescription = null, modifier = Modifier.size(18.dp), tint = contentColor)
+                UiText(text, 14, bold = true, color = contentColor)
+            }
         }
     }
 }
@@ -179,12 +206,7 @@ val LocalLiquidAppearance = staticCompositionLocalOf { LiquidAppearance(false, C
         summary = summary.takeIf { it.isNotBlank() },
         insideMargin = PaddingValues(horizontal = 18.dp, vertical = 13.dp),
         startAction = {
-            Surface(Modifier.padding(end = 14.dp).size(36.dp), shape = miuixShape(12.dp),
-                color = s.colors.secondaryContainer, contentColor = s.colors.onSecondaryContainer) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = s.colors.onSecondaryContainer)
-                }
-            }
+            Box(Modifier.padding(end = 14.dp)) { SettingsIcon(icon) }
         },
         endActions = {
             Icon(MiuixIcons.Regular.ChevronForward, contentDescription = null,
@@ -205,9 +227,11 @@ internal class ControlHistory {
 internal val LocalControlHistory = staticCompositionLocalOf { ControlHistory() }
 internal val LocalControlScope = staticCompositionLocalOf { "" }
 @Composable internal fun UndoFooter(title: String, restore: (() -> Unit)?) {
-    if (restore != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        LiquidAction("回退", modifier = Modifier.semantics { contentDescription = "回退${title}的修改" },
-            onClick = restore)
+    SettingsReveal(restore != null) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            LiquidAction("回退", modifier = Modifier.semantics { contentDescription = "回退${title}的修改" },
+                leadingIcon = MiuixIcons.Regular.Undo, onClick = { restore?.invoke() })
+        }
     }
 }
 @Composable internal fun LiquidColorSetting(title: String, color: Int, opaque: Boolean = false, change: (Int) -> Unit) {
@@ -243,7 +267,8 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
     }
 }
 
-@Composable internal fun LiquidSwitchRow(title: String, subtitle: String, checked: Boolean, change: (Boolean) -> Unit) {
+@Composable internal fun LiquidSwitchRow(title: String, subtitle: String, checked: Boolean,
+    icon: ImageVector? = null, change: (Boolean) -> Unit) {
     val s = LocalGlass.current
     val latestChecked = rememberUpdatedState(checked)
     val history = LocalControlHistory.current
@@ -258,6 +283,9 @@ internal val LocalControlScope = staticCompositionLocalOf { "" }
                 toggleableState = if (checked) androidx.compose.ui.state.ToggleableState.On else androidx.compose.ui.state.ToggleableState.Off
             },
             insideMargin = PaddingValues(8.dp),
+            startAction = {
+                if (icon != null) Box(Modifier.padding(end = 12.dp)) { SettingsIcon(icon, active = checked) }
+            },
             onClick = { latestChange.value(!latestChecked.value) },
             endActions = {
                 Box(Modifier.size(68.dp, 48.dp), contentAlignment = Alignment.Center) {

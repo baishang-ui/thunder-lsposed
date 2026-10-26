@@ -18,7 +18,7 @@ internal data class CloudCardPositionSettings(val enabled: Boolean = false, val 
 
 @Composable internal fun CloudCardPositionControls(value: CloudCardPositionSettings, change: (CloudCardPositionSettings) -> Unit) {
     LiquidSwitchRow("自定义展开位置", "相对系统位置移动整组卡片", value.enabled) { change(value.copy(enabled = it)) }
-    if (value.enabled) {
+    SettingsReveal(value.enabled) {
         LiquidValueSlider("水平偏移", value.x, -100..100, " dp") { change(value.copy(x = it)) }
         LiquidValueSlider("垂直偏移", value.y, -100..300, " dp") { change(value.copy(y = it)) }
     }

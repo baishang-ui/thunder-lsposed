@@ -16,6 +16,8 @@ final class CloudInputOwnership {
         if(cardTransition){transitioning=true;handoff=false;dismissing=!opening;}
         else {handoff|=transitioning||expanded;transitioning=false;expanded=false;}
     }
+    /** Terminal removal has no capsule destination that can reopen the deleted service. */
+    void dismiss(){handoff|=transitioning||expanded;transitioning=false;expanded=false;closing=false;dismissing=true;}
     void settle(boolean cardExpanded) {
         handoff=!cardExpanded&&(transitioning||expanded||handoff);
         transitioning=false;closing=false;expanded=cardExpanded;dismissing=cardExpanded&&dismissing;

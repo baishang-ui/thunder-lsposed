@@ -12,6 +12,7 @@ public class Animator {
     private final ArrayList<AnimatorListener> callbacks=new ArrayList<>();
     public void addListener(AnimatorListener l){callbacks.add(l);}
     public void removeListener(AnimatorListener l){callbacks.remove(l);}
+    public void removeAllListeners(){callbacks.clear();}
     public ArrayList<AnimatorListener> getListeners(){return new ArrayList<>(callbacks);}
     protected void dispatchStart(){for(var l:getListeners())l.onAnimationStart(this);}
     protected void dispatchEnd(){for(var l:getListeners())l.onAnimationEnd(this);}

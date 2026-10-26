@@ -94,6 +94,15 @@ public final class CloudTextRendererCheck {
         check(CloudTextRenderer.beginDraw(failText,broken)==null&&!failed.running(),"backend failure disables repeated effects until rebind");
         failed.revision();SystemClock.now=3000;failText.setText("latest");backend=new Param(failText,broken);hook.before(backend);RenderNode failedNode=recording();failedNode.failEnd=true;replays=Api102Runtime.replays;hook.after(backend);
         check(!failedNode.recording&&broken.events.contains("native-text:latest")&&Api102Runtime.replays==replays+1,"endRecording failure closes and falls back to native once");failed.clear();
+        ViewGroup mediaRoot=new ViewGroup();
+        var lyric=new com.oplus.systemui.plugins.shared.template.component.media.view.LiveAlertTextView();
+        lyric.setText("long scrolling lyric");mediaRoot.addView(lyric);
+        CloudTextRenderer media=renderer();media.bind(mediaRoot,true);media.reveal(new Object());
+        check(lyric.watchers.isEmpty()&&CloudTextRenderer.beginDraw(lyric,new Canvas(true))==null,
+            "native media text stays outside scene alpha/blur and preserves its own marquee renderer");
+        lyric.setText("next scrolling lyric");media.revision();media.reveal(new Object());
+        check(!media.running()&&CloudTextRenderer.beginDraw(lyric,new Canvas(true))==null,
+            "lyric updates and repeated scene notifications cannot blank the native media line");media.clear();
         System.out.println("Verified "+checks+" character/scene renderer checks.");
     }
 }

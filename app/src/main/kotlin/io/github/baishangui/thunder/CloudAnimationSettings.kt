@@ -22,7 +22,7 @@ internal data class CloudAnimationSettings(
 @Composable internal fun CloudAnimationControls(value: CloudAnimationSettings, change: (CloudAnimationSettings) -> Unit) {
     SettingsSectionTitle("展开与收起动画")
     LiquidSwitchRow("优化展开与收起", "保留按压反馈，胶囊与卡片连续形变", value.enabled) { change(value.copy(enabled = it)) }
-    if (value.enabled) {
+    SettingsReveal(value.enabled) {
         LiquidValueSlider("动画时长", value.duration, 120..1000, " ms") { change(value.copy(duration = it)) }
         SettingsChoice("动画曲线", listOf(
             SettingOption("iOS 式缓出", "迅速响应，柔和停稳"), SettingOption("平滑缓动", "起止平滑"),

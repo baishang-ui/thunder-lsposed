@@ -9,6 +9,7 @@ import android.net.Uri;
 import android.widget.Toast;
 import android.util.Log;
 import android.app.Activity;
+import android.animation.ValueAnimator;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -191,9 +192,47 @@ final class SystemSettingsHook {
     private static Object jump(ClassLoader loader, Context context, String key, String title, boolean homepage) {
         Object pref = preference(loader, context, "com.oplus.settings.widget.preference.SettingsSimpleJumpPreference", key, title);
         int layout = resource(context, homepage ? "jump_preference_simple_layout_no_summary_homepage" :
-            "jump_preference_simple_layout_no_icon_and_summary", "layout");
-        if (layout != 0) Reflect.callMethod(pref, "setLayoutResource", layout);
+            "jump_preference_simple_layout_summary_vertical", "layout");
+        if (layout != 0) {
+            // This native variant contains android.R.id.summary and assignment. Keep
+            // its binding category aligned with the chosen XML, as the host does.
+            if (!homepage) {
+                Reflect.setObjectField(pref, "mLayoutCategory", "summary_vertical");
+                Reflect.setBooleanField(pref, "mShowSummary", true);
+            }
+            Reflect.callMethod(pref, "setLayoutResource", layout);
+        }
         return pref;
+    }
+    private static void icon(Context context, Object pref, String name) {
+        int id = resource(context, name, "drawable");
+        if (id != 0) Reflect.callMethod(pref, "setIcon", id);
+        // Firmware without this artwork keeps the native text layout usable.
+        Reflect.callMethod(pref, "setIconSpaceReserved", false);
+    }
+    private static String pageIcon(String key) {
+        switch (key) {
+            case "cloud": return "settings_cloud_service_ic";
+            case "cloud_lock": return "settings_lock_ic";
+            case "cloud_notification": case "notification": return "ic_notifications";
+            case "banner": return "ic_notification_peek";
+            case "volume": case "qs_music": return "settings_sound_settings_ic";
+            case "status_clock": return "ic_clock_black_24dp";
+            case "status": case "status_layout": case "status_icons": return "ic_settings_display";
+            case "gesture": return "settings_gesture_ic";
+            case "tools": return "settings_general_system_ic";
+            default: return "settings_personalise_ic";
+        }
+    }
+    private static String pageSummary(String key) {
+        switch (key) {
+            case "cloud": return "胶囊、展开卡片与锁屏材质";
+            case "center": return "背景、通知与分类磁贴";
+            case "volume": return "动画、展开方式、尺寸与材质";
+            case "status": return "布局、时钟与图标显示";
+            case "gesture": return "显示、尺寸、材质与底部占位";
+            default: return "备份、导入与恢复默认配置";
+        }
     }
     // SubSettings overlays its toolbar for a plain COUI fragment. Use the real toolbar's
     // measured bounds for content spacing; native components still own all drawing.
@@ -229,9 +268,12 @@ final class SystemSettingsHook {
         // full-width separator lines and overflow the card's rounded-corner boundaries.
         int decorCount = (int)Reflect.callMethod(list, "getItemDecorationCount");
         while (decorCount-- > 0) Reflect.callMethod(list, "removeItemDecorationAt", 0);
-        // Initial loading and conditional rows should not animate vertically.
+        // The first snapshot binds without movement. Enable the host's own row animator
+        // after layout, so later user-triggered expansion can move adjacent rows smoothly.
         Reflect.callMethod(list, "setItemAnimator", (Object)null);
         ((android.view.ViewGroup)list).setLayoutAnimation(null);
+        State state = sliderState(fragment);
+        if (state != null) state.enableListMotion();
     }
     private interface Listener { Object invoke(Object[] args); }
     private static Object listener(ClassLoader loader, String type, Listener callback) {
@@ -301,6 +343,7 @@ final class SystemSettingsHook {
         MenuItem restartButton;
         final ArrayList<Object> actions = new ArrayList<>();
         final ArrayList<Object> sections = new ArrayList<>();
+        final Map<Object, String> pageLinks = new LinkedHashMap<>();
         SystemSettingsPalette.Editor colorEditor;
         String colorKey;
         Bundle restoredColor;
@@ -375,7 +418,7 @@ final class SystemSettingsHook {
             });
         }
         void build(Object host) {
-            controls.clear(); actions.clear(); sections.clear(); status = null;
+            controls.clear(); actions.clear(); sections.clear(); pageLinks.clear(); status = null;
             Context context = context(host);
             page = ((Bundle)Reflect.callMethod(host, "getArguments")).getString(MARKER, "home");
             if (java.util.Arrays.asList("panel", "cards", "notifications", "banner").contains(page)) page = "center";
@@ -386,6 +429,7 @@ final class SystemSettingsHook {
             if ("home".equals(page) || "tools".equals(page)) {
                 statusGroup = category(loader, context, screen, "thunder:status_group", "模块信息");
                 status = preference(loader, context, "COUIPreference", "thunder:status", "模块状态");
+                icon(context, status, "settings_info_state_ic");
                 click(status, loader, this::refresh);
                 Reflect.callMethod(statusGroup, "addPreference", status);
             }
@@ -400,6 +444,8 @@ final class SystemSettingsHook {
                     field.containsKey("min") ? "COUIEditTextPreference" : "COUIPreference";
                 // A separate preference key per bit also makes native dialog restoration deterministic.
                 Object pref = preference(loader, context, type, "thunder:" + key + ":" + field.getInt("bit"), field.getString("title"));
+                if (key.startsWith("style_")) icon(context, pref, pageIcon(key.substring(6)));
+                else if ("enabled".equals(key)) icon(context, pref, "settings_personalise_ic");
                 String section = field.getString("section", "");
                 Object group = groups.get(section);
                 if (group == null) {
@@ -462,15 +508,60 @@ final class SystemSettingsHook {
                 Object maintenance = category(loader, context, screen, "thunder:maintenance", "维护");
                 for (String key : new String[]{"cloud", "center", "volume", "status", "gesture"}) {
                     Object pref = jump(loader, context, "thunder:page:" + key, pages.getString(key), false);
+                    icon(context, pref, pageIcon(key));
+                    Reflect.callMethod(pref, "setSummary", pageSummary(key));
+                    pageLinks.put(pref, key);
                     click(pref, loader, () -> open(context, key, pages.getString(key)));
                     Reflect.callMethod(appearance, "addPreference", pref);
                 }
                 Object tools = jump(loader, context, "thunder:tools", "配置与维护", false);
+                icon(context, tools, pageIcon("tools"));
+                Reflect.callMethod(tools, "setSummary", pageSummary("tools"));
                 click(tools, loader, () -> open(context, "tools", "配置与维护"));
                 Reflect.callMethod(maintenance, "addPreference", tools);
             } else if ("tools".equals(page)) buildTools(context, screen);
             Reflect.callMethod(host, "setPreferenceScreen", screen);
             apply();
+        }
+        void enableListMotion() {
+            Object host = fragment.get();
+            if (host == null || !loaded) return;
+            // All optional decoration is isolated: unsupported firmware keeps its working UI.
+            try {
+                Object list = Reflect.callMethod(host, "getListView");
+                if (!(list instanceof View)) return;
+                Object manager = Reflect.callMethod(host, "getPreferenceManager");
+                if (Reflect.callMethod(manager, "getPreferenceComparisonCallback") == null) {
+                    Object comparison = Reflect.newInstance(Reflect.findClass(
+                        "androidx.preference.PreferenceManager$SimplePreferenceComparisonCallback", loader));
+                    Reflect.callMethod(manager, "setPreferenceComparisonCallback", comparison);
+                }
+                if (!ValueAnimator.areAnimatorsEnabled()) {
+                    Object animator = Reflect.callMethod(list, "getItemAnimator");
+                    if (animator != null) Reflect.callMethod(animator, "endAnimations");
+                    Reflect.callMethod(list, "setItemAnimator", (Object)null);
+                    return;
+                }
+                if (Reflect.callMethod(list, "getItemAnimator") != null) return;
+                View view = (View)list;
+                // Pre-draw runs after the first snapshot's pending adapter/layout work.
+                view.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+                    @Override public boolean onPreDraw() {
+                        view.getViewTreeObserver().removeOnPreDrawListener(this);
+                        if (!view.isAttachedToWindow() || !ValueAnimator.areAnimatorsEnabled()) return true;
+                        try {
+                            if (Reflect.callMethod(list, "getItemAnimator") != null) return true;
+                            Object animator = Reflect.newInstance(Reflect.findClass("androidx.recyclerview.widget.DefaultItemAnimator", loader));
+                            Reflect.callMethod(animator, "setSupportsChangeAnimations", false);
+                            Reflect.callMethod(animator, "setAddDuration", 180L);
+                            Reflect.callMethod(animator, "setRemoveDuration", 120L);
+                            Reflect.callMethod(animator, "setMoveDuration", 220L);
+                            Reflect.callMethod(list, "setItemAnimator", animator);
+                        } catch (Throwable error) { Log.d("ThunderSettings", "Native row animation unavailable", error); }
+                        return true;
+                    }
+                });
+            } catch (Throwable error) { Log.d("ThunderSettings", "Native preference comparison unavailable", error); }
         }
         void openColor(Bundle field, int initial) {
             Object host = fragment.get();
@@ -603,6 +694,8 @@ final class SystemSettingsHook {
         void buildTools(Context context, Object screen) {
             Object backup = category(loader, context, screen, "thunder:backup", "配置管理");
             Object export = jump(loader, context, "thunder:export", "复制配置", false);
+            icon(context, export, "ic_settings_backup");
+            Reflect.callMethod(export, "setSummary", "复制 JSON，可保存为备份或分享");
             click(export, loader, () -> {
                 android.content.ClipboardManager clipboard = context.getSystemService(android.content.ClipboardManager.class);
                 clipboard.setPrimaryClip(android.content.ClipData.newPlainText("thunder.settings", snapshot.getString("export")));
@@ -612,6 +705,8 @@ final class SystemSettingsHook {
             Reflect.callMethod(export, "setEnabled", loaded);
             Reflect.callMethod(backup, "addPreference", export);
             Object input = jump(loader, context, "thunder:import", "从 JSON 文件导入", false);
+            icon(context, input, "ic_folder_vd_theme_24");
+            Reflect.callMethod(input, "setSummary", "从系统文件选择器读取配置");
             click(input, loader, () -> {
                 Object host = fragment.get(); if (host == null) return;
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/json")
@@ -622,6 +717,8 @@ final class SystemSettingsHook {
             Reflect.callMethod(input, "setEnabled", loaded);
             Reflect.callMethod(backup, "addPreference", input);
             Object reset = jump(loader, context, "thunder:reset", "重置配置", false);
+            icon(context, reset, "ic_restore");
+            Reflect.callMethod(reset, "setSummary", "将全部效果参数恢复为默认值");
             click(reset, loader, () -> confirm(context, "重置配置", "将所有模块参数恢复默认值。", () -> request("ui_reset", null, null)));
             actions.add(reset);
             Reflect.callMethod(reset, "setEnabled", loaded);
@@ -703,6 +800,12 @@ final class SystemSettingsHook {
                         (field.getString("unit", "").isEmpty() ? "" : " " + field.getString("unit")));
                 }
                 if (key.startsWith("style_")) Reflect.callMethod(pref, "setSummary", values.getBoolean(key) ? "自定义样式" : "系统默认样式");
+                if ("enabled".equals(key)) {
+                    int count = 0;
+                    for (String group : HookConfig.STYLE_KEYS) if (values.getBoolean("style_" + group)) count++;
+                    Reflect.callMethod(pref, "setSummary", !loaded ? "正在读取配置…" : values.getBoolean(key) ?
+                        "已开启 " + count + " 组自定义样式 · 修改自动保存" : "效果已暂停，保留当前配置");
+                }
                 Reflect.callMethod(pref, "setVisible", SystemSettingsCatalog.INSTANCE.visible(field, values));
                 Reflect.callMethod(pref, "setEnabled", loaded && ("enabled".equals(key) || values.getBoolean("enabled")));
             }
@@ -713,7 +816,17 @@ final class SystemSettingsHook {
                     visible = (boolean)Reflect.callMethod(Reflect.callMethod(section, "getPreference", i), "isVisible");
                 Reflect.callMethod(section, "setVisible", visible);
             }
+            for (Map.Entry<Object, String> link : pageLinks.entrySet()) {
+                int count = 0, total = 0;
+                for (StyleGroups.Group group : StyleGroups.INSTANCE.getGroups()) {
+                    if (!link.getValue().equals(group.getPage())) continue;
+                    total++;
+                    if (values.getBoolean("style_" + group.getKey())) count++;
+                }
+                Reflect.callMethod(link.getKey(), "setAssignment", !loaded ? "" : values.getBoolean("enabled") ? "已开启 " + count + "/" + total : "已暂停");
+            }
             restoreColor(null);
+            enableListMotion();
         }
     }
 }

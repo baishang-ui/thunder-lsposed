@@ -131,6 +131,9 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     private float outlineRadius=-1;
     private float outlineWeight=-1;
     private float hostOpacityLimit=1f;
+    private float presentedHost=Float.NaN;
+    private boolean nativeFrameScheduled;
+    private final Runnable resetNativeFrame=()->nativeFrameScheduled=false;
     private final ValueAnimator.DurationScaleChangeListener durationScaleChanged=this::onDurationScaleChanged;
     private final ArrayList<View> layoutSources=new ArrayList<>();
     private ViewTreeObserver geometryObserver;
@@ -214,13 +217,14 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     boolean keepsCardPresentation(){return !disposed&&inputOwnership.keepsCardPresentation()&&
         cardRoot!=null&&cardRoot.isAttachedToWindow()&&cardRoot.isShown();}
     CloudMorphHook.Frame current(){return disposed?null:current;}
+    View capsuleSource(){return capsule;}
     CloudMorphHook.Frame presentation(){return disposed?null:presented;}
     CloudMorphHook.Frame presentationVelocity(CloudMorphHook.Frame logicalVelocity) {
         if(disposed||current==null)return null;
         CloudMorphSurface host=parent==null?this:parent;
         return host.capsuleHideOwned?logicalVelocity:host.visibility.presentationVelocity(current,logicalVelocity);
     }
-    float presentationOpacity(){return body.getAlpha();}
+    float presentationOpacity(){return parent==null?body.getAlpha():shape.getAlpha();}
     float opacity(){return visibility.motion();}
     void opacity(float value){visibility.motion(value);applyOpacity();}
     /** Native w/y gates have an interruptible silhouette independent from the form trajectory. */
@@ -263,12 +267,32 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     }
     private void applyOpacity() {
         float amount=capsuleHideOwned?visibility.motion():Math.min(visibility.motion(),hostOpacityLimit)*Math.min(1f,visibility.host()*4f);
-        body.setAlpha(amount);
+        if(parent==null)body.setAlpha(amount);
+        else {
+            // A follower Body spans the display for input coordinates, but
+            // draws only its Shape. Fade that tight card instead of asking
+            // HWUI to alpha-composite another display-sized ViewGroup.
+            body.setAlpha(1f);shape.setAlpha(amount);
+        }
         int desired=lifetimeVisible&&amount>0f?View.VISIBLE:View.INVISIBLE;
         if(body.getVisibility()!=desired)body.setVisibility(desired);
-        if(current!=null)applyFrameGeometry(current);
-        for(CloudMorphSurface layer:layers.values())if(layer.current!=null)layer.applyFrameGeometry(layer.current);
+        syncMaterialOpacity();
+        // The root's group fade also covers each follower's compositor region.
+        // A Shape alpha alone only fades its ordinary HWUI content.
+        if(parent==null)for(CloudMorphSurface layer:layers.values())layer.syncMaterialOpacity();
+        CloudMorphSurface host=parent==null?this:parent;
+        float gate=host.capsuleHideOwned?1f:host.visibility.host();
+        boolean gateChanged=gate!=presentedHost;
+        if(current!=null&&gateChanged)applyFrameGeometry(current);
+        if(parent==null&&gateChanged)for(CloudMorphSurface layer:layers.values())layer.applyOpacity();
         updateInputRegion();
+    }
+    private void syncMaterialOpacity() {
+        if(nativeMaterial==null)return;
+        float alpha=body.getVisibility()==View.VISIBLE&&!disposed?
+            (parent==null?body.getAlpha():shape.getAlpha()):0f;
+        if(parent!=null)alpha*=parent.disposed||parent.body.getVisibility()!=View.VISIBLE?0f:parent.body.getAlpha();
+        nativeMaterial.opacity(alpha);
     }
     private boolean inputVisible() {
         return !disposed&&attached&&current!=null&&lifetimeVisible&&visibility.acceptsInput()&&
@@ -286,7 +310,9 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         boolean nativeShown=cardRoot!=null&&cardRoot.isAttachedToWindow()&&cardRoot.isShown()&&
             cardRoot.getRootView()!=body.getRootView()&&cardRoot.getRootView().isShown();
         boolean keep=inputOwnership.keepLease(nativeShown);
-        return inputVisible()&&keep;
+        // A fading/hidden Body must not make its still-mounted transparent
+        // native window touchable again while native cleanup is pending.
+        return !disposed&&keep;
     }
     private boolean hasNativeInputLease(){if(nativeInputHeld)return true;for(CloudMorphSurface layer:layers.values())if(layer.hasNativeInputLease())return true;return false;}
     private boolean needsClosingInputLease(){if(!inputOwnership.acceptsInput()&&ownsNativeInput())return true;for(CloudMorphSurface layer:layers.values())if(layer.needsClosingInputLease())return true;return false;}
@@ -484,7 +510,7 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     void frame(CloudMorphHook.Frame frame) {
         if(disposed)throw new IllegalStateException("Unified cloud detached");
         if(frame==null)return;
-        settled=false;applyFrameGeometry(frame);updateStyle();suppressNative();
+        settled=false;applyFrameGeometry(frame);updateStyle(false);suppressNative();
     }
     void beginTransition(boolean cardTransition,boolean opening){
         inputOwnership.begin(cardTransition,opening);
@@ -505,6 +531,11 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         }
         updateInputRegion();queueNativeInputSync();
     }
+    void dismissInput(){
+        inputOwnership.dismiss();cancelInputTree();
+        for(CloudMorphSurface layer:layers.values())layer.dismissInput();
+        updateInputRegion();queueNativeInputSync();
+    }
     boolean capsuleEntryHandoff(){return parent==null&&(visibility.hostAllowed()||capsuleHideOwned);}
     void capsuleEntryPresentation(boolean value){capsuleEntryPresentation=value;}
     boolean capsuleEntryClosedHandoff(){return capsuleEntryPresentation&&!visibility.hostAllowed();}
@@ -523,6 +554,7 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
     private void applyFrameGeometry(CloudMorphHook.Frame frame) {
         current=frame;
         CloudMorphSurface host=parent==null?this:parent;
+        presentedHost=host.capsuleHideOwned?1f:host.visibility.host();
         // A disappear scene takes over the already presented frame. Applying
         // the native w/y gate as well would shrink and fade that same exit twice.
         frame=CloudVisibilityState.presentation(frame,host.capsuleHideOwned?1f:host.visibility.host());
@@ -632,15 +664,18 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         observer.addOnPreDrawListener(geometryRefresh);
         source.postInvalidateOnAnimation(); // One native traversal, removed before applying the geometry.
     }
-    private void updateStyle() {
+    private void updateStyle(){updateStyle(true);}
+    private void updateStyle(boolean refreshNative) {
         if(disposed||!materialReady)return;
         nativeCapsuleBackground=capsuleBackground.resolve(capsule==null?null:capsule.getBackground(),this::fallbackCapsuleBackground);
         Drawable foreground=capsule==null?null:capsule.getForeground();
         HookConfig config=ShadeHook.snapshot();
         if(config==styledConfig&&styledCapsule==capsule&&styledBackground==nativeCapsuleBackground&&styledForeground==foreground) {
-            if(capsuleDecoration!=null)capsuleDecoration.refresh();
-            if(capsuleForeground!=null)capsuleForeground.refresh();
-            nativeMaterial.apply(current==null?0:current.progress(),config.cloudArea.blur);return;
+            if(refreshNative) {
+                if(capsuleDecoration!=null)capsuleDecoration.refresh();
+                if(capsuleForeground!=null)capsuleForeground.refresh();
+            }
+            nativeMaterial.apply(parent==null?(current==null?0:current.progress()):1f,config.cloudArea.blur);syncMaterialOpacity();return;
         }
         styledConfig=config;styledCapsule=capsule;styledBackground=nativeCapsuleBackground;styledForeground=foreground;
         Object factory=Reflect.newInstance(Reflect.findClass("com.heytap.log.nx.obus.a",loader),container.getContext(),3);
@@ -654,7 +689,8 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
             new CloudNativeDecoration(nativeCapsuleBackground,container.getResources(),container.getContext().getTheme()):null;
         capsuleForeground=foreground==null?null:new CloudNativeDecoration(foreground,container.getResources(),container.getContext().getTheme());
         shape.setBackground(nativeMaterial.blur);
-        nativeMaterial.apply(current==null?0:current.progress(),config.cloudArea.blur);
+        nativeMaterial.apply(parent==null?(current==null?0:current.progress()):1f,config.cloudArea.blur);
+        syncMaterialOpacity();
         shape.setOutlineProvider((ViewOutlineProvider)outline);shape.setClipToOutline(true);
         if(presented!=null) {
             float radius=Math.max(0,Math.min(presented.radius(),Math.min(presented.width(),presented.height())/2f));
@@ -734,6 +770,10 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         if(disposed)return true;
         try {
             if(!retainSurface())return true;
+            // Capsule and card roots can traverse in the same display tick.
+            // Their shared group needs one sync, independent of card count.
+            if(nativeFrameScheduled)return true;
+            nativeFrameScheduled=true;body.postOnAnimation(resetNativeFrame);
             beginFrameBatch();
             try {
                 syncNativeCards();syncMoons();
@@ -793,6 +833,8 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         contentSwitch.clear();
         if(disposed)return;
         disposed=true;
+        if(nativeMaterial!=null)nativeMaterial.opacity(0);
+        body.removeCallbacks(resetNativeFrame);nativeFrameScheduled=false;
         if(hostVisibilityClock!=null){hostVisibilityClock.cancel();hostVisibilityClock=null;}
         releaseNativeInput();
         for(CloudMorphSurface layer:new ArrayList<>(layers.values()))layer.dispose();layers.clear();
@@ -1080,8 +1122,12 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
         }
         @Override protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);if(current==null)return;
-            float form=Math.max(0,Math.min(1,current.progress()));
-            int capsuleAlpha=Math.round(255*(1-form)),cardAlpha=Math.round(255*form);
+            // Followers already fade through their tight Shape alpha. Drawing
+            // another capsule/tree crossfade in every follower creates several
+            // extra alpha layers and repeats the same capsule content per card.
+            float form=parent==null?Math.max(0,Math.min(1,current.progress())):1f;
+            float contentBlend=CloudCardTiming.opacity(form);
+            int capsuleAlpha=Math.round(255*(1-contentBlend)),cardAlpha=Math.round(255*contentBlend);
             if(capsuleAlpha>0&&capsuleDecoration!=null) {
                 int alpha=saveOpacity(canvas,capsuleAlpha);
                 // Never sample the host animator's insetting bounds or visibility alpha.
@@ -1095,7 +1141,6 @@ final class CloudMorphSurface implements ViewTreeObserver.OnPreDrawListener {
             }
             // Form changes crossfade the native trees. Individual changed text
             // regions own their blur inside TextView.onDraw; stable siblings stay sharp.
-            float contentBlend=CloudCardTiming.opacity(form);
             drawCapsule(canvas,1f-contentBlend);
             drawContent(canvas,cardContent,contentBlend,instant);
             if(cardAlpha>0&&cardPress!=null&&card!=null) {

@@ -3,6 +3,10 @@ package io.github.baishangui.thunder
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 
 internal object StyleGroups {
     data class Group(val key: String, val title: String, val page: String)
@@ -49,12 +53,14 @@ internal object StyleGroups {
     val enabled = settings.styles.enabled(settings, key)
     CompositionLocalProvider(LocalControlScope provides "style:$key", LocalInlineSettings provides true) {
         SettingsGroup {
-            LiquidSwitchRow(StyleGroups.group(key).title, if (enabled) "自定义样式" else "系统默认样式", enabled) {
-                change(settings.copy(styles = settings.styles.toggle(key, it)))
-            }
-            if (enabled) {
-                SettingsDivider()
-                content()
+            Column {
+                LiquidSwitchRow(StyleGroups.group(key).title, if (enabled) "自定义样式" else "系统默认样式", enabled, icon = styleIcon(key)) {
+                    change(settings.copy(styles = settings.styles.toggle(key, it)))
+                }
+                SettingsReveal(enabled, Modifier.padding(top = 12.dp)) {
+                    SettingsDivider()
+                    content()
+                }
             }
         }
     }
@@ -62,11 +68,11 @@ internal object StyleGroups {
 
 @Composable internal fun MaterialOptions(area: Area, corner: Boolean = true, change: (Area) -> Unit) {
     LiquidSwitchRow("自定义模糊", "", area.blur) { change(area.copy(blur = it)) }
-    if (area.blur) LiquidValueSlider("模糊半径", area.radius, 0..200, " px") { change(area.copy(radius = it)) }
+    SettingsReveal(area.blur) { LiquidValueSlider("模糊半径", area.radius, 0..200, " px") { change(area.copy(radius = it)) } }
     LiquidSwitchRow("自定义混色", "", area.tint) { change(area.copy(tint = it)) }
-    if (area.tint) LiquidColorSetting("混色颜色", area.color) { change(area.copy(color = it)) }
+    SettingsReveal(area.tint) { LiquidColorSetting("混色颜色", area.color) { change(area.copy(color = it)) } }
     if (corner) {
         LiquidSwitchRow("自定义圆角", "", area.cornerEnabled) { change(area.copy(cornerEnabled = it)) }
-        if (area.cornerEnabled) LiquidValueSlider("圆角半径", area.corner, 0..64, " dp") { change(area.copy(corner = it)) }
+        SettingsReveal(area.cornerEnabled) { LiquidValueSlider("圆角半径", area.corner, 0..64, " dp") { change(area.copy(corner = it)) } }
     }
 }

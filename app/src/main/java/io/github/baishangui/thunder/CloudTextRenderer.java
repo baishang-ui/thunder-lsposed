@@ -122,7 +122,10 @@ final class CloudTextRenderer {
     }
     private void collect(View view,String path,boolean animateNew,Map<TextView,Entry> next,
             Map<String,CloudTextTransition> nextSnapshots,Map<TextView,String> nextSlots,Map<Integer,Integer> ids) {
-        if(view instanceof TextView text) {
+        // MediaTextSwitcher owns this pair's text and marquee. Re-revealing
+        // these views with a scene-wide alpha/blur clock competes with lyric
+        // updates and briefly blanks a line that is already scrolling.
+        if(view instanceof TextView text&&!nativeMediaText(text)) {
             int id=text.getId(),ordinal=ids.getOrDefault(id,0);ids.put(id,ordinal+1);
             String slot=id==View.NO_ID?"path:"+path:"id:"+id+":"+ordinal;
             String value=text.getText().toString();
@@ -141,6 +144,11 @@ final class CloudTextRenderer {
         }
         if(view instanceof ViewGroup group)
             for(int i=0;i<group.getChildCount();i++)collect(group.getChildAt(i),path+"/"+i,animateNew,next,nextSnapshots,nextSlots,ids);
+    }
+    private static boolean nativeMediaText(TextView text) {
+        for(Class<?> type=text.getClass();type!=null;type=type.getSuperclass())
+            if(type.getName().equals("com.oplus.systemui.plugins.shared.template.component.media.view.LiveAlertTextView"))return true;
+        return false;
     }
     private static boolean timeText(TextView text) {
         if(text instanceof TextClock)return true;

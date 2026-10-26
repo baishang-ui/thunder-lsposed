@@ -3,6 +3,7 @@ package io.github.baishangui.thunder
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 
@@ -22,6 +23,31 @@ internal enum class SettingsPage(val title: String, val category: String) {
         StatusIcons -> StatusBar
         else -> null
     }
+
+    val stylePage: String? get() = when (this) {
+        Cloud -> "cloud"; Panel -> "center"; Volume -> "volume"
+        StatusBar, StatusIcons -> "status"; GestureBar -> "gesture"
+        else -> null
+    }
+    val icon: ImageVector get() = when (this) {
+        Cloud -> styleIcon("cloud"); Panel -> styleIcon("panel"); Volume -> styleIcon("volume")
+        StatusBar -> MiuixIcons.Regular.HorizontalSplit; StatusIcons -> styleIcon("status_icons")
+        GestureBar -> styleIcon("gesture"); Appearance -> MiuixIcons.Regular.Theme
+        Configuration -> MiuixIcons.Regular.Backup; About -> MiuixIcons.Regular.Info
+        Runtime -> MiuixIcons.Regular.Report
+    }
+    val description: String get() = when (this) {
+        Cloud -> "胶囊、展开卡片与锁屏材质"
+        Panel -> "背景、通知与分类磁贴"
+        Volume -> "声音面板的动画、尺寸与材质"
+        StatusBar -> "布局、时钟与图标显示"
+        StatusIcons -> "选择需要保留的状态图标"
+        GestureBar -> "底部导航的显示、尺寸与颜色"
+        Appearance -> "配色、玻璃质感与界面形状"
+        Configuration -> "备份、迁移与恢复你的配置"
+        About -> "thunder · ColorOS 17 外观调整"
+        Runtime -> "查看模块连接与配置同步状态"
+    }
 }
 
 internal fun Area.summary(corner: Boolean = true): String = buildList {
@@ -32,11 +58,9 @@ internal fun Area.summary(corner: Boolean = true): String = buildList {
 
 @Composable internal fun AdjustmentMenu(open: (SettingsPage) -> Unit) {
     SettingsMenuGroup("功能样式") {
-        SettingsMenuItem("流体云", "流体云、锁屏与通知中心样式", MiuixIcons.Regular.CloudFill) { open(SettingsPage.Cloud) }
-        SettingsMenuItem("通控中心", "背景、通知条与分类磁贴样式", MiuixIcons.Regular.Layers) { open(SettingsPage.Panel) }
-        SettingsMenuItem("音量面板", "动画、展开、尺寸与材质", MiuixIcons.Regular.Layers) { open(SettingsPage.Volume) }
-        SettingsMenuItem("状态栏", "布局、时钟与图标", MiuixIcons.Regular.Theme) { open(SettingsPage.StatusBar) }
-        SettingsMenuItem("手势条", "显示、尺寸、材质与底部占位", MiuixIcons.Regular.Hide) { open(SettingsPage.GestureBar) }
+        listOf(SettingsPage.Cloud, SettingsPage.Panel, SettingsPage.Volume, SettingsPage.StatusBar, SettingsPage.GestureBar).forEach { page ->
+            SettingsMenuItem(page.title, page.description, page.icon) { open(page) }
+        }
     }
 }
 
@@ -69,16 +93,16 @@ internal fun Area.summary(corner: Boolean = true): String = buildList {
             StyleCard("panel", settings, change) {
                 MaterialOptions(settings.panel, corner = false) { change(settings.copy(panel = it)) }
                 LiquidSwitchRow("调整背景饱和度", "控制中心和通知中心共用", settings.panelSaturationEnabled) { change(settings.copy(panelSaturationEnabled = it)) }
-                if (settings.panelSaturationEnabled) LiquidValueSlider("背景饱和度", settings.panelSaturation, 0..200, "%") { change(settings.copy(panelSaturation = it)) }
+                SettingsReveal(settings.panelSaturationEnabled) { LiquidValueSlider("背景饱和度", settings.panelSaturation, 0..200, "%") { change(settings.copy(panelSaturation = it)) } }
             }
             StyleCard("notification", settings, change) {
                 MaterialOptions(settings.notificationArea) { change(settings.copy(notificationArea = it)) }
                 LiquidSwitchRow("自定义左右边距", "", settings.margins) { change(settings.copy(margins = it)) }
-                if (settings.margins) LiquidValueSlider("左右各留白", settings.margin, 0..64, " dp") { change(settings.copy(margin = it)) }
+                SettingsReveal(settings.margins) { LiquidValueSlider("左右各留白", settings.margin, 0..64, " dp") { change(settings.copy(margin = it)) } }
             }
             StyleCard("banner", settings, change) {
                 MaterialOptions(settings.banner) { change(settings.copy(banner = it)) }
-                LiquidAction("测试通知横幅", Modifier.fillMaxWidth(), onClick = testNotification)
+                LiquidAction("测试通知横幅", Modifier.fillMaxWidth(), leadingIcon = MiuixIcons.Regular.Messages, onClick = testNotification)
             }
             SettingsSectionTitle("磁贴样式")
             listOf("qs_small", "qs_wide", "qs_slider", "qs_music").forEach { key ->
@@ -93,7 +117,7 @@ internal fun Area.summary(corner: Boolean = true): String = buildList {
                 LiquidSwitchRow("隐藏手势条", "", settings.hideGestureBar) { change(settings.copy(hideGestureBar = it)) }
                 LiquidSwitchRow("取消底部抬高", "让应用内容延伸到底边", settings.removeGestureBarInset) { change(settings.copy(removeGestureBarInset = it)) }
             }
-            if (!settings.hideGestureBar) GestureBarControls(settings.gestureBar) { change(settings.copy(gestureBar = it)) }
+            SettingsReveal(!settings.hideGestureBar) { GestureBarControls(settings.gestureBar) { change(settings.copy(gestureBar = it)) } }
         }
         SettingsPage.StatusIcons -> StyleCard("status_icons", settings, change) {
             val groups = listOf(

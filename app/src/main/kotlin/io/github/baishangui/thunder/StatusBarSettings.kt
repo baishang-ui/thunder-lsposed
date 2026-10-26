@@ -38,14 +38,14 @@ internal data class StatusBarSettings(
 @Composable internal fun StatusBarLayoutControls(value: StatusBarSettings, change: (StatusBarSettings) -> Unit) {
     SettingsSection("两侧边距") {
         LiquidSwitchRow("自定义左右边距", "左右两侧分别调节", value.margins) { change(value.copy(margins = it)) }
-        if (value.margins) {
+        SettingsReveal(value.margins) {
             LiquidValueSlider("左边距", value.left, 0..64, " dp") { change(value.copy(left = it)) }
             LiquidValueSlider("右边距", value.right, 0..64, " dp") { change(value.copy(right = it)) }
         }
     }
     SettingsSection("中间留白") {
         LiquidSwitchRow("自定义中间间距", "在左右内容之间增加留白，保留系统挖孔避让", value.centerEnabled) { change(value.copy(centerEnabled = it)) }
-        if (value.centerEnabled) LiquidValueSlider("中间额外留白", value.center, 0..80, " dp") { change(value.copy(center = it)) }
+        SettingsReveal(value.centerEnabled) { LiquidValueSlider("中间额外留白", value.center, 0..80, " dp") { change(value.copy(center = it)) } }
     }
     SettingsSection("空间适配") {
         LiquidSwitchRow("长时钟自动压缩", "空间不足时横向压缩完整文字，空间恢复后还原", value.compressClock) { change(value.copy(compressClock = it)) }

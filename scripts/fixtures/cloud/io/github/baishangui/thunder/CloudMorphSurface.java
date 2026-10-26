@@ -12,6 +12,7 @@ final class CloudMorphSurface {
     float hostOpacityLimit=1,entryAlpha,initialLimit=1;boolean hostGateRunning,hostGateShowing;
     CloudMorphSurface(View container,ClassLoader loader){this.container=container;created.add(this);}
     boolean disposed(){return disposed;}
+    View capsuleSource(){return capsule;}
     boolean keepsCardPresentation(){return !disposed&&inputOwnership.keepsCardPresentation()&&card!=null&&card.isAttachedToWindow()&&card.isShown();}
     boolean ownsContentSource(View source){
         if(disposed)return false;
@@ -30,6 +31,7 @@ final class CloudMorphSurface {
     void cardGroup(java.util.List<View> group){}
     void retainCards(java.util.List<View> cards){}
     void beginFrameBatch(){}
+    void dismissInput(){inputOwnership.dismiss();for(CloudMorphSurface layer:layers.values())layer.dismissInput();}
     void endFrameBatch(){}
     void opacity(float value){opacity=value;}
     void bind(View capsule,View card,View owner,boolean instant){this.capsule=capsule;this.card=card;this.owner=owner;inputOwnership.bind(card);}
