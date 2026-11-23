@@ -1,0 +1,14 @@
+<resources>
+    <string name="coui_cancel">取消</string>
+    <string name="coui_search_settings">搜索功能与设置</string>
+    <string name="coui_search_empty">没有找到相关设置</string>
+    <string name="coui_search_prompt">试试搜索「时钟字号」或「音量条」</string>
+    <string name="coui_interaction">材质与触感</string>
+    <string name="coui_material_blur">材质模糊</string>
+    <string name="coui_material_blur_summary">为本应用的顶栏、导航、弹窗和菜单使用 COUI 模糊材质</string>
+    <string name="coui_scroll_haptics">滚动边缘触感</string>
+    <string name="coui_scroll_haptics_summary">滚动到列表边缘时振动，不影响回弹和其他触感</string>
+    <string name="coui_value_history">%1$s的修改历史</string>
+    <string name="coui_history_on">已开启</string>
+    <string name="coui_history_off">已关闭</string>
+</resources>

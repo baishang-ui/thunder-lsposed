@@ -32,6 +32,10 @@ final class VolumePanelGeometry {
         return clamp(distance<1?fallback:((x-fromX)*dx+(y-fromY)*dy)/distance);
     }
     static float clamp(float value) {return Math.max(0f,Math.min(1f,value));}
+    static float smooth(float value) {
+        float progress=clamp(value);
+        return progress*progress*(3f-2f*progress);
+    }
     static float mix(float from,float to,float progress) {return from+(to-from)*clamp(progress);}
     static Bounds widthAt(Bounds end,int startWidth,float progress) {
         int width=Math.round(mix(Math.min(end.width(),Math.max(1,startWidth)),end.width(),progress));

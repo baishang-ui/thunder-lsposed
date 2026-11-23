@@ -27,6 +27,9 @@ final class QsCornerHook {
     private static final String GEOMETRY_OWNER="thunder.qs-corner-owner";
     private static final String OUTLINE_PATH="thunder.qs-corner-outline-path";
     private static final String BLUR_PROVIDER="thunder.qs-corner-blur-provider";
+    private static final String[] SLIDER_DRAWABLES={"baseMixColorDrawable","activeMixColorDrawable"};
+    private static final String[] SLIDER_FIELDS={"mBackgroundRadius","mCurBackgroundRadius","mProgressRadius","mCurProgressRadius",
+        "mIsSupportSmoothRoundCorner","mSmoothStyleType","mBackgroundRoundCornerWeight","mProgressRoundCornerWeight"};
     // C17 OplusQsSmoothRoundUtil's design-radius table uses G2 weight 3.
     // A single radius and weight must describe every surface, regardless of its native shape/size.
     static final float SMOOTH_WEIGHT=3f;
@@ -408,10 +411,11 @@ final class QsCornerHook {
     }
     private static void update(Object copy,Object original) {
         Drawable owner=geometryOwner(copy);
-        if(!enabled(owner)&&!roundRect.isInstance(original))return;
-        float selected=enabled(owner)?selectedRadius(owner==null?null:owner.getBounds(),owner):
+        boolean custom=enabled(owner);
+        if(!custom&&!roundRect.isInstance(original))return;
+        float selected=custom?selectedRadius(owner==null?null:owner.getBounds(),owner):
             ((Number)Reflect.callMethod(original,"getCornerRadius")).floatValue();
-        Object weight=enabled(owner)?SMOOTH_WEIGHT:Reflect.callMethod(original,"getCornerWeight");
+        Object weight=custom?SMOOTH_WEIGHT:Reflect.callMethod(original,"getCornerWeight");
         if(((Number)Reflect.callMethod(copy,"getCornerRadius")).floatValue()!=selected||
                 !java.util.Objects.equals(Reflect.callMethod(copy,"getCornerWeight"),weight))
             Reflect.callMethod(copy,"update",selected,weight);
@@ -426,7 +430,7 @@ final class QsCornerHook {
         if(shape==null) {
             shape=Reflect.newInstance(roundRect,selected,SMOOTH_WEIGHT);
             Reflect.setAdditionalInstanceField(blur,BLUR_PROVIDER,shape);
-        } else Reflect.callMethod(shape,"update",selected,SMOOTH_WEIGHT);
+        } else if(blurRadius(shape,Float.NaN)!=selected)Reflect.callMethod(shape,"update",selected,SMOOTH_WEIGHT);
         return shape;
     }
     static void trackBlur(Object proxy,Drawable owner) {
@@ -446,7 +450,7 @@ final class QsCornerHook {
     static float blurWeight(Object shape) {return fullCorners(shape)?1f:SMOOTH_WEIGHT;}
     static void beforeSlider(HookCallback.Param p) {
         if(!enabled(p.thisObject)||Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(p.thisObject,DRAWING)))return;
-        p.setObjectExtra(DRAWING,new Object[]{Reflect.getAdditionalInstanceField(p.thisObject,DRAWING)});
+        p.setObjectExtra(DRAWING,true);
         Reflect.setAdditionalInstanceField(p.thisObject,DRAWING,true);
         Reflect.setAdditionalInstanceField(p.thisObject,NATIVE_RADIUS,number(p.thisObject,"mCurProgressRadius"));
         Reflect.setAdditionalInstanceField(p.thisObject,NATIVE_WEIGHT,number(p.thisObject,"mBackgroundRoundCornerWeight"));
@@ -460,24 +464,28 @@ final class QsCornerHook {
         temporary(p,"mSmoothStyleType",1);
         temporary(p,"mBackgroundRoundCornerWeight",SMOOTH_WEIGHT);
         temporary(p,"mProgressRoundCornerWeight",SMOOTH_WEIGHT);
-        for(String field:new String[]{"baseMixColorDrawable","activeMixColorDrawable"}) {
+        for(String field:SLIDER_DRAWABLES) {
             Object drawable=Reflect.getObjectField(p.thisObject,field);
             if(drawable==null)continue;
             Object proxy=Reflect.callMethod(drawable,"getViewBlurProxy");
-            trackSlider(proxy,(View)p.thisObject);
             Object blur=Reflect.callMethod(proxy,"getBlurConfig");
+            trackSlider(blur,(View)p.thisObject);
             float current=radiusForBlur(blur,selected);
             Object previous=Reflect.getAdditionalInstanceField(blur,"thunder.qs-applied-corner");
-            if(!Float.valueOf(current).equals(previous)) {
+            if(!(previous instanceof Float)||current!=(Float)previous) {
                 Reflect.callMethod(proxy,"applyBlurConfig");
                 Reflect.setAdditionalInstanceField(blur,"thunder.qs-applied-corner",current);
             }
         }
     }
-    static void trackSlider(Object proxy,View view) {
-        Object blur=Reflect.callMethod(proxy,"getBlurConfig");
-        Reflect.setAdditionalInstanceField(blur,SLIDER,new WeakReference<>(view));
-        Reflect.setAdditionalInstanceField(blur,"thunder.qs-style","qs_slider");
+    static void trackSlider(Object blur,View view) {
+        if(view!=null) {
+            Object link=Reflect.getAdditionalInstanceField(blur,SLIDER);
+            if(!(link instanceof WeakReference<?>)||((WeakReference<?>)link).get()!=view)
+                Reflect.setAdditionalInstanceField(blur,SLIDER,new WeakReference<>(view));
+        }
+        if(!"qs_slider".equals(Reflect.getAdditionalInstanceField(blur,"thunder.qs-style")))
+            Reflect.setAdditionalInstanceField(blur,"thunder.qs-style","qs_slider");
     }
     static float nativeSliderRadius(View view,float fallback) {
         Object nativeRadius=Reflect.getAdditionalInstanceField(view,NATIVE_RADIUS);
@@ -493,7 +501,10 @@ final class QsCornerHook {
         Object ref=Reflect.getAdditionalInstanceField(blur,SLIDER);
         Object view=ref instanceof WeakReference?((WeakReference<?>)ref).get():null;
         if(!enabled(view==null?blur:view))return fallback;
-        if(view==null)return selectedRadius(geometryOwner(blur)==null?null:geometryOwner(blur).getBounds(),blur);
+        if(view==null) {
+            Drawable owner=geometryOwner(blur);
+            return selectedRadius(owner==null?null:owner.getBounds(),blur);
+        }
         if(Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(view,DRAWING)))return number(view,"mCurProgressRadius");
         float base=number(view,"mBackgroundRadius"),progress=number(view,"mProgressRadius");
         return Math.max(0f,sliderRadius(view)-Math.max(0f,base-progress))*scale(number(view,"mCurProgressRadius"),progress);
@@ -505,19 +516,14 @@ final class QsCornerHook {
         Reflect.setObjectField(p.thisObject,field,value);
     }
     static void afterSlider(HookCallback.Param p) {
-        for(String field:new String[]{"mBackgroundRadius","mCurBackgroundRadius","mProgressRadius","mCurProgressRadius",
-                "mIsSupportSmoothRoundCorner","mSmoothStyleType","mBackgroundRoundCornerWeight","mProgressRoundCornerWeight"}) {
+        if(p.getObjectExtra(DRAWING)==null)return;
+        for(String field:SLIDER_FIELDS) {
             Object saved=p.getObjectExtra("qs-corner-"+field);
             if(saved!=null)Reflect.setObjectField(p.thisObject,field,saved);
         }
-        Object state=p.getObjectExtra(DRAWING);
-        if(state instanceof Object[]) {
-            Reflect.removeAdditionalInstanceField(p.thisObject,NATIVE_RADIUS);
-            Reflect.removeAdditionalInstanceField(p.thisObject,NATIVE_WEIGHT);
-            Object previous=((Object[])state)[0];
-            if(previous==null)Reflect.removeAdditionalInstanceField(p.thisObject,DRAWING);
-            else Reflect.setAdditionalInstanceField(p.thisObject,DRAWING,previous);
-        }
+        Reflect.removeAdditionalInstanceField(p.thisObject,NATIVE_RADIUS);
+        Reflect.removeAdditionalInstanceField(p.thisObject,NATIVE_WEIGHT);
+        Reflect.removeAdditionalInstanceField(p.thisObject,DRAWING);
     }
     static void refresh() {
         ArrayList<Object> currentCopies=new ArrayList<>();

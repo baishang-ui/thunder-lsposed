@@ -7,6 +7,8 @@ public class ViewBlurProxy {
     public int applied,invalidatedPaths;
     public ViewBlurProxy(BlurConfig c){config=c;}
     public BlurConfig getBlurConfig(){return config;}
+    public float getBlurAmount(){return blurAmount;}
+    public android.graphics.drawable.Drawable getBlurDrawable(android.graphics.drawable.Drawable fallback){return fallback;}
     public static class BlurTypePlatformStatic {}
     public Object getBlurType(){return new BlurTypePlatformStatic();}
     public void invalidatePath(){invalidatedPaths++;}

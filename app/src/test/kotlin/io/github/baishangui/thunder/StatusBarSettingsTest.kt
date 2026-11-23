@@ -46,9 +46,4 @@ class StatusBarSettingsTest {
         root.getJSONObject("settings").remove("status_bar_left")
         assertThrows(IllegalArgumentException::class.java) { Settings.parse(root.toString()) }
     }
-    @Test fun nestedStatusPagesReturnToTheirOwnMenu() {
-        for (page in listOf(SettingsPage.StatusIcons))
-            assertEquals(SettingsPage.StatusBar, page.parent)
-        assertNull(SettingsPage.StatusBar.parent)
-    }
 }

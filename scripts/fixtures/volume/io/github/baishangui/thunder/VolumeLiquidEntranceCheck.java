@@ -14,7 +14,8 @@ import com.oplus.posteffect.drawable.MetaBallBlurDrawable;
 public final class VolumeLiquidEntranceCheck {
     static final String VIEW="com.oplus.systemui.volume.view.OplusVolumeDialogView#",
         HELPER="com.oplusos.systemui.common.blurability.platformblur.PlatformBlurHelper#",
-        DRAW="com.oplusos.systemui.common.blurability.platformblur.PlatformBlurDrawable#draw";
+        DRAW="com.oplusos.systemui.common.blurability.platformblur.PlatformBlurDrawable#draw",
+        ANIMATE="com.oplus.systemui.volume.utils.VolumeAnimUtil#startViewPropertyAnimation";
     static int checks,ended;
     static void check(boolean value,String message){if(!value)throw new AssertionError(message);checks++;}
     static HookCallback.Param before(String key,Object object,Object... args)throws Throwable {
@@ -28,7 +29,7 @@ public final class VolumeLiquidEntranceCheck {
         Bundle b=new Bundle();b.putBoolean("enabled",enabled);b.putBoolean("volume_liquid_entrance",liquid);CloudCheck.config(b);
     }
     static void scenario(boolean right)throws Throwable {
-        config(true,true);android.os.SystemClock.now=1000;
+        config(true,true);
         OplusVolumeDialogImpl owner=new OplusVolumeDialogImpl();
         ViewGroup root=owner.mOplusVolumeDialogView.mDialogView;root.actualWidth=1080;root.screenX=root.screenY=0;
         ViewGroup target=new ViewGroup();target.actualWidth=66;target.actualHeight=260;
@@ -38,10 +39,14 @@ public final class VolumeLiquidEntranceCheck {
         int beforeEnds=ended;
         HookCallback.Param enter=enter(owner,target,right?120:-120);
         check(target.getPivotX()==33&&target.getPivotY()==260,"entrance preserves native bar/button pivots and their vertical gap");
-        check(enter.args[1].equals(780L)&&!root.getClipChildren(),"entrance captures clipping and native duration");
-        HookCallback.Param utility=before("com.oplus.systemui.volume.utils.VolumeAnimUtil#startViewPropertyAnimation",null,
-                target,0L,620L,new Object(),0f,0f,1f,1f,null,null,null,13);
-        check(target.getScaleX()==1&&target.getScaleY()==1&&target.getAlpha()==1,"both lobes keep their full size while only the native connecting neck deforms");
+        long duration=(long)enter.args[1];
+        check(duration==520&&!root.getClipChildren(),"entrance captures clipping and the shorter native duration");
+        Object nativeInterpolator=new Object();
+        HookCallback.Param utility=before(ANIMATE,null,target,0L,duration,nativeInterpolator,0f,0f,1f,1f,null,null,null,13);
+        utility.setResult(target.animator);after(ANIMATE,utility);
+        check(target.getScaleX()==.66f&&target.getScaleY()==.48f&&target.getAlpha()==1,"bar starts as a narrower, shorter capsule");
+        check(utility.args[4].equals(target.getTranslationX())&&((int)utility.args[11]&4)==0&&utility.args[3]==nativeInterpolator,
+                "the host animator keeps its timing policy and delegates pose to its own frame callback");
         float screenEdge=root.screenX+(right?root.actualWidth:0);
         // This fixture stores child screen coordinates independently. Apply the parent's
         // translation delta to the child as Android's view transform would do.
@@ -49,12 +54,7 @@ public final class VolumeLiquidEntranceCheck {
         int firstBarX=bar.screenX;
         float restingX=bar.screenX-target.getTranslationX();
         float barInside=right?screenEdge-bar.screenX:bar.screenX+56-screenEdge;
-        check(Math.abs(barInside-56*.18f)<1f,"first animated frame already intersects the screen edge instead of traversing hidden space");
-        check(utility.args[3] instanceof com.coui.appcompat.animation.COUISpringInterpolator,"uses the native spring");
-        var spring=(com.coui.appcompat.animation.COUISpringInterpolator)utility.args[3];
-        check(spring.response==.82&&spring.bounce==.58,"preserve the requested fast native spring response");
-        check(spring.getInterpolation(200f/780f)>.9f&&spring.getInterpolation(200f/780f)<1f,"bar reaches its resting position around 200ms");
-        check(spring.getInterpolation(350f/780f)>1.25f&&spring.getInterpolation(1f)==1f,"preserve the original overshoot and exact final position");
+        check(Math.abs(barInside-56*.22f)<1f,"first animated frame already intersects the screen edge instead of traversing hidden space");
         after(VIEW+"doShowOrHideAnimate",enter);
         PlatformBlurHelper helper=new PlatformBlurHelper(bar);
         Reflect.setAdditionalInstanceField(helper.blurConfig,"thunder.role","volume-bar");
@@ -86,7 +86,8 @@ public final class VolumeLiquidEntranceCheck {
         bar.screenX=firstBarX;
         Canvas tetherCanvas=new Canvas();
         before(DRAW,helper.blurDrawable,tetherCanvas);
-        check(!tetherCanvas.translations.isEmpty()&&Math.abs(tetherCanvas.translations.get(0)[0]-backend.balls.get(0).posX)<.01f,"reciprocal shader is drawn at its own main ball center, not the bar center");
+        check(!tetherCanvas.translations.isEmpty()&&Math.abs(tetherCanvas.translations.get(0)[0]-backend.balls.get(0).posX)<.01f
+                &&Math.abs(tetherCanvas.translations.get(0)[1]-backend.balls.get(0).posY)<.01f,"reciprocal shader is drawn at its own main ball center, not the bar center");
         check(tetherCanvas.depth==0,"peer canvas transform is restored before the native bar draw");
         check(backend.range>0&&backend.balls.size()==1,"bar adds the real edge metaball");
         PlatformBlurHelper progressHelper=new PlatformBlurHelper(bar);
@@ -100,42 +101,49 @@ public final class VolumeLiquidEntranceCheck {
         check(Math.abs(edge.posX+28-(physicalEdge+(right?1:-1)*(edge.width/2-exposed)))<1,"anchor remains off-screen; only the native deformation enters the display");
         check(Math.abs(edge.corner-Math.min(edge.width,edge.height)/2)<.01f,"edge lobe has its own fully rounded silhouette instead of the bar corner on a wide rectangle");
         float initialHeight=edge.height;
-        check(initialHeight>=56*2&&initialHeight<=56*2.5f,"edge anchor is a compact droplet sized from bar width, not a full-height second bar");
+        check(initialHeight>=56*2&&initialHeight<=56*2.05f&&edge.posY==0,"edge contact is centered on the compact bar");
+        View accessory=owner.mOplusVolumeDialogView.mVerticalRowIconParent;
+        accessory.setTranslationX(right?120:-120);
+        HookCallback.Param accessoryEnter=enter(owner,accessory,right?120:-120);
+        HookCallback.Param buttons=before(ANIMATE,null,accessory,0L,duration,nativeInterpolator,0f,0f,1f,1f,null,null,null,13);
+        buttons.setResult(accessory.animator);after(ANIMATE,buttons);
+        after(VIEW+"doShowOrHideAnimate",accessoryEnter);
+        check(accessory.getScaleX()==.66f&&accessory.getScaleY()==.66f&&accessory.getTranslationX()==target.getTranslationX(),
+                "native buttons start smaller and share the bar's edge correction");
         float origin=target.getTranslationX();
-        android.os.SystemClock.now=1200;
-        target.setTranslationX(origin*(1-spring.getInterpolation(200f/780f)));
+        target.animator.frame(Math.round(.20f*duration),duration);
+        accessory.animator.frame(Math.round(.20f*duration),duration);
+        check(Math.abs(target.getTranslationX()/origin-.655f)<.01f&&target.getScaleY()<.60f&&accessory.getTranslationX()==target.getTranslationX(),
+                "the bar and buttons pull together while the bar remains visibly short");
         bar.screenX=Math.round(restingX+target.getTranslationX());
         before(DRAW,helper.blurDrawable,new Canvas());
-        check(!backend.balls.isEmpty()&&edge.height==initialHeight,"fast native motion still has an intact liquid attachment on reaching the resting position");
-        target.setTranslationX(0);bar.screenX=Math.round(restingX+target.getTranslationX());
+        check(!backend.balls.isEmpty()&&edge.height==initialHeight&&edge.posY==0,"liquid connection stays centered before release");
+        target.animator.frame(Math.round(.39f*duration),duration);bar.screenX=Math.round(restingX+target.getTranslationX());
+        check(Math.abs(target.getTranslationX()/origin-.25f)<.015f,"the initial pull flows straight into release without a held middle phase");
         before(DRAW,helper.blurDrawable,new Canvas());
-        check(edge.height==initialHeight&&peerSize(backend)==initialHeight,"withdrawal cannot shrink either end lobe");
-        float geometryGap=Math.abs(edge.posX)-(56+edge.width)/2f;
-        float nativeOverlap=nativeOverlap(edge,56);
-        check(nativeOverlap>8&&nativeOverlap<50,"native bridge remains substantial at the resting position");
+        check(edge.height==initialHeight&&peerSize(backend)==edge.height,"both materials agree on the centered contact");
+        check(nativeInfluence(edge,56)>.99f,"native pair stays in range while entering release");
         float fixedStrength=edge.blendShape;
         int range=backend.range;
         int submissions=backend.submissions;
         int rangeChanges=backend.rangeChanges;
         MetaBallBlurDrawable peer=backend.lastCopy;
         float restingNeck=edge.shapeRangeFactorX;
-        check(restingNeck>=1.5f,"native deformation stays broad instead of being squeezed into a thin needle");
+        check(restingNeck<1.2f&&restingNeck>.80f,"the centered contact narrows while the native pair stays attached");
         int peerBounds=peer.boundsChanges,peerSubmissions=peer.submissions;
-        android.os.SystemClock.now=1200;
         before(DRAW,helper.blurDrawable,new Canvas());
         check(right?edge.posX>0:edge.posX<0,"anchor mirrors with physical volume-key side");
         check(backend.range==range&&backend.rangeChanges==rangeChanges,"moving tether keeps capture bounds stable");
         check(backend.submissions==submissions+1,"all source ball changes submit to the native shader once per frame");
         check(peer.boundsChanges==peerBounds&&peer.submissions==peerSubmissions+1,"edge material also keeps capture bounds stable and submits once");
-        check(edge.height==initialHeight&&edge.blendShape==fixedStrength,"redrawing the same frame keeps the native reach stable");
+        check(edge.height==peerSize(backend)&&edge.blendShape==fixedStrength,"redrawing the same frame keeps the native reach stable");
         int invalidated=bar.invalidations;bar.observer.dispatchOnPreDraw();
         check(bar.invalidations>invalidated,"pre-draw rerecords material during render-node movement");
         var initialUniforms=uniforms(backend);
         check(initialUniforms.preCmpArray12[11]==40&&initialUniforms.preCmpArray12[14]==40,"both native protrusions start fully deformed");
         float previousDisplacement=40;
         for(float phase:new float[]{.15f,.3f,.5f,.7f,.85f,1f}) {
-            android.os.SystemClock.now=1200+Math.round(220*android.animation.ValueAnimator.getDurationScale()*phase);
-            target.setTranslationX(origin*(1-spring.getInterpolation((200+220*phase)/780f)));
+            target.animator.frame(Math.round((.39f+.32f*phase)*duration),duration);
             bar.screenX=Math.round(restingX+target.getTranslationX());
             before(DRAW,helper.blurDrawable,new Canvas());
             var barUniforms=uniforms(backend);
@@ -143,11 +151,11 @@ public final class VolumeLiquidEntranceCheck {
             float displacement=barUniforms.preCmpArray12[11];
             check(!peer.removed&&!backend.balls.isEmpty(),"material survives until the bar-side protrusion fully retracts");
             check(displacement<previousDisplacement&&displacement>=0,"actual bar-side shader displacement decreases over multiple frames");
-            check(displacement==edgeUniforms.preCmpArray12[11]&&displacement==barUniforms.preCmpArray12[14],"both reciprocal shaders retract the same contour");
-            check(edge.height==initialHeight&&target.getScaleX()==1&&target.getScaleY()==1,"retraction does not scale either body or add a separate visible droplet");
-            check(edge.shapeRangeFactorX==restingNeck&&nativeInfluence(edge,56)>.99f,"native support stays alive instead of crossing its abrupt distance cutoff");
+            check(displacement==edgeUniforms.preCmpArray12[11]&&displacement==barUniforms.preCmpArray12[14],"both reciprocal shaders detach the same centered contour");
+            check(edge.height==peerSize(backend)&&edge.posY==0,"release cannot pull the connection toward either end of the bar");
+            check(edge.shapeRangeFactorX<=restingNeck&&nativeInfluence(edge,56)>.99f,"native support stays alive while the neck narrows");
             check(barUniforms.preCmpArray12[9]==7&&barUniforms.preCmpArray12[10]==7&&barUniforms.ball1Array[3]==120,"uniform hook preserves support dimensions and bar geometry");
-            check(Math.abs(barUniforms.preCmpArray12[17]-12*displacement/40)<.001f,"smooth union fades with displacement, leaving no residual bridge");
+            check(Math.abs(barUniforms.preCmpArray12[17]-12*barUniforms.preCmpArray12[14]/40)<.001f,"smooth union follows the retreating edge contact");
             previousDisplacement=displacement;
         }
         check(previousDisplacement==0,"render an undeformed bar before removing the pair");
@@ -159,16 +167,20 @@ public final class VolumeLiquidEntranceCheck {
         check(backend.getEnableShader(),"separation retains the same native material path to prevent a color jump");
         before("com.oplus.systemui.volume.utils.material.OplusVolumeBackgroundWrapper#draw",wrapper,new Canvas());
         check(contentDraws[0]==2,"bar geometry stays consistent after separation until the spring settles");
-        // An overshoot must not attach the tether again.
-        target.setTranslationX(right?-3:3);before(DRAW,helper.blurDrawable,new Canvas());
-        check(backend.balls.isEmpty(),"spring overshoot cannot reattach to the edge");
-        target.setScaleX(1);target.setScaleY(1);target.setTranslationX(0);
+        target.animator.frame(Math.round(.85f*duration),duration);before(DRAW,helper.blurDrawable,new Canvas());
+        check(backend.balls.isEmpty()&&target.getTranslationX()/origin>=0&&target.getTranslationX()/origin<.01f,
+                "the bar settles without overshooting or reattaching to the edge");
+        target.animator.frame(duration,duration);accessory.animator.frame(duration,duration);
+        check(target.getScaleX()==1&&target.getScaleY()==1&&target.getTranslationX()==0&&accessory.getScaleX()==1&&accessory.getScaleY()==1,
+                "native frame completion settles the bar and buttons at the fully configured size");
         ((Runnable)enter.args[7]).run();
-        check(backend.getEnableShader(),"spring completion cannot switch the settled bar's color pipeline");
+        ((Runnable)accessoryEnter.args[7]).run();
+        check(backend.getEnableShader()&&target.animator.update==null&&accessory.animator.update==null,
+                "completion leaves the settled material active and removes the entrance frame listeners");
         config(true,false);VolumeLiquidEntrance.refresh();
         check(!backend.getEnableShader()&&backend.range==0,"disabling liquid entrance restores the original material path and capture range");
         config(true,true);
-        check(ended==beforeEnds+1,"native end action executes exactly once");
+        check(ended==beforeEnds+2,"both native end actions execute exactly once");
         check(root.getClipChildren()&&root.getClipToPadding()&&target.attachListeners.isEmpty(),"completion restores ancestor clipping and listeners");
         check(target.getPivotX()==33&&target.getPivotY()==260,"completion restores native pivot");
     }
@@ -185,11 +197,6 @@ public final class VolumeLiquidEntranceCheck {
     static float nativeInfluence(MetaBallBlurDrawable.MetaBall ball,float width){
         float gap=Math.abs(ball.posX)-(width+ball.width)/2;
         return smooth((ball.blendShape*2+5-Math.max(gap,0))/5);
-    }
-    static float nativeOverlap(MetaBallBlurDrawable.MetaBall ball,float width){
-        float gap=Math.abs(ball.posX)-(width+ball.width)/2,total=ball.blendShape*2;
-        float influence=nativeInfluence(ball,width);
-        return total*smooth((width/2+gap)/(width/2+total))*influence-gap;
     }
     static float peerSize(MetaBallBlurDrawable backend){return backend.lastCopy.mainBall.height;}
     static void anchorProportions() throws Throwable {
@@ -263,7 +270,9 @@ public final class VolumeLiquidEntranceCheck {
         }
         config(true,true);VolumeAnimUtil.complex=true;owner.mExpanded=false;
         p=enter(owner,one,120);after(VIEW+"doShowOrHideAnimate",p);VolumeLiquidEntrance.refresh();
-        check(root.getClipChildren()&&first.observer.listeners.isEmpty(),"live setting changes clean up existing effect");
+        check(!root.getClipChildren(),"unrelated live setting changes preserve an in-flight entrance");
+        ((Runnable)p.args[7]).run();
+        check(root.getClipChildren()&&first.observer.listeners.isEmpty(),"preserved entrance releases its clip lease at completion");
         View accessory=owner.mOplusVolumeDialogView.mVerticalRowIconParent;
         accessory.setPivotX(31);accessory.setPivotY(0);
         p=enter(owner,accessory,120);after(VIEW+"doShowOrHideAnimate",p);

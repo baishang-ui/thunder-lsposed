@@ -9,7 +9,7 @@ public final class CloudDismissalCheck extends CloudMorphCheck {
     static void nativeRemove(Window window)throws Throwable {
         var callback=hook("card.window.i#e");
         var call=CloudCheck.param(window,"native");callback.before(call);
-        if(call.getResult()!=null)window.e();
+        if(call.getResult()!=null)window.e();callback.after(call);
     }
     static Scene cardScene() {
         Scene scene=new Scene();

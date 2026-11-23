@@ -53,8 +53,15 @@ final class VolumeHook {
             @Override protected void beforeHookedMethod(Param p) { VolumeLiquidEntrance.finishDialog(p.thisObject);restorePanel(p.thisObject);unwatchDialog(p.thisObject); }
             @Override protected void afterHookedMethod(Param p) { if(!p.hasThrowable())updateDialog(p.thisObject); }
         });
-        hook(loader,BASE+"view.OplusVolumeDialogView",new String[]{"updateRowsH","showSliderVolume","updateState","adaptThemeDrawable"},new HookCallback() {
+        hook(loader,BASE+"view.OplusVolumeDialogView",new String[]{"updateRowsH","showSliderVolume","updateState","adaptThemeDrawable","updateAppVolumeAdjust"},new HookCallback() {
             @Override protected void afterHookedMethod(Param p) { if(!p.hasThrowable())updateDialog(p.thisObject); }
+        });
+        hook(loader,BASE+"utils.VolumeLayoutUtil",new String[]{"prepareSideVolumeProgressOverflow","prepareSideVolumeProgressOverflow$applyLayout"},new HookCallback() {
+            @Override protected void afterHookedMethod(Param p) {
+                if(p.hasThrowable())return;
+                HookConfig c=ShadeHook.snapshot();
+                if(c.enabled&&c.volumeSize)followSideContainer((View)p.args[p.args.length==2?0:3]);
+            }
         });
         hook(loader,BASE+"view.OplusVolumeDialogView",new String[]{"getIconHalfDelta"},new HookCallback() {
             @Override protected void afterHookedMethod(Param p) {
@@ -68,10 +75,9 @@ final class VolumeHook {
         // PanelTransitionSession, spring interpolators and interruption handoff remain native.
         hook(loader,BASE+"view.OplusVolumeDialogView",new String[]{"expandPanel"},new HookCallback() {
             @Override protected void beforeHookedMethod(Param p) {
-                VolumeLiquidEntrance.finishDialog(p.thisObject);
                 if(panels.containsKey(p.thisObject))return;
-                HookConfig c=ShadeHook.snapshot();if(!c.enabled||!c.volumeCompact)return;
-                try { preparePanel(p.thisObject); }
+                HookConfig c=ShadeHook.snapshot();
+                try { if(c.enabled&&c.volumeCompact)preparePanel(p.thisObject); }
                 catch(Throwable error) {
                     ShadeHook.frameworkFailure("volume-native-panel",error);
                     java.io.StringWriter trace=new java.io.StringWriter();
@@ -79,9 +85,14 @@ final class VolumeHook {
                     Api102Runtime.log("Thunder: volume-native-panel initialization\n"+trace);
                     restorePanel(p.thisObject);
                 }
+                var poses=VolumeLiquidEntrance.takeDialogPoses(p.thisObject);
+                if(poses!=null)p.setObjectExtra("volume.expansion-poses",poses);
             }
+            @SuppressWarnings("unchecked")
             @Override protected void afterHookedMethod(Param p) {
-                Compact panel=panels.get(p.thisObject);if(panel!=null)panel.hideAccessories();
+                Compact panel=panels.get(p.thisObject);
+                if(panel!=null) {panel.hideAccessories();panel.applyEntrancePose(0f);}
+                else if(!p.hasThrowable())VolumeLiquidEntrance.settleExpand((ArrayList<VolumeLiquidEntrance.Pose>)p.getObjectExtra("volume.expansion-poses"));
             }
         });
         hook(loader,BASE+"anim.PanelExpandPreludeAnimator",new String[]{"start","collapseForPanelDismiss"},new HookCallback() {
@@ -101,7 +112,6 @@ final class VolumeHook {
         });
         hook(loader,BASE+"view.OplusVolumeDialogView",new String[]{"showOrHideAnimation"},new HookCallback() {
             @Override protected void beforeHookedMethod(Param p) {
-                VolumeLiquidEntrance.finishDialog(p.thisObject);
                 Compact panel=panels.get(p.thisObject);
                 if(panel!=null) {panel.dismissing=!Boolean.TRUE.equals(p.args[1]);panel.dismissOpacity=1f;}
             }
@@ -133,7 +143,7 @@ final class VolumeHook {
             @Override protected void beforeHookedMethod(Param p) {
                 // Keep vendor springs, staggering and completion listeners; only stage new rows
                 // after the original bar/button pair has begun its horizontal movement.
-                if(Boolean.TRUE.equals(delayedEntrance.get()))p.args[0]=((Number)p.args[0]).longValue()+99L;
+                if(Boolean.TRUE.equals(delayedEntrance.get()))p.args[0]=((Number)p.args[0]).longValue()+48L;
             }
         });
         hook(loader,BASE+"VolumeListAdapter",new String[]{"switchToDataSourcePanel"},new HookCallback() {
@@ -212,7 +222,10 @@ final class VolumeHook {
         // Keep compact geometry until native terminal hide, including interrupted collapse.
         hook(loader,BASE+"view.OplusVolumeDialogView",new String[]{"resetSliderState"},new HookCallback() {
             @Override protected void beforeHookedMethod(Param p) {VolumeLiquidEntrance.finishDialog(p.thisObject);}
-            @Override protected void afterHookedMethod(Param p) { restorePanel(p.thisObject);updateDialog(p.thisObject); }
+            @Override protected void afterHookedMethod(Param p) {
+                boolean wasCompact=panels.containsKey(p.thisObject);
+                restorePanel(p.thisObject);updateDialog(p.thisObject,wasCompact);
+            }
         });
         for(String lifecycle:new String[]{"destroy","onConfigChanged","onThemeChanged","onUiModeChanged"})hook(loader,BASE+"OplusVolumeDialogImpl",new String[]{lifecycle},new HookCallback() {
             @Override protected void beforeHookedMethod(Param p) {
@@ -298,6 +311,39 @@ final class VolumeHook {
             @Override protected void afterHookedMethod(Param p) {ShadeHook.restoreNativeConfig(p);}
         });
         }
+        hook(loader,"com.oplusos.systemui.common.blurability.ViewBlurProxy",new String[]{"getBlurDrawable"},new HookCallback() {
+            @Override protected void afterHookedMethod(Param p) {
+                if(p.hasThrowable()||p.getResult()!=p.args[0])return;
+                HookConfig c=ShadeHook.snapshot();if(!c.enabled)return;
+                Object blur=Reflect.callMethod(p.thisObject,"getBlurConfig");
+                Object role=Reflect.getAdditionalInstanceField(blur,"thunder.role");
+                HookConfig.Area area="volume-panel".equals(role)?c.volumePanel:
+                    "volume-bar".equals(role)||"volume-buttons".equals(role)?c.volumeBar:null;
+                if(area==null||!area.tint)return;
+                GradientDrawable fill=(GradientDrawable)Reflect.getAdditionalInstanceField(blur,"volume.placeholder");
+                Float radius=cornerRadius(blur,area);
+                if(radius==null)radius=((Number)Reflect.getObjectField(blur,"cornerRadius")).floatValue();
+                if(fill==null) {
+                    fill=(GradientDrawable)Reflect.newInstance(panelFillType);
+                    Reflect.setAdditionalInstanceField(blur,"volume.placeholder",fill);
+                }
+                Reflect.callMethod(fill,"setSmoothRound",radius,PANEL_SMOOTH_WEIGHT);
+                fill.setColor(area.color);
+                if("volume-panel".equals(role)) {
+                    float amount=((Number)Reflect.callMethod(p.thisObject,"getBlurAmount")).floatValue();
+                    fill.setAlpha(Math.round(255*VolumePanelGeometry.clamp(amount)));
+                }
+                p.setResult(fill);
+            }
+        });
+        hook(loader,"com.oplusos.systemui.common.blurability.platformblur.PlatformBlurDrawable",new String[]{"changeBlurColor"},new HookCallback() {
+            @Override protected void afterHookedMethod(Param p) {
+                if(!Boolean.TRUE.equals(p.getResult())||!ShadeHook.isVolumeMix(p.args[0]))return;
+                Object backend=Reflect.callMethod(p.thisObject,"getBlurDrawable");
+                Object color=Reflect.callMethod(p.args[0],"getPlaceHolderColor");
+                if(!color.equals(Reflect.callMethod(backend,"getPlaceHolderColor")))Reflect.callMethod(backend,"setPlaceHolderColor",color);
+            }
+        });
         hook(loader,MATERIAL+"VolumeBlurConfigWriter",new String[]{"writeSideAccessoryPlatform"},new HookCallback() {
             @Override protected void beforeHookedMethod(Param p) {
                 if(p.args.length==5&&Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(p.args[4],"volume.shortcut"))) {
@@ -310,6 +356,8 @@ final class VolumeHook {
         bind("material-animation-deopt",()->Api102Runtime.deoptimizeCallers(Reflect.findClass(MATERIAL+"VolumeBlurManager",loader),
                 "applyVolumeBarPanelBottomAmount","applyVolumeBarProgressMixColors","applySettingsButtonMixColors",
                 "applyPlatformBlurMixAfterConfigWrite","syncVolumeBarPlatformLightBounds","syncVolumeBarProgressCorner"));
+        bind("material-fallback-deopt",()->Api102Runtime.deoptimizeCallers(Reflect.findClass(
+            "com.oplusos.systemui.common.blurability.drawable.AutoBlurDrawable",loader),"draw"));
         // These small native getters are called by ART-compiled animation code.
         bind("button-animation-deopt",()->Api102Runtime.deoptimizeCallers(Reflect.findClass(BASE+"view.OplusVolumeDialogView",loader),"startBtnThickAnim","expandPanel","showOrHideAnimation"));
         bind("animation-deopt",()->Api102Runtime.deoptimizeCallers(Reflect.findClass(BASE+"anim.VolumeItemAnimator",loader),"animateAddImpl","animateMoveImpl","runPendingAnimations"));
@@ -380,7 +428,7 @@ final class VolumeHook {
         for(Compact panel:new ArrayList<>(panels.values()))if(host!=null&&panel.root.get()==host)return true;
         return false;
     }
-    private static void panelClip(Path path,Rect bounds,float radius) {
+    static void panelClip(Path path,Rect bounds,float radius) {
         try {panelClipBuilder.invoke(null,path,bounds,radius,PANEL_SMOOTH_WEIGHT,true);}
         catch(ReflectiveOperationException error) {throw new IllegalStateException("Native panel smooth path",error);}
     }
@@ -397,7 +445,7 @@ final class VolumeHook {
         ViewGroup.LayoutParams lp=v.getLayoutParams();if(lp==null)return;
         if(custom)layouts.putIfAbsent(v,new int[]{lp.width,lp.height});
         int[] original=layouts.get(v);if(original==null)return;
-        int w=custom?(x?width:lp.width):original[0],h=custom?(y?height:lp.height):original[1];
+        int w=x?(custom?width:original[0]):lp.width,h=y?(custom?height:original[1]):lp.height;
         if(lp.width!=w||lp.height!=h){lp.width=w;lp.height=h;v.setLayoutParams(lp);}
         if(!custom)layouts.remove(v);
     }
@@ -467,25 +515,65 @@ final class VolumeHook {
         View root=(View)Reflect.getObjectField(row,"view");if(root!=null)size(root,active==null?dp(bar,c.volumeWidth+10):active.rowWidth,0,active!=null||(c.enabled&&c.volumeSize),true,false);
         bar.invalidate();bar.invalidateOutline();
     }
-    private static void updateDialog(Object dialog) {
+    private static void followSideContainer(View row) {
+        if(row==null||!(row.getParent() instanceof FrameLayout)||containing(row)!=null
+                ||!(row.getLayoutParams() instanceof FrameLayout.LayoutParams lp)||lp.topMargin>=0)return;
+        Reflect.setAdditionalInstanceField(row,"volume.adaptiveLength",true);
+        if(lp.height!=ViewGroup.LayoutParams.MATCH_PARENT) {
+            lp.height=ViewGroup.LayoutParams.MATCH_PARENT;row.setLayoutParams(lp);
+        }
+    }
+    private static Integer nativeHeightOverhead(View recycler,Iterable<?> rows) {
+        Object cached=Reflect.getAdditionalInstanceField(recycler,"volume.heightOverhead");
+        if(cached instanceof Integer)return (Integer)cached;
+        int overhead=0;
+        for(String name:new String[]{"volume_row_text_height","oplus_volume_elevation_padding_top","oplus_volume_elevation_padding_bottom"}) {
+            int id=recycler.getResources().getIdentifier(name,"dimen","com.android.systemui");
+            if(id==0){overhead=-1;break;}
+            overhead+=recycler.getResources().getDimensionPixelSize(id);
+        }
+        if(overhead<0) {
+            int original=recycler.getLayoutParams().height;
+            if(original<=0)return null;
+            for(Object row:rows) {
+                View bar=view(row,"slider");
+                if(bar!=null&&bar.getHeight()>0&&bar.getHeight()<=original){overhead=original-bar.getHeight();break;}
+            }
+        }
+        if(overhead<0)return null;
+        Reflect.setAdditionalInstanceField(recycler,"volume.heightOverhead",overhead);
+        return overhead;
+    }
+    private static void styleSidebar(View recycler,Iterable<?> rows,HookConfig c) {
+        if(recycler==null||recycler.getLayoutParams()==null)return;
+        boolean custom=c.enabled&&c.volumeSize;
+        if(custom) {
+            Integer overhead=nativeHeightOverhead(recycler,rows);
+            if(overhead!=null)size(recycler,0,dp(recycler,c.volumeHeight)+overhead,true,false,true);
+        } else size(recycler,0,0,false,false,true);
+        for(Object row:rows) {
+            if(row==null)continue;
+            View root=view(row,"view");
+            if(root==null||!(root.getParent() instanceof FrameLayout host)
+                    ||!(host.getParent() instanceof View item)||item.getParent()!=recycler)continue;
+            if(custom)followSideContainer(root);
+            else if(Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(root,"volume.adaptiveLength"))
+                    &&root.getLayoutParams() instanceof FrameLayout.LayoutParams lp) {
+                if(lp.topMargin<0&&lp.height==ViewGroup.LayoutParams.MATCH_PARENT) {
+                    if(host.getHeight()<=0||recycler.getHeight()!=recycler.getLayoutParams().height)continue;
+                    lp.height=host.getHeight()-lp.topMargin;root.setLayoutParams(lp);
+                }
+                Reflect.removeAdditionalInstanceField(root,"volume.adaptiveLength");
+            }
+        }
+    }
+    private static void updateDialog(Object dialog) {updateDialog(dialog,false);}
+    private static void updateDialog(Object dialog,boolean returningFromCompact) {
         watchDialog(dialog);
         dialogs.put(dialog,true);Compact panel=panels.get(dialog);HookConfig c=panel==null?ShadeHook.snapshot():panel.config;Object owner=Reflect.getObjectField(dialog,"volumeInteractor");
-        for(Object row:(Iterable<?>)Reflect.getObjectField(owner,"mRows"))styleRow(row,c);
-        View recycler=view(dialog,"mVolumeRecyclerview");
-        if(recycler!=null&&panel==null) {
-            boolean custom=c.enabled&&c.volumeSize;
-            int[] saved=layouts.get(recycler);int original=saved==null?recycler.getLayoutParams().height:saved[1];
-            // Preserve the native label, inset and reveal overhead instead of guessing +24 dp.
-            int nativeBarHeight=0;
-            for(Object row:(Iterable<?>)Reflect.getObjectField(owner,"mRows")) {
-                View bar=(View)Reflect.getObjectField(row,"slider");if(bar!=null&&bar.getHeight()>0){nativeBarHeight=bar.getHeight();break;}
-            }
-            Object overhead=Reflect.getAdditionalInstanceField(recycler,"volume.heightOverhead");
-            if(custom&&overhead==null&&nativeBarHeight>0&&original>0) {
-                overhead=Math.max(0,original-nativeBarHeight);Reflect.setAdditionalInstanceField(recycler,"volume.heightOverhead",overhead);
-            }
-            if(overhead!=null)size(recycler,0,dp(recycler,c.volumeHeight)+(Integer)overhead,custom,false,true);
-        }
+        Iterable<?> rows=(Iterable<?>)Reflect.getObjectField(owner,"mRows");
+        for(Object row:rows)styleRow(row,c);
+        if(panel==null&&(returningFromCompact||!Reflect.getBooleanField(owner,"mExpanded")))styleSidebar(view(dialog,"mVolumeRecyclerview"),rows,c);
         styleButtons(dialog,c,panel);
         if(panel!=null) {panel.arrange(Reflect.getObjectField(dialog,"volumeListAdapter"));panel.mount();}
     }
@@ -509,7 +597,7 @@ final class VolumeHook {
         View item=rowView;
         while(item!=null&&item.getParent() instanceof View&&item.getParent()!=recycler)item=(View)item.getParent();
         if(item==null||item.getParent()!=recycler)return;
-        Compact panel=new Compact(dialog,root,recycler,item,bar);panels.put(dialog,panel);
+        Compact panel=new Compact(dialog,root,recycler,item,bar,VolumeLiquidEntrance.takeBarPose(bar));panels.put(dialog,panel);
         panel.arrange(Reflect.getObjectField(dialog,"volumeListAdapter"));panel.watch();
         ShadeHook.observed("volume-compact","native item/accessory/background animators; anchored geometry");
     }
@@ -594,6 +682,7 @@ final class VolumeHook {
         final Map<View,float[]> sourceAccessories=new LinkedHashMap<>();
         WeakReference<View> driver;
         final float startBarWidth,startBarRadius;
+        final VolumeLiquidEntrance.Pose entrancePose;
         float targetX,targetY,backgroundProgress=Float.NaN,lastProgress=-1;
         ViewTreeObserver observer;
         final ViewTreeObserver.OnPreDrawListener frame=()->{tick();return true;};
@@ -640,7 +729,8 @@ final class VolumeHook {
         int shortcutStep;
         int shownRinger=-1,shownZen=-1,lastZen=1;
         boolean hasVibrator,alertSlider;
-        Compact(Object d,View r,View list,View item,View bar) {
+        Compact(Object d,View r,View list,View item,View bar,VolumeLiquidEntrance.Pose entrancePose) {
+            this.entrancePose=entrancePose;
             anchorItem=new WeakReference<>(item);
             sourceBar=new WeakReference<>(bar);sourceBarX=location(bar)[0];sourceBarY=location(bar)[1];
             startBarWidth=((Number)Reflect.getObjectField(bar,"mBackgroundWidth")).floatValue();
@@ -1044,8 +1134,20 @@ final class VolumeHook {
             return visualBounds(progress());
         }
         VolumePanelGeometry.Bounds visualBounds(float progress) {
-            VolumePanelGeometry.Bounds b=VolumePanelGeometry.widthAt(bounds,Math.round(startBarWidth)+2*inset,progress);
-            return new VolumePanelGeometry.Bounds(b.x()-Math.round(panelShiftX*(1f-progress)),b.y(),b.width(),b.height(),b.opensLeft());
+            float width=entrancePose==null?startBarWidth:startBarWidth*entrancePose.scaleX();
+            VolumePanelGeometry.Bounds b=VolumePanelGeometry.widthAt(bounds,Math.round(width)+2*inset,progress);
+            int height=b.height();
+            if(entrancePose!=null)height=Math.round(VolumePanelGeometry.mix(
+                (height-3*inset)*entrancePose.scaleY()+3*inset,height,progress));
+            float offset=entrancePose==null||entrancePose.target()==anchorItem.get()?0f:entrancePose.x();
+            return new VolumePanelGeometry.Bounds(b.x()+Math.round((offset-panelShiftX)*(1f-progress)),b.y(),b.width(),height,b.opensLeft());
+        }
+        void applyEntrancePose(float progress) {
+            if(entrancePose==null||!entrancePose.target().isAttachedToWindow())return;
+            View target=entrancePose.target();
+            target.setScaleX(VolumePanelGeometry.mix(entrancePose.scaleX(),1f,progress));
+            target.setScaleY(VolumePanelGeometry.mix(entrancePose.scaleY(),1f,progress));
+            if(target!=anchorItem.get())target.setTranslationX(entrancePose.x()*(1f-progress));
         }
         void applyShortcutMaterial(float progress,boolean force) {
             float phase=VolumePanelGeometry.clamp(progress);
@@ -1062,8 +1164,10 @@ final class VolumeHook {
         void watch() {View r=root.get();if(r!=null){observer=r.getViewTreeObserver();observer.addOnPreDrawListener(frame);}}
         void tick() {
             hideAccessories();
+            float progress=progress();
+            applyEntrancePose(progress);
             alignRows();
-            float progress=progress();updateShortcutState(progress);
+            updateShortcutState(progress);
             if(shortcuts!=null) {
                 // Trigger a native spring once movement is under way, rather than
                 // compressing the entire shape change into the eased row's last frames.
@@ -1075,14 +1179,13 @@ final class VolumeHook {
                     Reflect.callMethod(morphSpring,"animateToFinalPosition",expanded?1f:0f);
                 }
                 float reveal=VolumePanelGeometry.clamp(shortcuts.getAlpha());
-                shortcuts.setClipBounds(null);
                 int side=barWidth(),fullWidth=2*shortcutStep+side;
                 int width=Math.round(VolumePanelGeometry.mix(side,fullWidth,reveal));
                 ViewGroup.LayoutParams soundLp=soundSegments.getLayoutParams();
                 if(soundLp.width!=width){soundLp.width=width;soundSegments.setLayoutParams(soundLp);}
                 // Native icons keep their real size. Fade their frames in only after
                 // the host has room, rather than overlapping three icons in one circle.
-                float content=VolumePanelGeometry.clamp((reveal-.25f)/.5f);
+                float content=VolumePanelGeometry.smooth((reveal-.25f)/.5f);
                 for(View button:soundButtons)button.setAlpha(content);
                 ((View)Reflect.getObjectField(soundSegments,"indicatorView")).setAlpha(content);
                 // Resize the actual native material host: a circle opens into a capsule,
@@ -1157,6 +1260,7 @@ final class VolumeHook {
         }
         void restore() {
             View r=root.get(),list=recycler.get();
+            applyEntrancePose(1f);
             if(shortcuts!=null) {
                 if(morphSpring!=null)Reflect.callMethod(morphSpring,"cancel");
                 cancelShortcutMotion();
@@ -1190,16 +1294,23 @@ final class VolumeHook {
     /** Child drawable identity stays native: the native blur/alpha animator still drives it. */
     private static final class NativePanelSurface extends DrawableWrapper {
         final Compact panel;final Path clip=new Path();
+        int left,top,right,bottom;
+        float clipRadius=Float.NaN;
         NativePanelSurface(Drawable original,Compact p){super(original);panel=p;}
+        @Override protected void onBoundsChange(Rect bounds) { }
         @Override public void draw(Canvas canvas) {
             View root=panel.root.get();if(root==null||panel.bounds==null)return;
-            int[] origin=location(root);VolumePanelGeometry.Bounds b=panel.visualBounds();
-            int x=b.x()-origin[0],y=b.y()-origin[1];
+            VolumePanelGeometry.Bounds b=panel.visualBounds();
+            int x=b.x()-panel.screenX(root),y=b.y()-panel.screenY(root);
             HookConfig c=panel.config;float corner=dp(root,c.enabled&&c.volumePanel.cornerEnabled?c.volumePanel.corner:28);
             corner=Math.min(corner,Math.min(b.width(),b.height())/2f);
             // Set actual backend bounds; canvas clipping alone leaves hardware blur fullscreen.
-            getDrawable().setBounds(x,y,x+b.width(),y+b.height());
-            panelClip(clip,getDrawable().getBounds(),corner);
+            int endX=x+b.width(),endY=y+b.height();
+            getDrawable().setBounds(x,y,endX,endY);
+            if(x!=left||y!=top||endX!=right||endY!=bottom||corner!=clipRadius) {
+                panelClip(clip,getDrawable().getBounds(),corner);
+                left=x;top=y;right=endX;bottom=endY;clipRadius=corner;
+            }
             int save=canvas.save();try {canvas.clipPath(clip);getDrawable().draw(canvas);}finally {canvas.restoreToCount(save);}
         }
         @Override public void getOutline(Outline outline) {outline.setEmpty();}
@@ -1207,6 +1318,8 @@ final class VolumeHook {
     /** Dynamic fallback retains the native drawable so disabling a setting restores it immediately. */
     private static final class FlatSurface extends DrawableWrapper {
         final Context context;final String role;final WeakReference<View> host;final Path clip=new Path();final GradientDrawable fill;
+        float fillRadius=Float.NaN;
+        int fillColor;
         FlatSurface(Drawable nativeDrawable,Context ctx,String r,View v){super(nativeDrawable);context=ctx;role=r;host=new WeakReference<>(v);
             fill=r.equals("volume-panel")?(GradientDrawable)Reflect.newInstance(panelFillType):new GradientDrawable();}
         HookConfig.Area area() {
@@ -1242,10 +1355,14 @@ final class VolumeHook {
             if(a==null||(!a.tint&&!a.cornerEnabled&&!smoothPanel)){super.draw(canvas);return;}
             Rect b=materialBounds();float radius=radius(a,b);
             if(a.tint) {
-                fill.setBounds(b);fill.setColor(a.color);
-                if(role.equals("volume-panel"))Reflect.callMethod(fill,"setSmoothRound",radius,PANEL_SMOOTH_WEIGHT);
-                else fill.setCornerRadius(radius);
-                fill.setAlpha(getAlpha());fill.draw(canvas);
+                fill.setBounds(b);
+                if(fillColor!=a.color){fillColor=a.color;fill.setColor(a.color);}
+                if(fillRadius!=radius) {
+                    fillRadius=radius;
+                    if(role.equals("volume-panel"))Reflect.callMethod(fill,"setSmoothRound",radius,PANEL_SMOOTH_WEIGHT);
+                    else fill.setCornerRadius(radius);
+                }
+                fill.setAlpha(getDrawable().getAlpha());fill.draw(canvas);
             } else {
                 if(role.equals("volume-panel"))panelClip(clip,b,radius);
                 else {clip.rewind();clip.addRoundRect(b.left,b.top,b.right,b.bottom,radius,radius,Path.Direction.CW);}

@@ -3,52 +3,58 @@ package io.github.baishangui.thunder
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import android.Manifest
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowCompat
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.zIndex
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import kotlinx.coroutines.delay
+import io.github.suqi8.coui.kmp.basic.*
+import io.github.suqi8.coui.kmp.icon.COUIIcons
+import io.github.suqi8.coui.kmp.icon.extended.*
+import io.github.suqi8.coui.kmp.layout.DialogButtonBarAction
+import io.github.suqi8.coui.kmp.nav.core.NavBackStack
+import io.github.suqi8.coui.kmp.nav.core.NavDisplay
+import io.github.suqi8.coui.kmp.nav.core.NavKey
+import io.github.suqi8.coui.kmp.nav.core.navBackStackOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.Surface
-import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.*
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+private data object SettingsHome : NavKey
+
+private data class SettingsTabContent(val home: Int?, val section: WorkbenchSection?, val tile: String?)
+
+private val SettingsBackStackSaver = Saver<NavBackStack, String>(
+    save = { stack -> (stack.lastOrNull() as? SettingsDestination)?.let { "${it.page.name}|${it.parameterId.orEmpty()}" }.orEmpty() },
+    restore = { route ->
+        val page = SettingsPage.entries.firstOrNull { it.name == route.substringBefore('|') }
+        val parameter = WorkbenchCatalog.parameter(route.substringAfter('|', ""))?.takeIf { it.section.page == page }
+        if (page == null) navBackStackOf(SettingsHome)
+        else navBackStackOf(SettingsHome, SettingsDestination(page, parameter?.id))
+    },
+)
 
 class MainActivity : ComponentActivity() {
     private var resumeTick by mutableIntStateOf(0)
@@ -74,6 +80,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState); enableEdgeToEdge()
         val prefs = SettingsProvider.preferences(this)
+        val workbenchPreferences = getSharedPreferences("workbench_shortcuts", MODE_PRIVATE)
+        val appearancePreferences = getSharedPreferences("coui_appearance", MODE_PRIVATE)
         val loaded = Bundle().apply { prefs.all.forEach { (k,v) -> when(v) { is Boolean -> putBoolean(k,v); is Int -> putInt(k,v) } } }
         setContent {
             val editor = remember {
@@ -81,8 +89,27 @@ class MainActivity : ComponentActivity() {
                 SettingsEditorState(saved, SettingsWriter.latest ?: saved)
             }
             val draft = editor.draft
-            var page by rememberSaveable { mutableIntStateOf(0) }
-            var detail by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
+            val shortcuts = remember { WorkbenchShortcuts(workbenchPreferences) }
+            val appearance = remember { AppAppearance(appearancePreferences) }
+            var homeTab by rememberSaveable { mutableIntStateOf(0) }
+            val backStack = rememberSaveable(saver = SettingsBackStackSaver) { navBackStackOf(SettingsHome) }
+            fun openDestination(destination: SettingsDestination) {
+                if (backStack.lastOrNull() == SettingsHome) backStack.add(destination)
+            }
+            fun open(page: SettingsPage) {
+                openDestination(SettingsDestination(page))
+            }
+            fun closeDetail() {
+                if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+            }
+            var searching by rememberSaveable { mutableStateOf(false) }
+            var query by rememberSaveable { mutableStateOf("") }
+            val focus = LocalFocusManager.current
+            fun stopSearch() {
+                focus.clearFocus()
+                searching = false
+                query = ""
+            }
             var restartFeedback by rememberSaveable { mutableStateOf(false) }
             var reset by rememberSaveable { mutableStateOf(false) }
             var imported by rememberSaveable(stateSaver=Settings.saver) { mutableStateOf(Settings()) }
@@ -98,16 +125,6 @@ class MainActivity : ComponentActivity() {
             }
             val scope=rememberCoroutineScope()
             val dark=when(draft.theme) { 1->false; 2->true; else->isSystemInDarkTheme() }
-            // Reserve the same font-aware header space on every route, before the first
-            // layout. Measuring the current title/subtitle and feeding it into padding
-            // moved both screens vertically one frame after navigation.
-            val headerHeight = with(LocalDensity.current) {
-                ((22 * 1.45f).sp.toDp() + (11 * 1.45f).sp.toDp() * 2 + 24.dp).coerceAtLeast(88.dp)
-            }
-            val navigationHeight = floatingNavHeight()
-            val wallpaper=rememberLayerBackdrop(); val content=rememberLayerBackdrop()
-            val overlaySource=rememberCombinedBackdrop(wallpaper,content)
-            val themeController = rememberAppTheme(draft, dark)
             SideEffect { WindowCompat.getInsetsController(window,window.decorView).apply {
                 isAppearanceLightStatusBars=!dark; isAppearanceLightNavigationBars=!dark
             } }
@@ -120,14 +137,8 @@ class MainActivity : ComponentActivity() {
                 writeResult.settings?.let { editor.acceptSaved(it, SettingsWriter.latest) }
                 if (writeResult.error != null) message = "自动保存失败：${writeResult.error}"
             }
-            LaunchedEffect(message) {
-                if (message.isNotEmpty()) { delay(5000); message = "" }
-            }
-            fun navigateBack() {
-                if (detail != null) detail = detail?.parent
-                else if (page != 0) page = 0
-                else { SettingsWriter.submit(this@MainActivity, draft, immediate = true); finish() }
-            }
+            val snackbar = remember { SnackbarHostState() }
+            LaunchedEffect(message) { if (message.isNotEmpty()) { snackbar.showSnackbar(message); message = "" } }
             val notificationPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
                 message=if(granted) startBannerTest() else "未允许通知权限，暂时无法发送测试通知。可再次点击测试或在系统设置中开启通知。"
             }
@@ -152,195 +163,189 @@ class MainActivity : ComponentActivity() {
                     busy=false;message=if(result.isSuccess) "配置已导出" else "导出失败：${result.exceptionOrNull()?.message}"
                 } }
             }
-            MiuixTheme(controller = themeController) {
-            val style = GlassStyle(wallpaper, dark, draft, MiuixTheme.colorScheme)
-            CompositionLocalProvider(LocalGlass provides style,
-                LocalLiquidAppearance provides LiquidAppearance(dark, style.accent, draft.glassStrength / 60f, draft.refraction / 50f),
-                LocalControlHistory provides history,
-                LocalControlScope provides (detail?.name ?: "page-$page")) {
-                Box(Modifier.fillMaxSize()) {
-                PredictiveBackSurface(enabled = detail != null || page != 0, onBack = { navigateBack() }) {
-                    Wallpaper(Modifier.matchParentSize().layerBackdrop(wallpaper),style)
-                    Box(Modifier.fillMaxSize().layerBackdrop(content)) {
-                        val scroll0=rememberScrollState();val scroll1=rememberScrollState()
-                        AnimatedMenuContent(MenuDestination(page, detail), Modifier.fillMaxSize()) { destination ->
-                            CompositionLocalProvider(LocalControlScope provides (destination.detail?.name ?: "page-${destination.page}")) {
-                                val detailScroll = rememberScrollState()
-                                Column(Modifier.widthIn(max=640.dp).fillMaxSize()
-                                    .verticalScroll(if (destination.detail != null) detailScroll else when(destination.page) { 0->scroll0;else->scroll1 })
-                                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                                    .statusBarsPadding().padding(start=16.dp,end=16.dp,top=headerHeight,bottom=if (destination.detail == null) navigationHeight + 48.dp else 28.dp).navigationBarsPadding(),
-                                    verticalArrangement=Arrangement.spacedBy(20.dp)) {
-                                    val currentDetail = destination.detail
-                                    if (currentDetail != null) {
-                                        SettingsPageLead(currentDetail, draft)
-                                        when (currentDetail) {
-                                            SettingsPage.Appearance -> AppearanceSettings(draft) { editor.draft = it }
-                                            SettingsPage.Configuration -> {
-                                                SettingsSection("导入与导出") {
-                                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                                        LiquidAction("导入配置", Modifier.weight(1f), enabled = !busy, leadingIcon = MiuixIcons.Regular.Import) { importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
-                                                        LiquidAction("导出配置", Modifier.weight(1f), enabled = !busy, leadingIcon = MiuixIcons.Regular.Share) {
+            AppTheme(draft, dark, appearance) {
+                val labels = listOf(stringResource(R.string.workbench_functions), stringResource(R.string.workbench_favorites),
+                    stringResource(R.string.workbench_management))
+                val screen: @Composable (SettingsDestination?) -> Unit = { destination ->
+                    val currentDetail = destination?.page
+                    val home = currentDetail == null
+                    val active = backStack.lastOrNull() == (destination ?: SettingsHome)
+                    val searchState = rememberTopAppBarSearchState(active = home && searching)
+                    if (home) BackHandler(enabled = active && !searching && homeTab != 0) { homeTab = 0 }
+                    val scrollStates = if (home) listOf(rememberScrollState(), rememberScrollState(), rememberScrollState()) else emptyList()
+                    val sections = remember(currentDetail) { WorkbenchCatalog.sections(currentDetail) }
+                    val initialTarget = remember(destination) { WorkbenchCatalog.parameter(destination?.parameterId) }
+                    var section by rememberSaveable { mutableStateOf(initialTarget?.section ?: sections.firstOrNull()) }
+                    var tile by rememberSaveable { mutableStateOf(initialTarget?.group?.takeIf { it in WorkbenchCatalog.tileGroups }
+                        ?: WorkbenchCatalog.tileGroups.first()) }
+                    var target by rememberSaveable { mutableStateOf(initialTarget?.id) }
+                    val tabContent = SettingsTabContent(homeTab.takeIf { home }, section, tile.takeIf { section == WorkbenchSection.Tiles })
+                    CompositionLocalProvider(LocalControlScope provides (currentDetail?.name ?: "home-$homeTab")) {
+                        SettingsScaffold(title = currentDetail?.title ?: labels[homeTab], home = home, snackbar = snackbar,
+                            back = if (home) null else ::closeDetail,
+                            searchState = searchState.takeIf { home },
+                            toolbarContent = {
+                                if (home) TopAppBarSearchBar(query, { query = it }, searching, { expanded ->
+                                    if (expanded) searching = true else stopSearch()
+                                }, cancelText = stringResource(R.string.coui_cancel), label = stringResource(R.string.coui_search_settings),
+                                    onSearch = { focus.clearFocus() })
+                                else section?.let { selected ->
+                                    WorkbenchTabs(sections, selected) { section = it; target = null }
+                                }
+                            }, actions = {
+                                if (home || section == WorkbenchSection.StatusIcons) IconButton(onClick = {
+                                    if (!restartState.running) ScopeRestart.restart(this@MainActivity, draft)
+                                    restartFeedback = true
+                                }, enabled = !busy) { Icon(COUIIcons.Refresh, "重启系统界面") }
+                            }, bottomBar = {
+                                if (home && !searching) FloatingNavigationBar {
+                                    FloatingNavigationBarItem(homeTab == 0, { homeTab = 0 }, COUIIcons.GridView, labels[0])
+                                    FloatingNavigationBarItem(homeTab == 1, { homeTab = 1 }, COUIIcons.Favorites, labels[1])
+                                    FloatingNavigationBarItem(homeTab == 2, { homeTab = 2 }, COUIIcons.Settings, labels[2])
+                                }
+                            }) { padding ->
+                            if (searchState.isContentVisible || !home) Box(
+                                Modifier.fillMaxSize().then(if (home) Modifier.topAppBarSearchContent(searchState) else Modifier),
+                                contentAlignment = Alignment.TopCenter) {
+                                Crossfade(targetState = tabContent, animationSpec = tween(150), label = "Settings tabs",
+                                    modifier = Modifier.widthIn(max = 640.dp).fillMaxSize()) { visible ->
+                                    val (visibleHome, visibleSection, visibleTile) = visible
+                                    val pageScroll = if (visibleHome != null) scrollStates[visibleHome] else rememberScrollState()
+                                    val insets = Modifier.padding(padding).consumeWindowInsets(padding)
+                                    val interactive = if (visible == tabContent) Modifier else Modifier
+                                        .semantics { hideFromAccessibility() }
+                                        .pointerInput(Unit) {
+                                            awaitPointerEventScope {
+                                                while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+                                            }
+                                        }
+                                    Column(Modifier.fillMaxSize().then(interactive)
+                                        .then(if (visibleSection != null) insets else Modifier).verticalScroll(pageScroll)
+                                        .then(if (visibleSection == null) insets else Modifier)
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        verticalArrangement=Arrangement.spacedBy(16.dp)) {
+                                        if (currentDetail != null) {
+                                            if (section == null) UiText(currentDetail.description, muted = true)
+                                            when (currentDetail) {
+                                                SettingsPage.Appearance -> AppearanceSettings(draft, appearance) { editor.draft = it }
+                                                SettingsPage.Configuration -> {
+                                                    SettingsMenuGroup("备份与迁移") {
+                                                        item { BasicComponent(title = "导出配置", summary = "保存一份 JSON 备份",
+                                                            startAction = { SettingsIcon(COUIIcons.Share) }, enabled = !busy, onClick = {
                                                             exportText = draft.json()
                                                             exportLauncher.launch("thunder-${SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())}.json")
-                                                        }
+                                                        }) }
+                                                        item { BasicComponent(title = "从 JSON 导入", summary = "先预览，再替换当前参数",
+                                                            startAction = { SettingsIcon(COUIIcons.Import) }, enabled = !busy, onClick = {
+                                                                importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+                                                            }) }
+                                                    }
+                                                    SettingsMenuGroup("恢复默认") {
+                                                        item { BasicComponent(title = "恢复全部默认设置", summary = "恢复界面外观和全部效果参数",
+                                                            startAction = { SettingsIcon(COUIIcons.Reset) }, enabled = !busy, onClick = { reset = true }) }
                                                     }
                                                 }
-                                                SettingsSection("恢复默认") {
-                                                    UiText("恢复界面外观和全部效果参数。", 13, muted = true)
-                                                    LiquidAction("恢复全部默认设置", Modifier.fillMaxWidth(), enabled = !busy, leadingIcon = MiuixIcons.Regular.Reset) { reset = true }
+                                                SettingsPage.Runtime -> {
+                                                    val status = remember(resumeTick, refresh, RemoteSettings.activation, RemoteSettings.status, RemoteSettings.scopeStatus, rootState) { runtimeStatus() }
+                                                    SettingsGroup {
+                                                        UiText(status.first, 18, bold = true)
+                                                        UiText(status.second, 12, muted = true)
+                                                    }
+                                                    SettingsAction("刷新状态", Modifier.fillMaxWidth(), enabled = !busy, leadingIcon = COUIIcons.Refresh) { RemoteSettings.refreshScope(); refresh++ }
+                                                    SettingsAction("复制运行报告", Modifier.fillMaxWidth(), leadingIcon = COUIIcons.Copy) {
+                                                        val text = "thunder ${BuildConfig.VERSION_NAME} · ${android.os.Build.DISPLAY}\n${runtimeStatus().second}"
+                                                        getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText("thunder 运行报告", text))
+                                                        message = "运行报告已复制"
+                                                    }
+                                                }
+                                                SettingsPage.About -> SettingsGroup {
+                                                    UiText("thunder", 24, bold = true)
+                                                    Summary("版本", BuildConfig.VERSION_NAME)
+                                                    Summary("适配系统", "ColorOS 17")
+                                                    UiText("COUI 2.0.0 · LSPosed API 102", 13, muted = true)
+                                                }
+                                                else -> visibleSection?.let { selected ->
+                                                    WorkbenchEditor(selected, visibleTile ?: WorkbenchCatalog.tileGroups.first(),
+                                                        { tile = it; target = null }, target.takeIf { visible == tabContent },
+                                                        { target = null }, draft, { editor.draft = it }, shortcuts, ::testNotification)
                                                 }
                                             }
-                                            SettingsPage.Runtime -> {
-                                                val status = remember(resumeTick, refresh, RemoteSettings.activation, RemoteSettings.status, RemoteSettings.scopeStatus, rootState) { runtimeStatus() }
-                                                SettingsGroup {
-                                                    UiText(status.first, 18, bold = true)
-                                                    UiText(status.second, 12, muted = true)
+                                        } else when(visibleHome) {
+                                            0 -> FunctionWorkbench(draft, { editor.draft = it }, ::openDestination)
+                                            1 -> FavoritesWorkbench(draft, shortcuts, { editor.draft = it }, ::openDestination, { homeTab = 0 })
+                                            else -> {
+                                                val activation = RemoteSettings.activation
+                                                PreferencesMenu(draft, ::open)
+                                                SettingsMenuGroup("模块与权限") {
+                                                    item { ModuleStatusRow("LSPosed", activation.label,
+                                                        if (activation != RemoteSettings.Activation.Connected) activation.hint else "",
+                                                        activation == RemoteSettings.Activation.Connected) }
+                                                    item { ModuleStatusRow("作用域", if (RemoteSettings.scopeStatus.startsWith("作用域已完整")) "已完整启用" else "待检查",
+                                                        if (RemoteSettings.scopeStatus.startsWith("作用域已完整")) "" else RemoteSettings.scopeStatus,
+                                                        RemoteSettings.scopeStatus.startsWith("作用域已完整")) }
+                                                    item {
+                                                        val checking = rootState == RootAccessState.Checking
+                                                        ModuleStatusRow("Root", rootState.label,
+                                                        if (rootState !in setOf(RootAccessState.Unchecked, RootAccessState.Granted)) rootState.hint else "",
+                                                        rootState == RootAccessState.Granted, checking,
+                                                        verify = if (checking || restartState.running) null else ({ RootAccess.verify() }))
+                                                    }
                                                 }
-                                                LiquidAction("刷新状态", Modifier.fillMaxWidth(), enabled = !busy, leadingIcon = MiuixIcons.Regular.Refresh) { RemoteSettings.refreshScope(); refresh++ }
-                                                LiquidAction("复制运行报告", Modifier.fillMaxWidth(), leadingIcon = MiuixIcons.Regular.Copy) {
-                                                    val text = "thunder ${BuildConfig.VERSION_NAME} · ${android.os.Build.DISPLAY}\n${runtimeStatus().second}"
-                                                    getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText("thunder 运行报告", text))
-                                                    message = "运行报告已复制"
+                                                SettingsMenuGroup("诊断与关于") {
+                                                    item { SettingsMenuItem("运行报告",
+                                                        remember(resumeTick, refresh, activation, RemoteSettings.status, RemoteSettings.scopeStatus, rootState) { runtimeStatus() }.first,
+                                                        COUIIcons.Report) { open(SettingsPage.Runtime) } }
+                                                    item { SettingsMenuItem("关于 thunder", "版本 ${BuildConfig.VERSION_NAME}", COUIIcons.Info) { open(SettingsPage.About) } }
                                                 }
                                             }
-                                            SettingsPage.About -> SettingsGroup {
-                                                UiText("thunder", 24, bold = true)
-                                                Summary("版本", BuildConfig.VERSION_NAME)
-                                                Summary("适配系统", "ColorOS 17")
-                                                UiText("LSPosed API 102\nMiuix UI & Icons 0.9.0\nLiquid Glass · Kyant0 Backdrop 1.0.6", 13, muted = true)
-                                            }
-                                            else -> AdjustmentDetails(currentDetail, draft, { editor.draft = it }, { testNotification() }, { detail = it })
-                                        }
-                                    } else when(destination.page) {
-                                        0 -> {
-                                            AdjustmentOverview(draft) { editor.draft = it }
-                                            AdjustmentMenu { detail = it }
-                                        }
-                                        else -> {
-                                            val activation = RemoteSettings.activation
-                                            SettingsMenuGroup("模块") {
-                                                SettingsMenuItem("运行报告",
-                                                    remember(resumeTick, refresh, RemoteSettings.status, RemoteSettings.scopeStatus) { runtimeStatus() }.first,
-                                                    MiuixIcons.Regular.Report) { detail = SettingsPage.Runtime }
-                                            }
-                                            SettingsSection("模块与权限") {
-                                                ModuleStatusRow("LSPosed", activation.label,
-                                                    if (activation != RemoteSettings.Activation.Connected) activation.hint else "",
-                                                    activation == RemoteSettings.Activation.Connected)
-                                                SettingsDivider()
-                                                ModuleStatusRow("作用域", if (RemoteSettings.scopeStatus.startsWith("作用域已完整")) "已完整启用" else "待检查",
-                                                    if (RemoteSettings.scopeStatus.startsWith("作用域已完整")) "" else RemoteSettings.scopeStatus,
-                                                    RemoteSettings.scopeStatus.startsWith("作用域已完整"))
-                                                SettingsDivider()
-                                                ModuleStatusRow("Root", rootState.label,
-                                                    if (rootState !in setOf(RootAccessState.Unchecked, RootAccessState.Granted)) rootState.hint else "",
-                                                    rootState == RootAccessState.Granted, rootState == RootAccessState.Checking)
-                                                LiquidAction(if (rootState == RootAccessState.Checking) "正在验证…" else "验证 Root 权限",
-                                                    Modifier.fillMaxWidth(), enabled = rootState != RootAccessState.Checking && !restartState.running,
-                                                    leadingIcon = MiuixIcons.Regular.Lock) { RootAccess.verify() }
-                                            }
-                                            PreferencesMenu(draft) { detail = it }
                                         }
                                     }
+                                    }
+                            }
+                            if (home && searchState.isResultsVisible) {
+                                Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()
+                                    .topAppBarSearchResults(searchState),
+                                    contentAlignment = Alignment.TopCenter) {
+                                    WorkbenchSearchResults(query, draft) { target -> focus.clearFocus(); openDestination(target) }
                                 }
+                            }
+                            if(active && restartFeedback) SettingsDialog(
+                                if(restartState.running) "正在重启系统界面" else "重启结果",
+                                {restartFeedback=false},
+                                positive = DialogButtonBarAction(if (restartState.running) "收起" else "完成", recommended = true) { restartFeedback = false }
+                            ) {
+                                Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)) {
+                                    if(restartState.running) InfiniteProgressIndicator(Modifier.size(24.dp))
+                                    UiText(restartState.message,14,modifier=Modifier.weight(1f))
+                                }
+                            }
+                            if(active && reset) SettingsDialog("恢复默认设置", { reset = false },
+                                negative = DialogButtonBarAction("取消") { reset = false },
+                                neutral = DialogButtonBarAction("恢复") { editor.draft = Settings(); reset = false }) {
+                                UiText("将界面外观和效果参数恢复为默认值，并自动保存。",14,muted=true)
+                            }
+                            if(active && importConfirm) SettingsDialog("导入此配置？", { importConfirm = false },
+                                negative = DialogButtonBarAction("取消") { importConfirm = false },
+                                positive = DialogButtonBarAction("导入", recommended = true) {
+                                    editor.draft = imported; importConfirm = false; message = "已导入，正在自动保存"
+                                }) {
+                                UiText("导入后会替换当前配置并自动保存。",14,muted=true)
+                                Summary("下拉模糊",if(imported.panel.blur) "${imported.panel.radius} px" else "系统默认")
+                                Summary("压暗 / 混色",if(imported.panel.tint) "${alphaPercent(imported.panel.color)}%" else "系统默认")
+                                Summary("横幅背景混色",if(imported.banner.tint) "${alphaPercent(imported.banner.color)}%" else "系统默认")
+                                Summary("磁贴背景混色",if(imported.cardArea.tint) "${alphaPercent(imported.cardArea.color)}%" else "系统默认")
+                                Summary("通知条背景混色",if(imported.notificationArea.tint) "${alphaPercent(imported.notificationArea.color)}%" else "系统默认")
                             }
                         }
                     }
-                    ProgressiveHeader(overlaySource, Modifier.align(Alignment.TopCenter).fillMaxWidth()
-                        .height(headerHeight + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()))
-                    Surface(Modifier.align(Alignment.TopCenter).fillMaxWidth(), color = Color.Transparent) {
-                        Box(Modifier.statusBarsPadding()
-                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
-                            contentAlignment = Alignment.TopCenter) {
-                            SmallTopAppBar(
-                                title = detail?.title ?: listOf("调节", "设置")[page],
-                                subtitle = detail?.category ?: if (page == 0) "thunder · ColorOS 17" else "thunder · 模块与个性化",
-                                modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().height(headerHeight),
-                                color = Color.Transparent,
-                                defaultWindowInsetsPadding = false,
-                                navigationIcon = {
-                                    Spacer(Modifier.size(48.dp))
-                                },
-                                actions = {
-                                    Spacer(Modifier.size(48.dp))
-                                }
-                            )
-                        }
-                    }
-                    AnimatedVisibility(visible = detail == null, modifier = Modifier.align(Alignment.BottomCenter),
-                        enter = fadeIn(tween(220)) + slideInVertically(tween(280)) { it / 2 },
-                        exit = fadeOut(tween(180)) + slideOutVertically(tween(280)) { it / 2 }) {
-                        CompositionLocalProvider(LocalGlass provides style.copy(source=overlaySource)) {
-                            FloatingNav(page,{ if (detail == null) page=it },Modifier
-                                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                                .navigationBarsPadding().padding(horizontal=28.dp,vertical=14.dp))
-                        }
-                    }
-                    AnimatedVisibility(visible = message.isNotEmpty(), modifier = Modifier.align(Alignment.BottomCenter)
-                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                        .navigationBarsPadding().padding(horizontal = 16.dp, vertical = if (detail == null) navigationHeight + 36.dp else 16.dp)
-                        .semantics { liveRegion = LiveRegionMode.Polite }) {
-                        SettingsGroup(Modifier.widthIn(max = 600.dp)) {
-                            UiText(message, 13, modifier = Modifier.fillMaxWidth())
-                        }
-                    }
-                    if(restartFeedback) SettingsDialog(
-                        if(restartState.running) "正在重启系统界面" else "重启结果",
-                        {restartFeedback=false},
-                        footer = {
-                            LiquidAction(if(restartState.running) "收起" else "完成",Modifier.fillMaxWidth(),selected=true) { restartFeedback=false }
-                        }
-                    ) {
-                        Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)) {
-                            if(restartState.running) InfiniteProgressIndicator(Modifier.size(24.dp))
-                            UiText(restartState.message,14,modifier=Modifier.weight(1f))
-                        }
-                    }
-                    if(reset) SettingsDialog("恢复默认设置",{reset=false}, footer = {
-                        Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                            LiquidAction("取消",Modifier.weight(1f)) { reset=false }
-                            LiquidAction("恢复",Modifier.weight(1f),selected=true) { editor.draft=Settings();reset=false }
-                        }
-                    }) {
-                        UiText("将界面外观和效果参数恢复为默认值，并自动保存。",14,muted=true)
-                    }
-                    if(importConfirm) SettingsDialog("导入此配置？",{importConfirm=false}, footer = {
-                        Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                            LiquidAction("取消",Modifier.weight(1f)) { importConfirm=false }
-                            LiquidAction("导入",Modifier.weight(1f),selected=true) { editor.draft=imported;importConfirm=false;message="已导入，正在自动保存" }
-                        }
-                    }) {
-                        UiText("导入后会替换当前配置并自动保存。",14,muted=true)
-                        Summary("下拉模糊",if(imported.panel.blur) "${imported.panel.radius} px" else "系统默认")
-                        Summary("压暗 / 混色",if(imported.panel.tint) "${alphaPercent(imported.panel.color)}%" else "系统默认")
-                        Summary("横幅背景混色",if(imported.banner.tint) "${alphaPercent(imported.banner.color)}%" else "系统默认")
-                        Summary("磁贴背景混色",if(imported.cardArea.tint) "${alphaPercent(imported.cardArea.color)}%" else "系统默认")
-                        Summary("通知条背景混色",if(imported.notificationArea.tint) "${alphaPercent(imported.notificationArea.color)}%" else "系统默认")
-                    }
                 }
-                // App chrome stays above the page, header backdrop and predictive-back
-                // transform. TopAppBar's subtitle measurement must not position these buttons.
-                Row(Modifier.align(Alignment.TopCenter).zIndex(1f)
-                    .widthIn(max = 640.dp).fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                    .statusBarsPadding().height(headerHeight).padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                        if (detail != null || page != 0) {
-                            LiquidAction("返回", Modifier.size(48.dp), icon = MiuixIcons.Regular.Back) { navigateBack() }
-                        }
+                CompositionLocalProvider(LocalControlHistory provides history) {
+                    NavDisplay(backStack = backStack, modifier = Modifier.fillMaxSize(), onBack = ::closeDetail) {
+                        entry<SettingsHome>(contentKey = { "home" }) { screen(null) }
+                        entry<SettingsDestination>(contentKey = { "${it.page.name}|${it.parameterId.orEmpty()}" }) { screen(it) }
                     }
-                    Spacer(Modifier.weight(1f))
-                    LiquidAction("重启系统界面", Modifier.size(48.dp), enabled = !busy,
-                        selected = restartState.running, icon = MiuixIcons.Regular.Refresh) {
-                        if (!restartState.running) ScopeRestart.restart(this@MainActivity, draft)
-                        restartFeedback = true
-                    }
-                }
                 }
             }
-        }
         }
     }
     private fun runtimeStatus(): Pair<String,String> {
@@ -365,26 +370,24 @@ class MainActivity : ComponentActivity() {
 }
 
 private fun alphaPercent(c: Int)=TintColor.percent(c)
-@Composable private fun ModuleStatusRow(title: String, status: String, hint: String, ready: Boolean, checking: Boolean = false) {
+@Composable private fun ModuleStatusRow(title: String, status: String, hint: String, ready: Boolean,
+    checking: Boolean = false, verify: (() -> Unit)? = null) {
     BasicComponent(
         title = title,
-        summary = hint.takeIf { it.isNotEmpty() },
-        insideMargin = PaddingValues(vertical = 8.dp),
+        summary = hint.takeIf(String::isNotBlank),
         startAction = {
-            Box(Modifier.padding(end = 12.dp).size(36.dp), contentAlignment = Alignment.Center) {
-                Crossfade(checking, animationSpec = tween(180), label = "Module permission state") { loading ->
-                    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-                        if (loading) InfiniteProgressIndicator(Modifier.size(20.dp))
-                        else SettingsIcon(when (title) {
-                            "LSPosed" -> MiuixIcons.Regular.Link
-                            "作用域" -> MiuixIcons.Regular.GridView
-                            else -> MiuixIcons.Regular.Lock
-                        }, active = ready)
-                    }
-                }
-            }
+            SettingsIcon(when (title) {
+                "LSPosed" -> COUIIcons.Link
+                "作用域" -> COUIIcons.GridView
+                else -> COUIIcons.Lock
+            }, active = ready)
         },
-        endActions = { UiText(status, 13, muted = !ready) }
+        endActions = {
+            if (checking) InfiniteProgressIndicator(Modifier.size(20.dp))
+            else if (verify != null) TextButton("验证", onClick = verify)
+            else UiText(status, 13, muted = !ready)
+        },
+        bottomAction = if (verify != null) ({ UiText(status, 13, muted = !ready) }) else null,
     )
 }
 @Composable private fun Summary(title: String,value: String) {
@@ -392,35 +395,5 @@ private fun alphaPercent(c: Int)=TintColor.percent(c)
         verticalArrangement = Arrangement.spacedBy(4.dp)) {
         UiText(title,13,muted=true,modifier=Modifier.padding(end=12.dp))
         UiText(value,13,bold=true)
-    }
-}
-@Composable private fun Wallpaper(modifier: Modifier,s: GlassStyle) {
-    Surface(modifier, color = s.background) {}
-}
-
-@Composable internal fun AreaControls(title: String,area: Area,blur: Boolean=true,corner: Boolean=true,
-                                    cornerRange: IntRange=0..64,unifiedCorners: Boolean=false,
-                                    onRestore: (() -> Unit)?=null,onChange: (Area)->Unit) {
-    CompositionLocalProvider(LocalControlScope provides "${LocalControlScope.current}:$title") {
-        SettingsSection(title) {
-            if (blur) {
-                LiquidSwitchRow("自定义模糊", "", area.blur) { onChange(area.copy(blur=it)) }
-                SettingsReveal(area.blur) { LiquidValueSlider("模糊半径",area.radius,0..200," px") { onChange(area.copy(radius=it)) } }
-                SettingsDivider()
-            }
-            LiquidSwitchRow("自定义混色", "", area.tint) { onChange(area.copy(tint=it)) }
-            SettingsReveal(area.tint) { LiquidColorSetting("混色颜色",area.color) { onChange(area.copy(color=it)) } }
-            if (corner) {
-                SettingsDivider()
-                LiquidSwitchRow("自定义圆角", if(unifiedCorners) "所有磁贴统一半径，与通知条使用相同的 dp 单位" else "", area.cornerEnabled) { onChange(area.copy(cornerEnabled=it)) }
-                SettingsReveal(area.cornerEnabled) { LiquidValueSlider("圆角半径",area.corner,cornerRange," dp") { onChange(area.copy(corner=it)) } }
-            }
-            if (area.blur || area.tint || area.cornerEnabled || onRestore != null) {
-                SettingsDivider()
-                LiquidAction("恢复系统材质",Modifier.fillMaxWidth()) {
-                    if (onRestore != null) onRestore() else onChange(area.copy(blur=false,tint=false,cornerEnabled=false))
-                }
-            }
-        }
     }
 }

@@ -224,16 +224,6 @@ final class SystemSettingsHook {
             default: return "settings_personalise_ic";
         }
     }
-    private static String pageSummary(String key) {
-        switch (key) {
-            case "cloud": return "胶囊、展开卡片与锁屏材质";
-            case "center": return "背景、通知与分类磁贴";
-            case "volume": return "动画、展开方式、尺寸与材质";
-            case "status": return "布局、时钟与图标显示";
-            case "gesture": return "显示、尺寸、材质与底部占位";
-            default: return "备份、导入与恢复默认配置";
-        }
-    }
     // SubSettings overlays its toolbar for a plain COUI fragment. Use the real toolbar's
     // measured bounds for content spacing; native components still own all drawing.
     private static void insetContent(Object fragment) {
@@ -446,10 +436,10 @@ final class SystemSettingsHook {
                 Object pref = preference(loader, context, type, "thunder:" + key + ":" + field.getInt("bit"), field.getString("title"));
                 if (key.startsWith("style_")) icon(context, pref, pageIcon(key.substring(6)));
                 else if ("enabled".equals(key)) icon(context, pref, "settings_personalise_ic");
-                String section = field.getString("section", "");
+                String section = field.getString("section", "") + ":" + field.getString("subsection", "");
                 Object group = groups.get(section);
                 if (group == null) {
-                    group = category(loader, context, screen, "thunder:section:" + groups.size(), field.containsKey("style_group") ? "" : section);
+                    group = category(loader, context, screen, "thunder:section:" + groups.size(), field.getString("heading", ""));
                     groups.put(section, group); sections.add(group);
                 }
                 Reflect.callMethod(pref, "setSummary", field.getString("description"));
@@ -504,19 +494,23 @@ final class SystemSettingsHook {
                 }
             }
             if ("home".equals(page)) {
-                Object appearance = category(loader, context, screen, "thunder:appearance", "功能样式");
-                Object maintenance = category(loader, context, screen, "thunder:maintenance", "维护");
-                for (String key : new String[]{"cloud", "center", "volume", "status", "gesture"}) {
-                    Object pref = jump(loader, context, "thunder:page:" + key, pages.getString(key), false);
-                    icon(context, pref, pageIcon(key));
-                    Reflect.callMethod(pref, "setSummary", pageSummary(key));
-                    pageLinks.put(pref, key);
-                    click(pref, loader, () -> open(context, key, pages.getString(key)));
-                    Reflect.callMethod(appearance, "addPreference", pref);
+                for (Map.Entry<String, java.util.List<String>> entry : SystemSettingsCatalog.INSTANCE.getAreaSections().entrySet()) {
+                    Object area = category(loader, context, screen, "thunder:area:" + entry.getValue().get(0), entry.getKey());
+                    for (String key : entry.getValue()) {
+                        String title = pages.getString(key);
+                        if (title == null) continue;
+                        Object pref = jump(loader, context, "thunder:page:" + key, title, false);
+                        icon(context, pref, pageIcon(key));
+                        Reflect.callMethod(pref, "setSummary", SystemSettingsCatalog.INSTANCE.getAreaDescriptions().get(key));
+                        pageLinks.put(pref, key);
+                        click(pref, loader, () -> open(context, key, title));
+                        Reflect.callMethod(area, "addPreference", pref);
+                    }
                 }
+                Object maintenance = category(loader, context, screen, "thunder:maintenance", "维护");
                 Object tools = jump(loader, context, "thunder:tools", "配置与维护", false);
                 icon(context, tools, pageIcon("tools"));
-                Reflect.callMethod(tools, "setSummary", pageSummary("tools"));
+                Reflect.callMethod(tools, "setSummary", "备份、导入与恢复默认配置");
                 click(tools, loader, () -> open(context, "tools", "配置与维护"));
                 Reflect.callMethod(maintenance, "addPreference", tools);
             } else if ("tools".equals(page)) buildTools(context, screen);
@@ -692,7 +686,7 @@ final class SystemSettingsHook {
             });
         }
         void buildTools(Context context, Object screen) {
-            Object backup = category(loader, context, screen, "thunder:backup", "配置管理");
+            Object backup = category(loader, context, screen, "thunder:backup", "导入与备份");
             Object export = jump(loader, context, "thunder:export", "复制配置", false);
             icon(context, export, "ic_settings_backup");
             Reflect.callMethod(export, "setSummary", "复制 JSON，可保存为备份或分享");
@@ -716,13 +710,14 @@ final class SystemSettingsHook {
             actions.add(input);
             Reflect.callMethod(input, "setEnabled", loaded);
             Reflect.callMethod(backup, "addPreference", input);
-            Object reset = jump(loader, context, "thunder:reset", "重置配置", false);
+            Object recovery = category(loader, context, screen, "thunder:recovery", "恢复默认");
+            Object reset = jump(loader, context, "thunder:reset", "重置全部效果参数", false);
             icon(context, reset, "ic_restore");
             Reflect.callMethod(reset, "setSummary", "将全部效果参数恢复为默认值");
             click(reset, loader, () -> confirm(context, "重置配置", "将所有模块参数恢复默认值。", () -> request("ui_reset", null, null)));
             actions.add(reset);
             Reflect.callMethod(reset, "setEnabled", loaded);
-            Reflect.callMethod(backup, "addPreference", reset);
+            Reflect.callMethod(recovery, "addPreference", reset);
         }
         void addRestart(Menu menu) {
             final int id = 0x74687273;

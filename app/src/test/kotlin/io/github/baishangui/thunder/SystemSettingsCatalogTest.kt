@@ -35,6 +35,14 @@ class SystemSettingsCatalogTest {
         assertEquals(0, SystemSettingsCatalog.patch(Settings(), "cloud_lock_style", 0, 0).cloudLock.style)
     }
     @Test fun nativeControlsUseExistingConfigRangesAndArgbValues() {
+        val catalog = SystemSettingsCatalog
+        assertEquals(catalog.pages.keys.toSet(), catalog.areaSections.values.flatten().toSet())
+        assertEquals(catalog.pages.keys, catalog.areaDescriptions.keys)
+        val volume = catalog.schema().filter { it.getString("page") == "volume" }
+        assertEquals(listOf("style_volume", "volume_size", "volume_height", "volume_width"),
+            volume.take(4).map { it.getString("key") })
+        assertEquals(listOf("", "音量条尺寸", "动画与展开", "音量条与按钮材质", "展开面板材质"),
+            volume.map { it.getString("subsection") }.distinct())
         SystemSettingsCatalog.validate("volume_width", 32, 0)
         SystemSettingsCatalog.validate("volume_width", 96, 0)
         assertThrows(IllegalArgumentException::class.java) { SystemSettingsCatalog.validate("volume_width", 31, 0) }

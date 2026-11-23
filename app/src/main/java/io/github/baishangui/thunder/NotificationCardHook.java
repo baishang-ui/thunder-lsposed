@@ -80,7 +80,7 @@ final class NotificationCardHook {
         Object view=ref instanceof WeakReference<?>?((WeakReference<?>)ref).get():null;
         return view instanceof View&&CloudLockHook.areaForView((View)view,c)!=null;
     }
-    static void overrideCorners(HookCallback.Param p,Object blur,HookConfig.Area area) {
+    static void overrideCorners(ShadeHook.NativeConfigScope scope,Object blur,HookConfig.Area area) {
         Float volumeRadius=VolumeHook.cornerRadius(blur,area);
         if(!area.cornerEnabled&&volumeRadius==null)return;
         float radius=volumeRadius!=null?volumeRadius:area.corner*Resources.getSystem().getDisplayMetrics().density;
@@ -101,27 +101,23 @@ final class NotificationCardHook {
             float edge=((Number)Reflect.getObjectField(blur,field)).floatValue();
             Float rowFraction=field.contains("Top")?top:bottom;
             float roundness=qs?1f:rowFraction!=null?rowFraction:nativeRadius>0?Math.max(0f,Math.min(1f,edge/nativeRadius)):1f;
-            temporary(p,blur,field,radius*roundness);
+            scope.set(field,radius*roundness);
         }
-        temporary(p,blur,"cornerRadius",radius);
+        scope.set("cornerRadius",radius);
         float weight=cloud?CloudCornerGeometry.WEIGHT:smoothPanel?3f:qs?QsCornerHook.blurWeight(shape):0f;
         // Native volume geometry owns its deforming smooth shape and press outline.
-        if(volumeRadius==null)temporary(p,blur,"pathProvider",shape);
+        if(volumeRadius==null)scope.set("pathProvider",shape);
         // Offset panel bounds require the backend's local smooth geometry. A view-space
         // path provider would apply the panel origin twice inside its render node.
-        if(smoothPanel)temporary(p,blur,"pathProvider",null);
+        if(smoothPanel)scope.set("pathProvider",null);
         if(qs||smoothPanel||cloud) {
-            temporary(p,blur,"radiusWeight",weight);
-            temporary(p,blur,"enableMotionSmoothCorner",true);
+            scope.set("radiusWeight",weight);
+            scope.set("enableMotionSmoothCorner",true);
         }
         Object corners=Reflect.getObjectField(blur,"gradientStrokeCornerParam");
-        if(corners!=null)temporary(p,blur,"gradientStrokeCornerParam",Reflect.newInstance(corners.getClass(),
+        if(corners!=null)scope.set("gradientStrokeCornerParam",Reflect.newInstance(corners.getClass(),
             qs||smoothPanel||cloud?QsCornerHook.smoothCornerType(Reflect.callMethod(corners,"getType"),smoothPanel?blur:shape):Reflect.callMethod(corners,"getType"),
             radius,qs||smoothPanel||cloud?weight:Reflect.callMethod(corners,"getWeight")));
-    }
-    private static void temporary(HookCallback.Param p,Object target,String field,Object value) {
-        p.setObjectExtra(field,new Object[]{Reflect.getObjectField(target,field)});
-        Reflect.setObjectField(target,field,value);
     }
     static void install(ClassLoader loader) {
         bind("row-class",() -> rowClass=Reflect.findClass(ROW+"ExpandableNotificationRow",loader));

@@ -4,11 +4,15 @@ package io.github.baishangui.thunder;
 final class CloudMotion {
     private static final float ARRIVAL_LIMIT=.1f,ARRIVAL_RESPONSE_SECONDS=.012f;
     private static final float HALF_CRITICAL=1.67834699f;
+    private static final double LINEAR_BRAKE_START=.55,SETTLE_START=.75;
+    private static final LinearTail LINEAR_STOP=new LinearTail(0);
     private final float[] start,end,initial;
-    private final float seconds,omega,damping,phaseOmega,carryOmega,rebound;
+    private final float seconds,omega,phaseOmega,carryOmega;
+    private final double damping,dampedOmega,firstPeak,peakOvershoot;
     private final boolean linearPhaseSafe,linearGeometrySafe;
+    private final LinearTail linearTail;
+    private final double[] linearGeometry;
     private final float[] compression;
-    private final boolean linear;
     private final boolean arrival;
     private final float arrivalWidth,arrivalHeight;
     private final float arrivalExcursion,arrivalEventStart;
@@ -46,7 +50,8 @@ final class CloudMotion {
         arrivalEventStart=Float.isFinite(eventStart)?Math.max(0,Math.min(1,eventStart)):0;
         float scale=Math.max(0,Math.min(.03f,compressionScale));
         compression=new float[]{to.width()*scale*.5f,to.height()*scale*.5f,-to.width()*scale,-to.height()*scale,-to.radius()*scale,0};
-        seconds=Math.max(1,duration)/1000f;linear=curve==3;
+        seconds=Math.max(1,duration)/1000f;
+        boolean linear=curve==3;
         // Ordinary linear transitions restart at constant speed. App events
         // and presentation handoffs supply their actual visible tangent, even
         // at a zero-speed turning point or after cancelling an independent gate.
@@ -54,23 +59,62 @@ final class CloudMotion {
         // Use a continuous physical response again. Match its half-travel time
         // across bounce amounts instead of accelerating it with 1/damping.
         // The size slider sets the spring excursion, never the total duration.
-        rebound=.04f*Math.max(0,Math.min(100,bounce))/100f;
+        double limit=.04;
+        for(int axis=2;axis<=3;axis++)if(end[axis]>1&&start[axis]>end[axis])
+            limit=Math.min(limit,.08*end[axis]/(start[axis]-end[axis]));
+        double rebound=limit*Math.max(0,Math.min(100,bounce))/100;
         double log=rebound==0?0:Math.log(rebound);
-        damping=rebound==0?1f:(float)(-log/Math.sqrt(Math.PI*Math.PI+log*log));
+        damping=rebound==0?1:-log/Math.hypot(Math.PI,log);
         float response=switch(curve){case 1 -> 8f;case 2 -> 10f;case 3 -> 7f;default -> 9f;};
         omega=response*halfTravel(damping)/(HALF_CRITICAL*seconds);
+        dampedOmega=omega*Math.sqrt(1-damping*damping);
+        firstPeak=dampedOmega==0?Double.POSITIVE_INFINITY:Math.PI/dampedOmega;
+        peakOvershoot=rebound==0?0:Math.exp(-damping*omega*firstPeak);
         carryOmega=response/seconds;
         boolean safeLinear=true;
         for(int i=0;i<5;i++) {
             float delta=end[i]-start[i];
             if(Math.abs(initial[i]*seconds)>5*Math.max(1,Math.abs(delta)))safeLinear=false;
         }
-        linearGeometrySafe=safeLinear;
+        linearGeometrySafe=linear&&safeLinear;
         float phaseOffset=start[5]-end[5];
         phaseOmega=Math.abs(phaseOffset)>.001f?Math.max(response/seconds,-initial[5]/phaseOffset):response/seconds;
-        linearPhaseSafe=Math.abs(phaseOffset)<=.001f||initial[5]*seconds/(-phaseOffset)<=5f;
+        linearPhaseSafe=linear&&(Math.abs(phaseOffset)<=.001f||initial[5]*seconds/(-phaseOffset)<=5f);
+        linearTail=linearGeometrySafe?(rebound==0?LINEAR_STOP:new LinearTail(rebound)):null;
+        linearGeometry=linearGeometrySafe?new double[3]:null;
     }
-    private static float halfTravel(float damping) {
+
+    private static final class LinearTail {
+        private final double peak,span,returnSpan,rebound,constant,slope,quadratic,cubic;
+        LinearTail(double rebound) {
+            this.rebound=rebound;
+            returnSpan=.1*Math.sqrt(rebound/.04);
+            peak=1-returnSpan;span=peak-LINEAR_BRAKE_START;
+            constant=1+rebound-LINEAR_BRAKE_START;
+            slope=2*constant-span;
+            quadratic=2*slope-constant;
+            double curvature=rebound==0?0:rebound*span*span/(returnSpan*returnSpan);
+            cubic=curvature-constant-slope-quadratic;
+        }
+        void sample(double fraction,double[] result) {
+            if(fraction<=LINEAR_BRAKE_START) {
+                result[0]=fraction-1;result[1]=1;result[2]=0;
+            }else if(fraction<=peak) {
+                double at=(fraction-LINEAR_BRAKE_START)/span,left=1-at;
+                double residual=constant+at*(slope+at*(quadratic+at*cubic));
+                double residualSpeed=slope+at*(2*quadratic+at*3*cubic);
+                result[0]=rebound-left*left*residual;
+                result[1]=left*(2*residual-left*residualSpeed)/span;
+                result[2]=(-2*residual+4*left*residualSpeed-left*left*(2*quadratic+at*6*cubic))/(span*span);
+            }else {
+                double at=(fraction-peak)/returnSpan,left=1-at;
+                result[0]=rebound*left*left*left*(1+at*(3+5*at));
+                result[1]=-rebound*at*left*left*(2+25*at)/returnSpan;
+                result[2]=rebound*left*(at*(100*at-44)-2)/(returnSpan*returnSpan);
+            }
+        }
+    }
+    private static float halfTravel(double damping) {
         if(damping>=.9999f)return HALF_CRITICAL;
         double q=Math.sqrt(1-damping*damping),low=0,high=HALF_CRITICAL;
         for(int i=0;i<18;i++) {
@@ -112,13 +156,14 @@ final class CloudMotion {
             }
             return;
         }
-        double u=fraction,t=fraction*seconds;
+        double u=fraction,t=u*seconds;
         // Let the spring run freely through its main travel. Only its tiny
         // settling tail is tapered, with C2 joins at both ends of the taper.
-        double tail=Math.max(0,(u-.6)/.4),tail2=tail*tail,tail3=tail2*tail;
+        double tailSeconds=(1-SETTLE_START)*seconds;
+        double tail=Math.max(0,(t-SETTLE_START*seconds)/tailSeconds),tail2=tail*tail,tail3=tail2*tail;
         double envelope=1-tail3*(10-15*tail+6*tail2);
-        double envelopeSpeed=-30*tail2*(1-tail)*(1-tail)/(.4*seconds);
-        double envelopeAcceleration=-60*tail*(1-tail)*(1-2*tail)/(.16*seconds*seconds);
+        double envelopeSpeed=-30*tail2*(1-tail)*(1-tail)/tailSeconds;
+        double envelopeAcceleration=-60*tail*(1-tail)*(1-2*tail)/(tailSeconds*tailSeconds);
         float v=1-fraction;
         float pulse=16*fraction*fraction*v*v;
         float pulseSpeed=32*fraction*v*(1-2*fraction)/seconds;
@@ -129,55 +174,55 @@ final class CloudMotion {
             excursionSpeed=arrivalExcursion*arrivalExcursion(fraction,1);
             excursionAcceleration=arrivalExcursion*arrivalExcursion(fraction,2);
         }
-        double decay=Math.exp(-damping*omega*t),phaseDecay=Math.exp(-phaseOmega*t),carryDecay=Math.exp(-carryOmega*t);
-        double wd=omega*Math.sqrt(Math.max(0,1-damping*damping));
-        double sin=Math.sin(wd*t),cos=Math.cos(wd*t);
+        double phaseDecay=Math.exp(-phaseOmega*t),carryDecay=Math.exp(-carryOmega*t);
+        double offset,speed,acceleration;
+        if(t>=firstPeak) {
+            double elapsed=t-firstPeak,decay=Math.exp(-omega*elapsed);
+            offset=peakOvershoot*(1+omega*elapsed)*decay;
+            speed=-peakOvershoot*omega*omega*elapsed*decay;
+            acceleration=-2*omega*speed-omega*omega*offset;
+        }else if(dampedOmega==0) {
+            double decay=Math.exp(-omega*t);
+            offset=-(1+omega*t)*decay;
+            speed=omega*omega*t*decay;
+            acceleration=-2*omega*speed-omega*omega*offset;
+        }else {
+            double decay=Math.exp(-damping*omega*t),sine=Math.sin(dampedOmega*t);
+            offset=-decay*(Math.cos(dampedOmega*t)+damping*omega/dampedOmega*sine);
+            speed=decay*omega*omega/dampedOmega*sine;
+            acceleration=-2*damping*omega*speed-omega*omega*offset;
+        }
+        if(linearGeometrySafe)linearTail.sample(u,linearGeometry);
         for(int i=0;i<6;i++) {
             boolean shape=i==5;
-            double delta=end[i]-start[i],value,speed,acceleration;
-            if(linear&&(shape?linearPhaseSafe:linearGeometrySafe)){
-                double correction=initial[i]*seconds-delta;
-                value=-delta*(1-u)+correction*u*v*v;
-                speed=(delta+correction*v*(1-3*u))/seconds;
-                acceleration=correction*(-4+6*u)/(seconds*seconds);
-                // A linear body needs a finite braking segment before its optional
-                // rebound. This branch never changes to an ease-out spring.
-                double tailLinear=Math.max(0,Math.min(1,(u-.55)/.25));
-                double e=1-tailLinear*tailLinear*tailLinear*(10+tailLinear*(-15+6*tailLinear));
-                double ev=-30*tailLinear*tailLinear*(1-tailLinear)*(1-tailLinear)/(.25*seconds);
-                double ea=-60*tailLinear*(1-tailLinear)*(1-2*tailLinear)/(.0625*seconds*seconds);
-                double rise=Math.max(0,Math.min(1,u<=.8?(u-.55)/.25:(1-u)/.2));
-                double rate=u<=.8?1/(.25*seconds):-1/(.2*seconds);
-                double bounce=shape?0:rebound*rise*rise*rise*(10+rise*(-15+6*rise));
-                double bv=shape?0:rebound*30*rise*rise*(1-rise)*(1-rise)*rate;
-                double ba=shape?0:rebound*60*rise*(1-rise)*(1-2*rise)*rate*rate;
-                samples[0][i]=(float)(end[i]+value*e+delta*bounce);
-                samples[1][i]=(float)(speed*e+value*ev+delta*bv);
-                samples[2][i]=(float)(acceleration*e+2*speed*ev+value*ea+delta*ba);
-            }else {
-                double offset=-delta,speed0=initial[i],w=shape?phaseOmega:omega,z=shape?1:damping;
-                double decayAt=shape?phaseDecay:decay;
-                if(z>=.9999){
-                    double b=(shape?speed0:0)+w*offset;
-                    value=(offset+b*t)*decayAt;
-                    speed=(b-w*(offset+b*t))*decayAt;
-                }else{
-                    double b=z*w*offset/wd;
-                    value=decayAt*(offset*cos+b*sin);
-                    speed=decayAt*((-offset*wd*sin+b*wd*cos)-z*w*(offset*cos+b*sin));
-                }
-                acceleration=-2*z*w*speed-w*w*value;
-                if(!shape) {
-                    // Damp carried gesture momentum independently; lowering the
-                    // rebound damping must not amplify a late reversal's speed.
-                    value+=speed0*t*carryDecay;
-                    speed+=speed0*(1-carryOmega*t)*carryDecay;
-                    acceleration+=speed0*(carryOmega*carryOmega*t-2*carryOmega)*carryDecay;
-                }
-                samples[0][i]=(float)(end[i]+value*envelope);
-                samples[1][i]=(float)(speed*envelope+value*envelopeSpeed);
-                samples[2][i]=(float)(acceleration*envelope+2*speed*envelopeSpeed+value*envelopeAcceleration);
+            if(shape&&linearPhaseSafe) {
+                sampleLinearPhase(u);
+                continue;
             }
+            double delta=end[i]-start[i],carry=initial[i],value,velocity,change;
+            boolean linearChannel=!shape&&linearGeometrySafe;
+            if(linearChannel) {
+                double reference=delta/seconds;
+                value=delta*linearGeometry[0];velocity=delta*linearGeometry[1]/seconds;change=delta*linearGeometry[2]/(seconds*seconds);
+                carry-=reference;
+            }else if(shape) {
+                double tangent=carry-phaseOmega*delta;
+                value=(-delta+tangent*t)*phaseDecay;
+                velocity=tangent*phaseDecay-phaseOmega*value;
+                change=-2*phaseOmega*velocity-phaseOmega*phaseOmega*value;
+                carry=0;
+            }else {
+                value=delta*offset;velocity=delta*speed;change=delta*acceleration;
+            }
+            double carried=carry*carryDecay;
+            double carriedValue=carried*t,carriedVelocity=carried*(1-carryOmega*t),carriedChange=carried*carryOmega*(carryOmega*t-2);
+            if(!linearChannel) {
+                carriedValue+=value;carriedVelocity+=velocity;carriedChange+=change;
+                value=velocity=change=0;
+            }
+            samples[0][i]=(float)(end[i]+value+carriedValue*envelope);
+            samples[1][i]=(float)(velocity+carriedVelocity*envelope+carriedValue*envelopeSpeed);
+            samples[2][i]=(float)(change+carriedChange*envelope+2*carriedVelocity*envelopeSpeed+carriedValue*envelopeAcceleration);
             samples[0][i]+=compression[i]*pulse;
             samples[1][i]+=compression[i]*pulseSpeed;
             samples[2][i]+=compression[i]*pulseAcceleration;
@@ -186,6 +231,16 @@ final class CloudMotion {
                 samples[0][i]+=factor*excursion;samples[1][i]+=factor*excursionSpeed;samples[2][i]+=factor*excursionAcceleration;
             }
         }
+    }
+    private void sampleLinearPhase(double fraction) {
+        double delta=end[5]-start[5],left=1-fraction,correction=initial[5]*seconds-delta;
+        double value=-delta*left+correction*fraction*left*left;
+        double speed=(delta+correction*left*(1-3*fraction))/seconds;
+        double tail=Math.max(0,Math.min(1,(fraction-LINEAR_BRAKE_START)/.25)),rest=1-tail,span=.25*seconds;
+        double envelope=1-tail*tail*tail*(10+tail*(-15+6*tail));
+        samples[0][5]=(float)(end[5]+value*envelope);
+        samples[1][5]=(float)(speed*envelope-value*30*tail*tail*rest*rest/span);
+        samples[2][5]=0;
     }
     CloudMorphHook.Frame frame(float fraction){
         present(fraction);return sampledFrame;

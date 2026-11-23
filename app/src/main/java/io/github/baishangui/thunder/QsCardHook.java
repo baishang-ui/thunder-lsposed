@@ -59,7 +59,9 @@ final class QsCardHook {
         bind("mask",() -> Api102Runtime.findAndHookMethod(TILE+"MixColorTileDrawable",loader,"draw",Canvas.class,new HookCallback() {
             @Override protected void beforeHookedMethod(Param p) {
                 HookConfig c=ShadeHook.snapshot();if(!c.enabled||!area(p.thisObject).tint||preserveNativeState((Drawable)p.thisObject))return;
-                p.setObjectExtra("mask",Reflect.getIntField(p.thisObject,"maskColor"));
+                int mask=Reflect.getIntField(p.thisObject,"maskColor");
+                if(mask==0)return;
+                p.setObjectExtra("mask",mask);
                 Reflect.setIntField(p.thisObject,"maskColor",0);
             }
             @Override protected void afterHookedMethod(Param p) {
@@ -74,17 +76,21 @@ final class QsCardHook {
         }));
         bind("flat-color",() -> Api102Runtime.findAndHookMethod(TILE+"GradientTileDrawable",loader,"draw",Canvas.class,new HookCallback() {
             @Override protected void beforeHookedMethod(Param p) {
-                HookConfig c=ShadeHook.snapshot();if(!c.enabled||!area(p.thisObject).tint||preserveNativeState((Drawable)p.thisObject))return;
+                if(!ShadeHook.snapshot().enabled)return;
+                HookConfig.Area area=area(p.thisObject);
+                if(!area.tint||preserveNativeState((Drawable)p.thisObject))return;
                 ColorDrawable fill=(ColorDrawable)Reflect.getObjectField(p.thisObject,"colorDrawable");
+                int opacity=Math.max(0,Math.min(255,((Drawable)p.thisObject).getAlpha()));
+                int alpha=Math.round((area.color>>>24)*opacity/255f);
+                int color=(area.color&0xffffff)|(alpha<<24);
+                if(fill.getColor()==color&&fill.getColorFilter()==null)return;
                 p.setObjectExtra("fill",fill);p.setObjectExtra("color",fill.getColor());
                 p.setObjectExtra("filter",fill.getColorFilter());
                 p.setObjectExtra("callback",fill.getCallback());
                 // setColor invalidates its wrapper. A temporary draw override must not schedule another frame.
                 fill.setCallback(null);
                 fill.clearColorFilter();
-                int opacity=Math.max(0,Math.min(255,(Integer)Reflect.callMethod(p.thisObject,"getAlpha")));
-                int alpha=Math.round((area(p.thisObject).color>>>24)*opacity/255f);
-                fill.setColor((area(p.thisObject).color&0xffffff)|(alpha<<24));
+                fill.setColor(color);
                 ShadeHook.resourceHit("qs-card-flat");
             }
             @Override protected void afterHookedMethod(Param p) {
@@ -144,13 +150,15 @@ final class QsCardHook {
     private static void trackCardSurface(Drawable drawable) {
         for(int depth=0;drawable!=null&&depth<8;depth++) {
             // Only the background chain is a card surface; icon/label state drawables stay native.
-            Reflect.setAdditionalInstanceField(drawable,CARD_SURFACE,true);
-            drawables.put(drawable,true);
-            if(drawable.getClass().getName().equals(TILE+"MixColorTileDrawable")) {
-                Object auto=Reflect.getObjectField(drawable,"autoBlurDrawable");
-                ShadeHook.trackQsCard(Reflect.callMethod(auto,"getViewBlurProxy"));
+            if(!Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(drawable,CARD_SURFACE))) {
+                Reflect.setAdditionalInstanceField(drawable,CARD_SURFACE,true);
+                drawables.put(drawable,true);
+                if(drawable.getClass().getName().equals(TILE+"MixColorTileDrawable")) {
+                    Object auto=Reflect.getObjectField(drawable,"autoBlurDrawable");
+                    ShadeHook.trackQsCard(Reflect.callMethod(auto,"getViewBlurProxy"));
+                }
+                drawable.invalidateSelf();
             }
-            drawable.invalidateSelf();
             drawable=drawable instanceof DrawableWrapper?((DrawableWrapper)drawable).getDrawable():null;
         }
     }
@@ -164,9 +172,7 @@ final class QsCardHook {
                 @Override protected void afterHookedMethod(Param p) {
                     if(p.hasThrowable()||p.getResult()==null)return;
                     sliders.put((View)p.args[0],true);
-                    Object proxy=Reflect.callMethod(p.getResult(),"getViewBlurProxy");
-                    QsCornerHook.trackSlider(proxy,(View)p.args[0]);
-                    ShadeHook.trackQsProgress(proxy);
+                    trackSliderDrawable(p.getResult(),(View)p.args[0],"qs-progress",true);
                 }
             }));
         bind("slider-progress-update",() -> Api102Runtime.findAndHookMethod(SEEK,loader,"applySeekBarActiveBlurConfig",
@@ -175,9 +181,7 @@ final class QsCardHook {
                 @Override protected void beforeHookedMethod(Param p){
                     p.args[2]=QsCornerHook.nativeSliderRadius((View)p.args[0],(Float)p.args[2]);
                     p.args[3]=QsCornerHook.nativeSliderWeight((View)p.args[0],(Float)p.args[3]);
-                    Object proxy=Reflect.callMethod(p.args[4],"getViewBlurProxy");
-                    QsCornerHook.trackSlider(proxy,(View)p.args[0]);
-                    ShadeHook.trackQsProgress(proxy);
+                    trackSliderDrawable(p.args[4],(View)p.args[0],"qs-progress",false);
                 }
             }));
         // Brightness/volume tracks use AutoBlurDrawable directly, bypassing tile wrappers.
@@ -190,24 +194,24 @@ final class QsCardHook {
                 @Override protected void afterHookedMethod(Param p) {
                     if(p.hasThrowable()||p.getResult()==null)return;
                     sliders.put((View)p.args[0],true);
-                    QsCornerHook.trackSlider(Reflect.callMethod(p.getResult(),"getViewBlurProxy"),(View)p.args[0]);
-                    trackSliderBackground(p.getResult());
+                    trackSliderDrawable(p.getResult(),(View)p.args[0],"qs-card",true);
                 }
             }));
         bind("slider-update",() -> Api102Runtime.findAndHookMethod(SEEK,loader,"applySeekBarBgBlurConfig",
             Context.class,Rect.class,float.class,float.class,
             "com.oplusos.systemui.common.blurability.drawable.AutoBlurDrawable",boolean.class,boolean.class,float.class,new HookCallback() {
-                @Override protected void beforeHookedMethod(Param p) {trackSliderBackground(p.args[4]);}
+                @Override protected void beforeHookedMethod(Param p) {trackSliderDrawable(p.args[4],null,"qs-card",false);}
             }));
         bind("slider-flat",() -> Api102Runtime.findAndHookMethod(BAR,loader,"onDraw",Canvas.class,new HookCallback() {
             @Override protected void beforeHookedMethod(Param p) {
                 sliders.put((View)p.thisObject,true);
                 QsCornerHook.beforeSlider(p);
-                HookConfig c=ShadeHook.snapshot();if(!c.enabled||!area(p.thisObject).tint||Reflect.getBooleanField(p.thisObject,"isDrawingWithMixColor"))return;
+                if(!ShadeHook.snapshot().enabled||Reflect.getBooleanField(p.thisObject,"isDrawingWithMixColor"))return;
+                HookConfig.Area area=area(p.thisObject);if(!area.tint)return;
                 p.setObjectExtra("background",Reflect.getIntField(p.thisObject,"mBackgroundColor"));
                 p.setObjectExtra("track",new Object[]{Reflect.getObjectField(p.thisObject,"mInactiveTrackDrawable")});
                 // Preserve native geometry, progress fill and icon; replace only the base track color.
-                Reflect.setIntField(p.thisObject,"mBackgroundColor",area(p.thisObject).color);
+                Reflect.setIntField(p.thisObject,"mBackgroundColor",area.color);
                 Reflect.setObjectField(p.thisObject,"mInactiveTrackDrawable",null);
                 ShadeHook.resourceHit("qs-slider-flat");
             }
@@ -220,11 +224,12 @@ final class QsCardHook {
         }));
         bind("deopt-slider",() -> Api102Runtime.deoptimizeCallers(Reflect.findClass(BAR,loader),"onDraw","updateColor"));
     }
-    private static void trackSliderBackground(Object drawable) {
-        drawables.put((Drawable)drawable,true);
+    private static void trackSliderDrawable(Object drawable,View view,String role,boolean applyNow) {
         Object proxy=Reflect.callMethod(drawable,"getViewBlurProxy");
-        Reflect.setAdditionalInstanceField(Reflect.callMethod(proxy,"getBlurConfig"),"thunder.qs-style","qs_slider");
-        ShadeHook.trackQsCard(proxy);
+        Object blur=Reflect.callMethod(proxy,"getBlurConfig");
+        QsCornerHook.trackSlider(blur,view);
+        if("qs-card".equals(role))drawables.put((Drawable)drawable,true);
+        ShadeHook.trackQsProxy(proxy,blur,role,applyNow);
     }
     static void markStyle(Drawable drawable,String style) {
         if(drawable==null)return;

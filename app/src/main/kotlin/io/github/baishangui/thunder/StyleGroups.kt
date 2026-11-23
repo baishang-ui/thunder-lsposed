@@ -1,13 +1,5 @@
 package io.github.baishangui.thunder
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-
 internal object StyleGroups {
     data class Group(val key: String, val title: String, val page: String)
     val groups = listOf(
@@ -44,35 +36,5 @@ internal object StyleGroups {
         key in setOf("status_bar_margins", "status_bar_left", "status_bar_right", "status_bar_center_enabled", "status_bar_center", "status_bar_compress_clock") -> "status_layout"
         key.startsWith("status_") -> "status_icons"
         else -> "gesture"
-    }
-}
-
-/** Thin composition of the existing Miuix card and official LiquidToggle row. */
-@Composable internal fun StyleCard(key: String, settings: Settings, change: (Settings) -> Unit,
-    content: @Composable ColumnScope.() -> Unit) {
-    val enabled = settings.styles.enabled(settings, key)
-    CompositionLocalProvider(LocalControlScope provides "style:$key", LocalInlineSettings provides true) {
-        SettingsGroup {
-            Column {
-                LiquidSwitchRow(StyleGroups.group(key).title, if (enabled) "自定义样式" else "系统默认样式", enabled, icon = styleIcon(key)) {
-                    change(settings.copy(styles = settings.styles.toggle(key, it)))
-                }
-                SettingsReveal(enabled, Modifier.padding(top = 12.dp)) {
-                    SettingsDivider()
-                    content()
-                }
-            }
-        }
-    }
-}
-
-@Composable internal fun MaterialOptions(area: Area, corner: Boolean = true, change: (Area) -> Unit) {
-    LiquidSwitchRow("自定义模糊", "", area.blur) { change(area.copy(blur = it)) }
-    SettingsReveal(area.blur) { LiquidValueSlider("模糊半径", area.radius, 0..200, " px") { change(area.copy(radius = it)) } }
-    LiquidSwitchRow("自定义混色", "", area.tint) { change(area.copy(tint = it)) }
-    SettingsReveal(area.tint) { LiquidColorSetting("混色颜色", area.color) { change(area.copy(color = it)) } }
-    if (corner) {
-        LiquidSwitchRow("自定义圆角", "", area.cornerEnabled) { change(area.copy(cornerEnabled = it)) }
-        SettingsReveal(area.cornerEnabled) { LiquidValueSlider("圆角半径", area.corner, 0..64, " dp") { change(area.copy(corner = it)) } }
     }
 }

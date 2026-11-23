@@ -8,7 +8,9 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.WeakHashMap;
 import java.util.ArrayList;
 import java.lang.ref.WeakReference;
@@ -40,6 +42,8 @@ public final class ShadeHook {
     private static final Map<String,String> effective = new ConcurrentHashMap<>();
     private static final ThreadLocal<Integer> livePanelDepth = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<Integer> panelPlatformRadius = new ThreadLocal<>();
+    private static final ThreadLocal<NativeConfigScope> nativeConfigScope = new ThreadLocal<>();
+    private static final Object NO_PANEL_RADIUS = new Object();
     private static String settingsSource = "unavailable";
     private static Class<?> shaderClass, shaderConfigClass, multiShaderConfigClass, mixClass, motionConfigClass;
 
@@ -99,7 +103,7 @@ public final class ShadeHook {
             "panelPlatformMixConfig", Context.class, boolean.class, boolean.class, new HookCallback() {
                 @Override protected void afterHookedMethod(HookCallback.Param p) {
                     if(p.hasThrowable()||p.getResult()==null||!config.enabled||!config.shade.tint)return;
-                    p.setResult(panelMix(p.getResult(),config.shade));
+                    p.setResult(platformMix(null,nativeMix(p.getResult()),config.shade,true));
                     observed("panel-source", "ARGB="+Integer.toHexString(config.shade.color));
                 }
             }));
@@ -353,15 +357,10 @@ public final class ShadeHook {
                     p.setResult(original);
                     HookConfig.Area area = area(p.thisObject);
                     if (area == null || !area.tint || !QsCardHook.useCustomTint(p.thisObject)) return;
-                    Object replacement;
-                    if("banner".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE)) ||
-                            String.valueOf(Reflect.getAdditionalInstanceField(p.thisObject,ROLE)).startsWith("volume-")) {
-                        replacement=backgroundMix(p.getResult(),area);
-                    } else if("qs-card".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE))||
-                            "notification-card".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE))||
-                            "cloud-lock".equals(Reflect.getAdditionalInstanceField(p.thisObject,ROLE))) {
-                        replacement=backgroundMix(p.getResult(),area);
-                    } else replacement=panelMix(p.getResult(),area);
+                    Object role=Reflect.getAdditionalInstanceField(p.thisObject,ROLE);
+                    boolean panel=!"banner".equals(role)&&!"qs-card".equals(role)&&!"notification-card".equals(role)
+                        &&!"cloud-lock".equals(role)&&!String.valueOf(role).startsWith("volume-");
+                    Object replacement=platformMix(p.thisObject,original,area,panel);
                     p.setResult(replacement); hit("color");
                 } catch (Throwable error) { failed("color", error); }
             }
@@ -372,55 +371,103 @@ public final class ShadeHook {
                 try {
                     HookConfig.Area area = area(p.thisObject);
                     if (area == null || !area.tint || !QsCardHook.useCustomTint(p.thisObject)) return;
-                    Object replacement=motionMix(p.getResult(),area); p.setResult(replacement); hit("banner-motion");
+                    Object replacement=motionMix(p.thisObject,p.getResult(),area); p.setResult(replacement); hit("banner-motion");
                 } catch (Throwable error) { failed("banner-motion", error); }
             }
         }));
     }
     private static void enterPanelRadius(HookCallback.Param p,Object blur) {
-        p.setObjectExtra("panel-radius-scope",new Object[]{panelPlatformRadius.get()});
-        // A nested non-panel consumer must not inherit the surrounding radius.
-        panelPlatformRadius.remove();
-        HookConfig.Area a=area(blur);
-        if(a==null||!a.blur||!"panel".equals(Reflect.getAdditionalInstanceField(blur,ROLE)))return;
-        float amount=((Number)Reflect.getObjectField(p.thisObject,"blurAmount")).floatValue();
-        panelPlatformRadius.set((int)(a.radius*Math.max(0f,Math.min(1f,amount))));
+        Integer previous=panelPlatformRadius.get();
+        Integer radius=null;
+        if("panel".equals(Reflect.getAdditionalInstanceField(blur,ROLE))) {
+            HookConfig.Area area=area(blur);
+            if(area!=null&&area.blur) {
+                float amount=((Number)Reflect.getObjectField(p.thisObject,"blurAmount")).floatValue();
+                radius=(int)(area.radius*Math.max(0f,Math.min(1f,amount)));
+            }
+        }
+        if(previous==null&&radius==null)return;
+        p.setObjectExtra("panel-radius-scope",previous==null?NO_PANEL_RADIUS:previous);
+        if(radius==null)panelPlatformRadius.remove();else panelPlatformRadius.set(radius);
     }
     private static void restorePanelRadius(HookCallback.Param p) {
         Object saved=p.getObjectExtra("panel-radius-scope");
-        if(!(saved instanceof Object[]))return;
-        Integer previous=(Integer)((Object[])saved)[0];
-        if(previous==null)panelPlatformRadius.remove();else panelPlatformRadius.set(previous);
+        if(saved==NO_PANEL_RADIUS)panelPlatformRadius.remove();
+        else if(saved instanceof Integer)panelPlatformRadius.set((Integer)saved);
     }
     static void overrideNativeConfig(HookCallback.Param p,Object blur,String backend) {
+        NativeConfigScope previous=nativeConfigScope.get();
         // Producer replacements may remain cached even after customization is disabled.
-        p.setObjectExtra("config",blur);
         Object stored=Reflect.getObjectField(blur,"platformMixConfig");
+        if(previous!=null&&previous.blur==blur&&previous.backend.equals(backend)&&previous.platform==stored)return;
         Object original=nativeMix(stored);
-        if(original!=stored)temporary(p,blur,"platformMixConfig",original);
-        HookConfig.Area area=area(blur);if(area==null)return;
+        HookConfig.Area area=area(blur);
+        if(area==null&&original==stored)return;
+        NativeConfigScope scope=new NativeConfigScope(blur,backend,previous);
+        nativeConfigScope.set(scope);
+        p.setObjectExtra("native-config-scope",scope);
+        if(area==null) {
+            scope.set("platformMixConfig",original);
+            scope.platform=original;
+            return;
+        }
         String role=String.valueOf(Reflect.getAdditionalInstanceField(blur,ROLE));
-        Reflect.setAdditionalInstanceField(blur,"thunder-backend",backend);
-        NotificationCardHook.overrideCorners(p,blur,area);
+        NativeMaterial material=(NativeMaterial)Reflect.getAdditionalInstanceField(blur,"thunder-native-material");
+        if(material==null) {
+            material=new NativeMaterial();
+            Reflect.setAdditionalInstanceField(blur,"thunder-native-material",material);
+        }
+        if(!backend.equals(material.backend))Reflect.setAdditionalInstanceField(blur,"thunder-backend",backend);
+        NotificationCardHook.overrideCorners(scope,blur,area);
         if(area.blur) {
-            temporary(p,blur,"blurRadius",area.radius);
-            temporary(p,blur,"motionBlurRadius",area.radius);
-            if("panel".equals(role))temporary(p,blur,"scaleBlurRadiusWithAmount",true);
+            scope.set("blurRadius",area.radius);
+            scope.set("motionBlurRadius",area.radius);
+            if("panel".equals(role))scope.set("scaleBlurRadiusWithAmount",true);
         }
+        Object platform=original;
         if(area.tint && QsCardHook.useCustomTint(blur)) {
-            Object platform=Reflect.getObjectField(blur,"platformMixConfig");
-            temporary(p,blur,"platformMixConfig","panel".equals(role)?panelMix(platform,area):backgroundMix(platform,area));
-            temporary(p,blur,"motionBlurMixConfig",motionMix(Reflect.getObjectField(blur,"motionBlurMixConfig"),area));
+            platform=platformMix(blur,original,area,"panel".equals(role));
+            scope.set("motionBlurMixConfig",motionMix(blur,Reflect.getObjectField(blur,"motionBlurMixConfig"),area));
         }
-        observed(role+"-native",backend+" radius="+(area.blur?area.radius:"system")+" ARGB="+(area.tint?Integer.toHexString(area.color):"system"));
+        scope.set("platformMixConfig",platform);
+        scope.platform=platform;
+        if(material.area!=area||!role.equals(material.role)||!backend.equals(material.backend)) {
+            material.area=area;
+            material.role=role;
+            material.backend=backend;
+            observed(role+"-native",backend+" radius="+(area.blur?area.radius:"system")+" ARGB="+(area.tint?Integer.toHexString(area.color):"system"));
+        }
     }
     static void restoreNativeConfig(HookCallback.Param p) {
-        Object blur=p.getObjectExtra("config");if(blur==null)return;
-        for(String field:new String[]{"blurRadius","motionBlurRadius","platformMixConfig","motionBlurMixConfig","scaleBlurRadiusWithAmount","cornerRadius","leftTopCornerRadius","rightTopCornerRadius",
-                "leftBottomCornerRadius","rightBottomCornerRadius","pathProvider","gradientStrokeCornerParam","radiusWeight","enableMotionSmoothCorner"}) {
-            Object saved=p.getObjectExtra(field);
-            if(saved instanceof Object[])Reflect.setObjectField(blur,field,((Object[])saved)[0]);
+        NativeConfigScope scope=(NativeConfigScope)p.getObjectExtra("native-config-scope");
+        if(scope==null)return;
+        try {
+            if(scope.originals!=null)for(var field:scope.originals.entrySet())
+                Reflect.setObjectField(scope.blur,field.getKey(),field.getValue());
+        } finally {
+            if(scope.previous==null)nativeConfigScope.remove();else nativeConfigScope.set(scope.previous);
         }
+    }
+    static final class NativeConfigScope {
+        final Object blur;
+        final String backend;
+        final NativeConfigScope previous;
+        private Object platform;
+        private Map<String,Object> originals;
+        NativeConfigScope(Object blur,String backend,NativeConfigScope previous) {
+            this.blur=blur;this.backend=backend;this.previous=previous;
+        }
+        void set(String field,Object value) {
+            Object original=Reflect.getObjectField(blur,field);
+            if(original==value||((value instanceof Number||value instanceof Boolean)&&value.equals(original)))return;
+            if(originals==null)originals=new HashMap<>();
+            if(!originals.containsKey(field))originals.put(field,original);
+            Reflect.setObjectField(blur,field,value);
+        }
+    }
+    private static final class NativeMaterial {
+        HookConfig.Area area;
+        String role,backend;
     }
     private static HookConfig.Area area(Object blur) {
         HookConfig snapshot = config;
@@ -502,6 +549,9 @@ public final class ShadeHook {
         if (hooks.add(key)) requestReport();
     }
     static HookConfig snapshot() { return config; }
+    static boolean isVolumeMix(Object mix) {
+        return mix!=null&&Boolean.TRUE.equals(Reflect.getAdditionalInstanceField(mix,"thunder-volume-tint"));
+    }
     static boolean isPanelBackground(Object blur) {
         return blur!=null && "panel".equals(Reflect.getAdditionalInstanceField(blur,ROLE))
             && shaderConfigClass!=null && shaderConfigClass.isInstance(nativeMix(Reflect.getObjectField(blur,"platformMixConfig")));
@@ -510,15 +560,12 @@ public final class ShadeHook {
         Reflect.setAdditionalInstanceField(Reflect.callMethod(proxy,"getBlurConfig"),ROLE,role);
         proxies.put(proxy,true);Reflect.callMethod(proxy,"applyBlurConfig");
     }
-    static void trackQsCard(Object proxy) {
-        Reflect.setAdditionalInstanceField(Reflect.callMethod(proxy,"getBlurConfig"),ROLE,"qs-card");
-        proxies.put(proxy,true);
-        Reflect.callMethod(proxy,"applyBlurConfig");
-    }
-    static void trackQsProgress(Object proxy) {
-        Reflect.setAdditionalInstanceField(Reflect.callMethod(proxy,"getBlurConfig"),ROLE,"qs-progress");
-        proxies.put(proxy,true);
-        Reflect.callMethod(proxy,"applyBlurConfig");
+    static void trackQsCard(Object proxy) { trackQsProxy(proxy,Reflect.callMethod(proxy,"getBlurConfig"),"qs-card",true); }
+    static void trackQsProxy(Object proxy,Object blur,String role,boolean applyNow) {
+        boolean changed=!role.equals(Reflect.getAdditionalInstanceField(blur,ROLE));
+        if(changed)Reflect.setAdditionalInstanceField(blur,ROLE,role);
+        if(changed||applyNow)proxies.put(proxy,true);
+        if(applyNow)Reflect.callMethod(proxy,"applyBlurConfig");
     }
     static void resourceHit(String key) { hit(key); }
     static void statusIconsObserved(String slots) {
@@ -536,18 +583,6 @@ public final class ShadeHook {
             Reflect.setAdditionalInstanceField(Reflect.callMethod(proxy,"getBlurConfig"),ROLE,"panel");
             proxies.put(proxy,true);hit("panel-owner");
         } catch(Throwable error) { failed("panel-owner",error); }
-    }
-    private static Object panelMix(Object original,HookConfig.Area area) {
-        original=nativeMix(original);
-        if(shaderConfigClass==null||!shaderConfigClass.isInstance(original))return original;
-        Object replacement=backgroundMix(original,area);
-        // C17 disables capture fading while mirror scaling is active. Retain
-        // that policy on every cache read, independently of the selected tint.
-        Reflect.callMethod(replacement,"setAlphaWithBlurAmount",Reflect.callMethod(original,"getAlphaWithBlurAmount"));
-        // A placeholder is drawn before the asynchronous capture exists. It cannot
-        // represent a blend with that capture: full tint here flashes on first pull.
-        Reflect.callMethod(replacement,"setPlaceHolderColor",0);
-        return replacement;
     }
     private static Object nativeMix(Object mix) {
         if(mix==null)return null;
@@ -581,26 +616,44 @@ public final class ShadeHook {
         try { return view.getId()!=View.NO_ID&&"scrim_behind".equals(view.getResources().getResourceEntryName(view.getId())); }
         catch(android.content.res.Resources.NotFoundException ignored) { return false; }
     }
-    private static void temporary(HookCallback.Param p,Object object,String field,Object value) {
-        if(p.getObjectExtra(field)==null)p.setObjectExtra(field,new Object[]{Reflect.getObjectField(object,field)});
-        Reflect.setObjectField(object,field,value);
+    private static final class PlatformMix {
+        final Object source,replacement;
+        final int color;
+        final boolean panel;
+        Object scale,alpha;
+        PlatformMix(Object source,Object replacement,int color,boolean panel) {
+            this.source=source;this.replacement=replacement;this.color=color;this.panel=panel;
+        }
+        void syncFlags() {
+            Object currentScale=Reflect.callMethod(source,"getMirrorScale");
+            Object currentAlpha=panel?Reflect.callMethod(source,"getAlphaWithBlurAmount"):true;
+            if(!Objects.equals(scale,currentScale)) {
+                Reflect.callMethod(replacement,"setMirrorScale",currentScale);
+                scale=currentScale;
+            }
+            if(!Objects.equals(alpha,currentAlpha)) {
+                Reflect.callMethod(replacement,"setAlphaWithBlurAmount",currentAlpha);
+                alpha=currentAlpha;
+            }
+        }
     }
-    private static Object backgroundMix(Object original,HookConfig.Area area) {
-        original=nativeMix(original);
-        if(original==null)return null;
+    private static Object platformMix(Object blur,Object original,HookConfig.Area area,boolean panel) {
+        if(original==null||shaderConfigClass==null)return original;
+        boolean single=shaderConfigClass.isInstance(original);
+        if(panel&&!single)return original;
+        int color=area.color>>>24==0?0:area.color;
+        PlatformMix cached=blur==null?null:(PlatformMix)Reflect.getAdditionalInstanceField(blur,"thunder-platform-mix");
+        if(cached!=null&&cached.source==original&&cached.color==color&&cached.panel==panel) {
+            cached.syncFlags();
+            return cached.replacement;
+        }
         boolean multi=multiShaderConfigClass!=null&&multiShaderConfigClass.isInstance(original);
         // CUSTOM cards can use compositor-only Single/Multi configurations. They
         // still need the selected material; leaving these unchanged silently
         // discards the lock-screen tint on those firmware paths.
         boolean plain=motionConfigClass!=null&&motionConfigClass.isInstance(original)
             || original.getClass().getName().equals(BLUR+"BlurMixConfig$BlurMixMulti");
-        if(!multi&&!shaderConfigClass.isInstance(original)&&!plain)return original;
-        Object ref=Reflect.getAdditionalInstanceField(original,"thunder-background-mix");
-        Object cached=ref instanceof WeakReference ? ((WeakReference<?>)ref).get() : null;
-        if(cached!=null&&Reflect.getAdditionalInstanceField(original,"thunder-background-area")==area) {
-            customFlags(original,cached);return cached;
-        }
-        int color=area.color>>>24==0?0:area.color;
+        if(!multi&&!single&&!plain)return original;
         // C17 AGSL MIX interpolates straight RGB by the selected alpha.
         int mode=color==0?0:1;
         Object tint=Reflect.newInstance(shaderClass,mode,color,0,0);
@@ -609,34 +662,37 @@ public final class ShadeHook {
             Object empty=Reflect.newInstance(shaderClass,0,0,0,0);
             result=Reflect.newInstance(multiShaderConfigClass,tint,empty);
         } else result=Reflect.newInstance(shaderConfigClass,tint);
-        Reflect.callMethod(result,"setPlaceHolderColor",color);
-        customFlags(original,result);
+        Reflect.callMethod(result,"setPlaceHolderColor",panel?0:color);
         Reflect.setAdditionalInstanceField(result,"thunder-native-mix",original);
         Reflect.setAdditionalInstanceField(result,"thunder-custom-tint",true);
-        Reflect.setAdditionalInstanceField(original,"thunder-background-area",area);
-        Reflect.setAdditionalInstanceField(original,"thunder-background-mix",new WeakReference<>(result));
+        if(blur!=null&&String.valueOf(Reflect.getAdditionalInstanceField(blur,ROLE)).startsWith("volume-"))
+            Reflect.setAdditionalInstanceField(result,"thunder-volume-tint",true);
+        PlatformMix mix=new PlatformMix(original,result,color,panel);
+        mix.syncFlags();
+        if(blur!=null)Reflect.setAdditionalInstanceField(blur,"thunder-platform-mix",mix);
         return result;
     }
-    private static Object motionMix(Object original,HookConfig.Area area) {
+    private record MotionMix(Object source,int color,Object mirrorScale,Object replacement) {}
+    private static Object motionMix(Object blur,Object original,HookConfig.Area area) {
         // OplusBlurParam has its own enum: 1=COLORMIX, 4=GLOW_OVERLAY.
         // Keep the tint in the compositor; BackgroundBlurDrawable.setColor is a
         // separate paint drawn before the RenderNode and does not follow setAlpha.
         int color=area.color>>>24==0?0:area.color;
+        MotionMix cached=(MotionMix)Reflect.getAdditionalInstanceField(blur,"thunder-motion-mix");
+        if(cached!=null&&original==cached.replacement)original=cached.source;
+        Object scale=original==null?null:Reflect.callMethod(original,"getMirrorScale");
+        if(cached!=null&&cached.source==original&&cached.color==color&&Objects.equals(cached.mirrorScale,scale))
+            return cached.replacement;
         Object replacement=Reflect.newInstance(motionConfigClass,
             Reflect.newInstance(mixClass,color==0?0:1,color,0));
-        customFlags(original,replacement);return replacement;
-    }
-    private static void customFlags(Object original,Object replacement) {
-        if(original!=null)copyFlags(original,replacement);
+        if(scale!=null)Reflect.callMethod(replacement,"setMirrorScale",scale);
         Reflect.callMethod(replacement,"setAlphaWithBlurAmount",true);
+        Reflect.setAdditionalInstanceField(blur,"thunder-motion-mix",new MotionMix(original,color,scale,replacement));
+        return replacement;
     }
     static void observed(String key,String value) {
         String previous=effective.put(key,value);hit(key);
         if(!value.equals(previous)) requestReport();
-    }
-    private static void copyFlags(Object from, Object to) {
-        Reflect.callMethod(to, "setAlphaWithBlurAmount", Reflect.callMethod(from, "getAlphaWithBlurAmount"));
-        Reflect.callMethod(to, "setMirrorScale", Reflect.callMethod(from, "getMirrorScale"));
     }
     private static void readSettings(int attempt) {
         try {

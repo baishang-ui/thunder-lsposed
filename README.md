@@ -6,7 +6,7 @@
 
 **为 ColorOS 17 打造的 SystemUI 外观调节模块**
 
-LSPosed · 系统设置集成 · Miuix · Liquid Glass
+LSPosed · 系统设置集成 · COUI 2.0
 
 [📦 获取安装包](../../releases) · [🚀 安装指南](#installation) · [🛠️ 构建说明](#build) · [🧩 第三方组件](THIRD_PARTY.md)
 
@@ -20,7 +20,7 @@ LSPosed · 系统设置集成 · Miuix · Liquid Glass
 
 应用包名及源码命名空间统一为 `io.github.baishangui.thunder`，配置格式为 `thunder.settings`。
 
-> 💡 **两个配置入口**：从桌面打开 thunder，或进入 **系统设置 → thunder**。独立 App 使用 Miuix / Liquid Glass，系统设置入口复用宿主原生 COUI。
+> 💡 **两个配置入口**：从桌面打开 thunder，或进入 **系统设置 → thunder**。独立 App 使用 COUI Compose 2.0，系统设置入口复用宿主原生 COUI。
 
 ### 🧭 快捷导航
 
@@ -44,7 +44,7 @@ LSPosed · 系统设置集成 · Miuix · Liquid Glass
 
 ## 🚀 安装使用
 
-1. 安装签名后的 thunder APK。同包名、同签名可以覆盖升级，已有配置会保留。保留原有独立 App 与桌面图标，可直接打开原来的 Miuix / Liquid Glass 配置界面。
+1. 安装签名后的 thunder APK。同包名、同签名可以覆盖升级，已有配置会保留。可从桌面图标打开独立 App。
 2. 在 LSPosed 中启用模块，勾选 **设置 / com.android.settings**、**系统界面 / com.android.systemui** 和 **系统界面插件 / com.oplus.systemui.plugins**。升级不会自动授权新增作用域；旧用户也需要手动补勾“设置”。
 3. 正常重启手机加载 Hook，然后打开桌面的 **thunder** App；也可进入 **系统设置 → thunder**（位于设置列表末尾）。首次安装必须经过 LSPosed 启用与作用域授权，仅安装 APK 不会自动注入系统设置。
 4. 直接在系统设置内调整下拉背景、磁贴、通知、音量、流体云、状态栏与手势条。页面由系统的 `SubSettings` 与 `COUIPreferenceFragment` 承载，开关、选择器、数值输入及颜色选择均复用该固件的原生组件与 COUI 对话框，跟随系统设置的主题与返回导航。
@@ -55,7 +55,7 @@ LSPosed · 系统设置集成 · Miuix · Liquid Glass
 
 ### 📲 配置入口与兼容性
 
-原有独立 App 及其完整界面保留，可从 **桌面 → thunder** 或 **LSPosed → thunder → 模块设置** 打开。独立 App 继续使用原来的 Miuix / Liquid Glass 界面，系统设置集成仅作为额外入口。原有实时预览、文件导入导出、通知横幅测试、Root 验证及运行报告逻辑保留。系统设置内使用系统主题，独立 App 的配色与玻璃参数仍只影响 App 本身。
+独立 App 可从 **桌面 → thunder** 或 **LSPosed → thunder → 模块设置** 打开。文件导入导出、通知横幅测试、Root 验证及运行报告逻辑保留。系统设置内使用原生主题，独立 App 的风格、配色与玻璃参数只影响 App 本身。
 
 若当前固件缺少已核对的 COUI 或设置接口，模块会记录错误，不将第三方仿制界面当作系统设置注入。实现和验收边界见 [系统设置集成](docs/system-settings-integration.md)。
 
@@ -160,25 +160,25 @@ LSPosed · 系统设置集成 · Miuix · Liquid Glass
 
 **样式开关**
 
-调节首页按功能进入流体云、通控中心、音量面板、状态栏与手势条。样式卡片的标题行提供独立开关，开启展开参数，关闭恢复系统样式并收起，保留上次设置。两套界面的分组、迁移与验证说明见 [按功能组织的样式设置](docs/settings-layout.md)。
+功能首页以卡片直达流体云、通控中心、音量面板、状态栏与手势条。参数在页面内编辑，顶部标签切换小项；样式开关独立启停，关闭后跟随系统并保留设置。参见 [功能工作台与常用调节](docs/settings-layout.md)。
 
 **导航与控件**
 
-主页、调节、设置三页采用带 Miuix 图标的悬浮导航；二级页面隐藏底部导航，提供更多调节空间。顶部使用 Miuix `SmallTopAppBar`，页面按顶栏实际高度留白；返回、重启、导航及分类入口图标统一使用 Miuix Icons 0.9.0；左上角返回、右上角重启系统界面均使用 LiquidButton。
+「功能」「常用」「管理」使用 COUI 17 可折叠顶栏、联动搜索和悬浮导航。搜索可定位具体参数；长按开关或数值设置可固定到常用。二级页面使用 COUI 分段标签，切换时内容淡入淡出。
 
 **预测返回**
 
-支持预测返回：应用内返回时，页面随左右边缘手势缩放、平移和圆角变化；完成手势才返回上一级，取消后平滑复原。主页交由系统处理返回桌面的预测动画。
+使用 COUI 整页预测返回：顶栏与内容一起过渡，取消手势保留当前页，完成后恢复上一页的滚动位置。主页交由系统处理返回桌面的动画。
 
 **自动保存与回退**
 
-滑块在组件内保留连续浮点手势值，松手后提交；开关和颜色确认后自动保存。改过的滑块、开关、颜色和外观选项提供“回退”，返回本次编辑前的值。
+滑块松手后提交；开关和颜色确认后自动保存。改过的设置旁显示历史图标，点按可选择本次打开应用期间的旧值。
 
 ### 💾 配置管理与诊断
 
 **配置管理**
 
-设置首页提供界面外观、配置管理和关于入口；明暗模式、配色、玻璃参数、JSON 导入导出和恢复默认均收纳到二级页面。主页运行报告也使用独立二级页面，支持刷新和复制。使用 `thunder.settings` 配置格式。
+管理页提供界面外观、配置管理、模块权限和关于入口；明暗模式、配色、JSON 导入导出和恢复默认保留在相应页面。运行报告支持刷新和复制。备份使用 `thunder.settings` 配置格式，不包含本机的常用项和最近调整。
 
 **运行报告**
 
@@ -208,30 +208,22 @@ LSPosed · 系统设置集成 · Miuix · Liquid Glass
 
 ### 🎨 主题与配色
 
-“设置 → 界面外观 → 界面配色”提供自定义、壁纸取色和自选取色。Monet 使用 Miuix 0.9.0 的 `ThemeController`：壁纸取色跟随系统动态配色，自选取色根据种子色生成完整配色。明暗模式独立选择，卡片、文字、导航和 Liquid 控件共用主题颜色。原有配置保留自定义强调色与底色，切换 Monet 不会覆盖它们。
+在「管理 → 界面外观」选择明暗模式与配色来源：自定义颜色、壁纸取色或自选 Monet 种子色。
+
+「材质与触感」可独立关闭本应用的 COUI 材质模糊或滚动边缘触感；关闭边缘触感不影响回弹或控件触感。
 
 ### 🎚️ 参数调节
 
-主页直接展示效果总开关、LSPosed 与作用域状态、Root 验证和运行报告入口，不设快捷调节入口。开启自定义开关后显示对应参数；模糊、边距、尺寸和百分比保留玻璃滑块，点击数值行可精确输入整数，超出范围或无效输入不能保存。时钟字号、手势条粗细和界面圆角改用 MIUIx 数字滚轮，确认后提交。主题、配色来源、时间制式、日期格式、图标方案、音量动画与展开方式、手势条颜色切换依据使用设置行和带说明的 MIUIx 单选列表。
-
-### 🪞 实时预览
-
-具体外观调整页顶部提供实时效果预览，可在“当前 / 系统”间对照并点击放大；覆盖通知与控制中心、流体云四页、音量、状态栏和手势条，界面外观使用真实主题与玻璃组件。预览直接读取待保存参数，关闭模块或流体云总开关时显示系统示例；应用取色遮罩可切换音乐 / 出行示例色。预览读取当前设备的系统图标与原生尺寸，按 ColorOS 17 控制中心、通知、流体云和音量面板布局绘制，使用主题壁纸、局部背景模糊及固定样例内容。
-
-iOS 图标沿用原始主题资源；未替换的旋转锁定、热点等图标读取系统原图，缺少资源时安全跳过。音量预览可切换收起 / 展开；实际动态材质仍受设备壁纸、应用与系统影响。状态栏、流体云、通知中心等分类总览，以及配置管理、关于和运行报告不显示外观预览。
-
-### ✨ 按压反馈
-
-设置行、颜色入口和回退按钮的按压反馈按圆角裁剪，玻璃按钮的背景与高亮使用相同形状，文字按钮随内容增高。
+模糊、边距、尺寸和百分比可拖动滑块或点按数值精确输入；小范围整数可用步进器调整。简短选项使用下拉菜单，带说明的选择使用底部面板。
 
 ### 🌈 颜色选择
 
-材质取色弹窗提供“色板 / 调色 / HEX”三种方式，不透明的主题颜色提供“调色 / HEX”：色板复用 MIUIx ColorPalette，调色保留 HSV 通道，HEX 提供带校验的 MIUIx 文本输入；确认后才保存。颜色预览单独裁剪，确认按钮固定在滚动区域外；不透明颜色隐藏透明度滑条。参数仍自动保存，操作结果以短暂提示展示。
+颜色编辑用 COUI 色板和调色控件，支持直接输入 HEX，并在确认后保存。不透明主题色不显示透明度调节。参数仍自动保存，操作结果以简短提示展示。
 
 <details>
 <summary>🔎 UI 审查与真机验收范围</summary>
 
-应用 UI 已对照 Miuix 0.9.0 官方设置页及组件样例审查：设置行复用 `BasicComponent`，回退操作独立排列，窄屏或大字体时单选设置改为纵向选项，导航高度与页面留白同步。逐项发现、样例来源与真机验收范围见 [UI 审查记录](docs/ui-audit.md)。
+独立界面按 COUI 2.0 官方 `coui-app` 指南组织；页面与交互说明见 [设置布局](docs/settings-layout.md)。
 
 </details>
 
@@ -239,13 +231,12 @@ iOS 图标沿用原始主题资源；未替换的旋转锁定、热点等图标�
 
 ## 🛠️ 构建
 
-使用 JDK 17、Android SDK Platform 37（本地 SDK 目录通常为 `platforms/android-37.0`）和 Build Tools 35.0.0。项目提供 Gradle 8.13 Wrapper，并锁定依赖版本。
+使用 JDK 21、Android SDK Platform 37（本地 SDK 目录通常为 `platforms/android-37.0`）和 Build Tools 35.0.0。项目提供 Gradle 8.13 Wrapper，并锁定依赖版本。
 
 在 `local.properties` 中设置本机 SDK 路径，或配置 `ANDROID_HOME`，然后执行：
 
 ```sh
 ./gradlew :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease
-python3 scripts/check_liquid_button.py
 python3 scripts/check_systemui_restart.py
 python3 scripts/check_live_settings.py
 python3 scripts/check_effects.py
@@ -266,7 +257,7 @@ Windows 使用 `gradlew.bat`。本地构建输出为 `app/build/outputs/apk/rele
 
 ### 🧩 主要依赖
 
-主要依赖：AGP 8.13.2、Kotlin 2.3.20、Compose 1.10.3、Kyant0 Backdrop 1.0.6、Shapes 1.2.0、Miuix UI / Icons 0.9.0，以及 libxposed API / Service 102.0.0。
+主要依赖：AGP 8.13.2、Kotlin 2.4.10、Compose Multiplatform 1.11.1、COUI 2.0.0，以及 libxposed API / Service 102.0.0。
 
 <a id="release"></a>
 
@@ -322,7 +313,9 @@ THIRD_PARTY.md       第三方组件来源与许可
 
 本地 `archive/` 保存原始模块包、采集文件及历史产物，`.local/` 保存工具链、签名和分析资料，`dist/` 保存签名构建结果。这些目录均被 Git 忽略。
 
-Kyant0 的四类 Liquid 组件使用官方 Catalog 源码，其余界面组件使用 Miuix；预览切换、卡片、弹窗和进度展示同样复用库组件。UI 构建约束见 [AGENTS.md](AGENTS.md)。详细来源与改动说明见 [THIRD_PARTY.md](THIRD_PARTY.md)，许可证随 APK 打包在 `app/src/main/assets/licenses/` 中。
+独立 App 的界面组件均来自 COUI。UI 构建约束见 [AGENTS.md](AGENTS.md)，许可证与来源见 [THIRD_PARTY.md](THIRD_PARTY.md)。
+
+Agent 编码规范统一维护在 [AGENTS.md](AGENTS.md)，Codex、Cursor、Windsurf 和 OpenCode 可直接读取；[CLAUDE.md](CLAUDE.md)、[GEMINI.md](GEMINI.md) 和 [Copilot 指令](.github/copilot-instructions.md) 指向同一份规范，不另存副本。
 
 <a id="history"></a>
 

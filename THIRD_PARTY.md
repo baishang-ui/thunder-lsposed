@@ -1,75 +1,9 @@
 # UI component sources
 
-The four Liquid Glass controls reuse the original implementations by Kyant0:
-
-- `LiquidButton.kt`
-- `LiquidToggle.kt`
-- `LiquidSlider.kt`
-- `LiquidBottomTabs.kt` (with its `LiquidBottomTab.kt` helper)
-
-Source: [Kyant0/AndroidLiquidGlass tag 1.0.6](https://github.com/Kyant0/AndroidLiquidGlass/tree/1.0.6/catalog/src/main/java/com/kyant/backdrop/catalog).
-This release matches the app's `io.github.kyant0:backdrop:1.0.6` dependency. The
-same four components are linked from the repository's current `kmp` README.
-The required `DampedDragAnimation`, `InteractiveHighlight` and
-`DragGestureInspector` helpers are included from that tag as well.
-
-Copyright Kyant (Kyant0), Apache License 2.0. License text is distributed under
-`app/src/main/assets/licenses/backdrop.txt`.
-
-Local adaptations: replace hardcoded theme/accent with `LocalLiquidAppearance`,
-scale blur/lens dimensions using the app's UI preferences, and wrap the components
-with accessible labels/value actions and current callback state. The original
-press/optical algorithms are retained; app-specific layout adaptations are listed
-below. The slider keeps a continuous
-floating-point drag accumulator, reads current callbacks and geometry, and adds a
-finished callback so the app commits a drag once instead of recomposing the whole
-screen for every pointer event.
-
-The button accepts configurable content padding for header icons inside 48 dp
-touch targets. Text buttons use horizontal and vertical content padding, a 48 dp
-minimum height and a configurable shape with a 24 dp corner radius so wrapped or
-enlarged text can increase the height without entering capsule corners. Button
-shapes are restricted to Kyant's `RoundedRectangularShape`: icons use `Capsule`
-and text buttons use `RoundedRectangle`. Miuix's cached smooth shapes are not
-accepted by Backdrop 1.0.6's lens effect and cause an exception on first draw.
-The compiled button signature is checked by `scripts/check_liquid_button.py`.
-Button press content is clipped to the same shape as its backdrop; disabled buttons have
-no click or press handlers. Selected buttons draw an opaque accent surface so the
-theme's contrasting foreground matches the displayed background. Bottom tabs
-accept a configurable height shared by the visible bar, sampled tab layer and
-moving highlight, with a font-aware height supplied by the app.
-
-Other UI components (theme, text, cards, menu rows, choice tabs, dialog, color picker, and
-text input) use `top.yukonga.miuix.kmp:miuix-ui:0.9.0`.
-All in-app navigation, header and menu icons use the Regular set from
-`top.yukonga.miuix.kmp:miuix-icons:0.9.0`. The previous custom back and restart
-vectors have been removed.
-Copyright compose-miuix-ui contributors, Apache License 2.0; license under
-`app/src/main/assets/licenses/miuix.txt`.
-
-The application header uses Miuix `SmallTopAppBar` and a transparent `Surface`,
-with reserved navigation/action slots. The existing Liquid buttons sit in a fixed
-root overlay above the header and outside the predictive-back transform, so their
-position is independent of title/subtitle measurement. A shared,
-font-aware height is used for the header and page spacing, avoiding a one-frame
-padding change after navigation. The backdrop follows Kyant0's official
-[Progressive Blur tutorial](https://kyant.gitbook.io/backdrop/tutorials/progressive-blur):
-`drawPlainBackdrop`, a 4 dp blur and the tutorial's `AlphaMask` effect, retaining
-the app's original light/dark tint strength. The mask shader follows the official
-tutorial verbatim; only its size, tint and tint-intensity uniforms are supplied by
-the app.
-
-[Kyant0 Shapes](https://github.com/Kyant0/Shapes) is already included as
-`io.github.kyant0:shapes:1.2.0`. Its `RoundedRectangle` supplies text-button
-corners, and `Capsule` supplies icon-button and Liquid control shapes, including
-the bottom navigation. These remain library shapes rather than app-drawn paths.
-
-Preview selection uses Miuix `TabRowWithContour` / `RadioButton`, preview cards
-use Miuix `Card` / `Surface`, and enlarged previews use Miuix `WindowDialog`.
-Read-only progress illustrations use Miuix `LinearProgressIndicator`; the close
-and music glyphs use Miuix Icons. Installed system and theme assets remain preview
-content; they do not implement application interaction controls. Material samples
-use Miuix `Surface` with Kyant Backdrop's blur API, without a custom glass shader.
+The standalone app uses [COUI Compose 2.0.0](https://github.com/suqi8/coui/tree/v2.0.0)
+(`coui-ui`, `coui-preference`, `coui-icons`, `coui-blur`, `coui-nav`) for its ColorOS 17 UI.
+System Settings integration uses native COUI views from the host, not Compose.
+License: Apache License 2.0 (`app/src/main/assets/licenses/coui.txt`).
 
 Hook framework: libxposed [API](https://github.com/libxposed/api) and
 [Service](https://github.com/libxposed/service) **102.0.0**, Copyright libxposed

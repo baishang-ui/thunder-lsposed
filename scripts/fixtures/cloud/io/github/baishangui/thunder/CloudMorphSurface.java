@@ -12,6 +12,7 @@ final class CloudMorphSurface {
     float hostOpacityLimit=1,entryAlpha,initialLimit=1;boolean hostGateRunning,hostGateShowing;
     CloudMorphSurface(View container,ClassLoader loader){this.container=container;created.add(this);}
     boolean disposed(){return disposed;}
+    boolean hasCardInput(){return inputOwnership.captureOutside();}
     View capsuleSource(){return capsule;}
     boolean keepsCardPresentation(){return !disposed&&inputOwnership.keepsCardPresentation()&&card!=null&&card.isAttachedToWindow()&&card.isShown();}
     boolean ownsContentSource(View source){

@@ -1,5 +1,7 @@
 # 应用 UI 审查与调整
 
+> 历史记录：下列审查描述已移除的旧界面。当前 COUI 2.0 布局见 [设置布局](settings-layout.md)。
+
 ## 2026-10-17：统一使用 MIUIx / Liquid Glass
 
 依据根目录 `AGENTS.md`，应用交互控件统一复用 MIUIx 与 Kyant0 Liquid Glass，

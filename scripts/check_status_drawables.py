@@ -173,9 +173,10 @@ for forbidden in ('createFromAsset','createFromFile','Typeface.Builder'):
     assert forbidden not in hook, 'Battery styling must not load a separate font'
 for forbidden in ('Canvas','new Paint','drawText(','SignalDrawable','getPowerLevel','getLevel(','"dispatchDraw"','"onDraw"','setImageDrawable','setImageResource','StateFlowImpl','BatteryViewBinder','new IosIconDrawable'):
     assert forbidden not in hook,forbidden
-settings=(ROOT/'app/src/main/kotlin/io/github/baishangui/thunder/StatusIconSettings.kt').read_text(encoding='utf-8')
-assert '需重启系统界面' in settings and '切回系统默认' in settings
-assert 'IosIconDrawable(symbol)' not in settings
+settings_dir=ROOT/'app/src/main/kotlin/io/github/baishangui/thunder'
+catalog=(settings_dir/'SystemSettingsCatalog.kt').read_text(encoding='utf-8')
+assert '需重启系统界面' in catalog and '切回系统默认' in catalog
+assert 'IosIconDrawable(symbol)' not in (settings_dir/'WorkbenchScreens.kt').read_text(encoding='utf-8')
 if args.apk:
     with ZipFile(args.apk) as apk:
         assert not any(p.startswith('assets/fonts/') for p in apk.namelist()), 'Do not bundle an alternate battery font'

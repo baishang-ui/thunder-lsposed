@@ -2,8 +2,10 @@ package io.github.baishangui.thunder;
 
 import android.graphics.Canvas;
 import android.graphics.Matrix;
+import android.graphics.RectF;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -31,18 +33,24 @@ final class CloudCapsuleContent {
         else if(source instanceof ViewGroup mini)drawMiniContent(canvas,mini);
         canvas.restoreToCount(save);
     }
-    static void moonBounds(View moon,float width,float height,float gap,boolean right,android.graphics.RectF bounds) {
-        float scale=Math.min(1,height/Math.max(1,moon.getHeight()));
-        float w=moon.getWidth()*scale,h=moon.getHeight()*scale;
-        float x=right?width+gap:-gap-w,y=(height-h)/2f;
+    static void moonBounds(View moon,float width,float height,float gap,float offsetY,boolean right,RectF bounds) {
+        float w=moon.getWidth(),h=moon.getHeight();
+        float x=right?width+gap:-gap-w,y=(height-h)/2f+offsetY;
         bounds.set(x,y,x+w,y+h);
     }
-    static void drawMoon(Canvas canvas,View moon,android.graphics.RectF bounds,float alpha) {
+    static void moonArtworkBounds(View moon,RectF bounds,RectF artwork) {
+        artwork.set(bounds);
+        if(!(moon instanceof ImageView image)||image.getDrawable()==null)return;
+        artwork.set(image.getDrawable().getBounds());
+        image.getImageMatrix().mapRect(artwork);
+        artwork.offset(bounds.left+image.getPaddingLeft(),bounds.top+image.getPaddingTop());
+        if(!artwork.intersect(bounds))artwork.setEmpty();
+    }
+    static void drawMoon(Canvas canvas,View moon,RectF bounds,float alpha) {
         int opacity=Math.round(255*Math.max(0,Math.min(1,alpha)));
         if(opacity==0||moon==null||moon.getWidth()<=0||moon.getHeight()<=0)return;
         int save=opacity==255?canvas.save():canvas.saveLayerAlpha(null,opacity);
         canvas.translate(bounds.left,bounds.top);
-        canvas.scale(bounds.width()/moon.getWidth(),bounds.height()/moon.getHeight());
         // ImageView supplies the native crescent artwork. Its scene wrapper
         // matrix/alpha are replaced by edge attachment and one owned fade.
         moon.draw(canvas);canvas.restoreToCount(save);

@@ -76,7 +76,7 @@ jobs:
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
         with:
           packages: platform-tools
@@ -97,8 +97,6 @@ jobs:
           -x :app:lintVitalRelease
           -x :app:lintVitalReportRelease
           -x :app:lintVitalAnalyzeRelease
-      - name: Check glass button lens compatibility
-        run: python3 scripts/check_liquid_button.py
       - name: Validate release version
         if: github.ref_type == 'tag'
         env:

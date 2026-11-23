@@ -30,7 +30,7 @@ public class CloudMorphCheck {
     }
     static void nativeHide(Window window)throws Throwable {
         var callback=Api102Runtime.callbacks.get(BASE+"card.window.i#j");check(callback!=null,"window-hide boundary exists");
-        var p=CloudCheck.param(window,"native",false);callback.before(p);if(p.getResult()!=null)window.j(false);
+        var p=CloudCheck.param(window,"native",false);callback.before(p);if(p.getResult()!=null)window.j(false);callback.after(p);
     }
     public static class Secondary {public InstantContainer r=new InstantContainer();}
     public static class TouchRoot {public TouchHandler b=new TouchHandler();}

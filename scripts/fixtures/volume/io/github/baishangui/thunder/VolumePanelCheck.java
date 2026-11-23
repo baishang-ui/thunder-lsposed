@@ -248,9 +248,44 @@ public final class VolumePanelCheck {
         before(OWNER+"#destroy",owner);
         check(root.observer.layoutListeners.isEmpty()&&root.attachListeners.isEmpty(),"destroying the native dialog removes all sidebar layout callbacks");
     }
+    static void sidebarOverflowScenario()throws Throwable {
+        Bundle settings=config();CloudCheck.config(settings);
+        OplusVolumeDialogImpl owner=new OplusVolumeDialogImpl();OplusVolumeDialogView d=owner.mOplusVolumeDialogView;
+        for(String name:new String[]{"volume_row_text_height","oplus_volume_elevation_padding_top","oplus_volume_elevation_padding_bottom"})
+            d.mVolumeRecyclerview.res.ids.put(name,1);
+        OplusVolumeRow row=new OplusVolumeRow();owner.mRows.add(row);row.slider.actualHeight=0;
+        ViewGroup item=new ViewGroup();d.mVolumeRecyclerview.addView(item);
+        android.widget.FrameLayout host=new android.widget.FrameLayout();item.addView(host);
+        android.widget.FrameLayout.LayoutParams params=new android.widget.FrameLayout.LayoutParams(-1,260);
+        params.topMargin=-20;host.addView(row.view,params);
+        CloudCheck.after(VIEW+"#initDialog",d,null);
+        check(d.mVolumeRecyclerview.layout.height==892,"native insets apply length before the first slider measurement");
+        check(params.height==-1&&params.topMargin==-20,"existing sidebar rows follow their container without losing reveal overflow");
+        host.actualHeight=240;
+        com.oplus.systemui.volume.utils.VolumeLayoutUtil.prepareSideVolumeProgressOverflow$applyLayout(host,params,20,row.view);
+        check(params.height==260,"posted native callback uses the stale container measurement");
+        CloudCheck.after("com.oplus.systemui.volume.utils.VolumeLayoutUtil#prepareSideVolumeProgressOverflow$applyLayout",null,null,host,params,20,row.view);
+        check(params.height==-1&&params.topMargin==-20,"posted native write cannot pin a rebound sidebar row to the old height");
+        settings.putInt("volume_height",80);CloudCheck.config(settings);VolumeHook.refresh();
+        check(d.mVolumeRecyclerview.layout.height==232&&params.height==-1,"shortening while visible updates the viewport without pinning the row");
+        settings.putInt("volume_height",320);CloudCheck.config(settings);VolumeHook.refresh();
+        check(d.mVolumeRecyclerview.layout.height==892&&params.height==-1,"growing the visible bar reuses the configured viewport and adaptive row");
+        owner.mExpanded=true;params.topMargin=0;params.height=400;
+        d.mDialogView.observer.dispatchOnGlobalLayout();
+        check(params.height==400,"native expanded rows keep their own height");
+        owner.mExpanded=false;params.topMargin=-20;d.mDialogView.observer.dispatchOnGlobalLayout();
+        check(params.height==-1,"returning to the sidebar restores adaptive height");
+        d.mVolumeRecyclerview.actualHeight=892;
+        settings.putBoolean("volume_size",false);CloudCheck.config(settings);VolumeHook.refresh();
+        check(params.height==-1,"turning size off waits for the restored native viewport to be measured");
+        d.mVolumeRecyclerview.actualHeight=300;host.actualHeight=268;d.mDialogView.observer.dispatchOnGlobalLayout();
+        check(params.height==288&&params.topMargin==-20,"turning size off restores native overflow height from fresh bounds");
+        before(OWNER+"#destroy",owner);
+    }
     public static void main(String[] args)throws Throwable {
         ShadeHook.install("com.android.systemui","com.android.systemui",VolumePanelCheck.class.getClassLoader());
         sidebarLayoutScenario();
+        sidebarOverflowScenario();
         materialRefreshScenario();
         check(java.util.Arrays.stream(com.oplus.systemui.qs.base.res.SepQSResPool.Builder.class.getDeclaredMethods()).filter(m->m.getName().equals("build")).count()==2,"native builder fixture includes both the covariant implementation and its synthetic bridge");
         failedShortcutInitializationRestoresAnUnmountedPanel();
@@ -380,7 +415,7 @@ public final class VolumePanelCheck {
             if(fraction<.35f)check(d.mVerticalRowIconParent.getAlpha()==1f,"original buttons stay visible during initial movement before the shape spring starts");
             if(fraction>=.5f)check(reveal>0&&reveal<1,"capsule shape has a native spring intermediate pose independent of eased row progress");
             OplusQSThreeStageLayout morphNative=(OplusQSThreeStageLayout)morphSound;
-            check(morphNative.frameLayoutViews.get(0).getAlpha()==VolumePanelGeometry.clamp((reveal-.25f)/.5f),"native icons enter after the circle has begun to widen instead of crowding inside it");
+            check(morphNative.frameLayoutViews.get(0).getAlpha()==VolumePanelGeometry.smooth((reveal-.25f)/.5f),"native icons enter after the circle has begun to widen instead of crowding inside it");
             HookCallback.Param widthDraw=before(BAR+"#draw",row.slider,new Canvas());
             if(fraction==0)check(widthDraw.getObjectExtra("volume.widthPose")==null,"identical start/end geometry skips temporary pose allocation and field writes");
             float expected=nativeWidth*(209+(row.slider.mBackgroundWidth-209)*fraction)/row.slider.mBackgroundWidth;
@@ -411,7 +446,7 @@ public final class VolumePanelCheck {
         RecyclerView.ViewHolder added=new RecyclerView.ViewHolder(d.mVolumeRecyclerview.getChildAt(1),1);
         HookCallback.Param entrance=before(ANIM+"#animateAddImpl",animator,added,4);
         HookCallback.Param stagger=before("android.view.ViewPropertyAnimator#setStartDelay",added.itemView.animate(),33L);
-        check(stagger.args[0].equals(132L),"new rows keep their native stagger with a short delay behind the original bar/button handoff");
+        check(stagger.args[0].equals(81L),"new rows keep their native stagger with a short delay behind the original bar/button handoff");
         QsTintCheck.after(ANIM+"#animateAddImpl",entrance);
         check(before("android.view.ViewPropertyAnimator#setStartDelay",added.itemView.animate(),33L).args[0].equals(33L),"entrance delay does not affect unrelated animations on the UI thread");
         entrance=before(ANIM+"#animateMoveImpl",animator,h,0,0,0,0,4);

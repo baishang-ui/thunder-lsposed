@@ -10,6 +10,10 @@ public class MetaBallBlurDrawable extends Drawable {
  public void setMetaColor(int value){color=value;setGradientColors(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,new int[]{value});}
  public void setGradientColors(android.graphics.drawable.GradientDrawable.Orientation direction,int[] values){orientation=direction;colors=values.clone();}
  public int range,blendRange,index=1,draws,rangeChanges,submissions,boundsChanges,copies;public boolean removed;
+ private int placeholderColor;
+ public boolean hasReceivedFirstUpdate=true;
+ public int getPlaceHolderColor(){return placeholderColor;}
+ public void setPlaceHolderColor(int color){placeholderColor=color;}
  public MetaBall mainBall;
  public MetaBallBlurDrawable lastCopy;
  public boolean shader;

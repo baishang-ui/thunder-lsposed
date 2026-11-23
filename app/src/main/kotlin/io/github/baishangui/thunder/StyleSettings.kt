@@ -17,10 +17,8 @@ internal data class StyleSettings(
         val original = Bundle(b)
         HookConfig.STYLE_KEYS.forEach { group -> b.putBoolean("style_$group", switches[group] ?: defaultEnabled(original, group)) }
     }
-    fun enabled(settings: Settings, key: String) = settings.bundle().getBoolean("style_$key")
     fun toggle(key: String, enabled: Boolean) = copy(switches = switches + (key to enabled))
     fun area(settings: Settings, key: String): Area = materials[key] ?: fallback(settings.bundle(), key)
-    fun withArea(key: String, area: Area) = copy(materials = materials + (key to area))
     companion object {
         private fun fallback(b: Bundle, key: String): Area {
             if (key == "cloud_notification") return Area(color = 0x33ffffff, corner = 20)

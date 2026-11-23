@@ -73,8 +73,10 @@ final class CloudInputBridge {
         forwarded.setAction(MotionEvent.ACTION_OUTSIDE);
         // Android can hide outside coordinates for a different UID. Preserve the native
         // root's (0,0,TOOL_TYPE_UNKNOWN) sentinel instead of turning it into a fake touch.
-        if(event.getX()!=0f||event.getY()!=0f||event.getToolType(0)!=MotionEvent.TOOL_TYPE_UNKNOWN)
-            forwarded.transform(bodyToRoot);
+        if(!redactedOutside(event))forwarded.transform(bodyToRoot);
         return forwarded;
+    }
+    static boolean redactedOutside(MotionEvent event) {
+        return event.getActionMasked()==MotionEvent.ACTION_OUTSIDE&&event.getX()==0f&&event.getY()==0f&&event.getToolType(0)==MotionEvent.TOOL_TYPE_UNKNOWN;
     }
 }

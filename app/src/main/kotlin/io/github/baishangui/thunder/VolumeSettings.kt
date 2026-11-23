@@ -1,7 +1,6 @@
 package io.github.baishangui.thunder
 
 import android.os.Bundle
-import androidx.compose.runtime.Composable
 
 internal data class VolumeSettings(
     val size: Boolean = false, val width: Int = 56, val height: Int = 240,
@@ -30,34 +29,5 @@ internal data class VolumeSettings(
             return VolumeSettings(c.volumeSize,c.volumeWidth,c.volumeHeight,c.volumeCompact,
                 area(c.volumeBar),area(c.volumePanel),c.volumeLiquidEntrance)
         }
-    }
-}
-
-@Composable internal fun VolumeSettingsControls(value: VolumeSettings, change: (VolumeSettings) -> Unit) {
-    SettingsSectionTitle("动画与展开")
-    SettingsChoice("入场动画", listOf(
-        SettingOption("系统动画", "跟随系统的音量面板入场效果"),
-        SettingOption("液态入场", "从屏幕边缘拉伸分离，弹性停稳")
-    ), if (value.liquidEntrance) 1 else 0) { change(value.copy(liquidEntrance = it == 1)) }
-    SettingsChoice("展开方式", listOf(
-        SettingOption("系统展开", "使用系统默认的展开面板"),
-        SettingOption("紧凑展开", "沿音量条横向展开，下方显示声音模式与勿扰")
-    ), if (value.compact) 1 else 0) { change(value.copy(compact = it == 1)) }
-    SettingsDivider()
-    SettingsSectionTitle("音量条尺寸")
-    LiquidSwitchRow("自定义尺寸", "按钮边长跟随音量条宽度", value.size) { change(value.copy(size = it)) }
-    SettingsReveal(value.size) {
-        LiquidValueSlider("音量条宽度", value.width, 32..96, " dp") { change(value.copy(width = it)) }
-        LiquidValueSlider("音量条长度", value.height, 80..400, " dp") { change(value.copy(height = it)) }
-    }
-    SettingsDivider()
-    SettingsSectionTitle("音量条与按钮材质")
-    androidx.compose.runtime.CompositionLocalProvider(LocalControlScope provides "style:volume:bar") {
-        MaterialOptions(value.bar) { change(value.copy(bar = it)) }
-    }
-    SettingsDivider()
-    SettingsSectionTitle("展开面板材质")
-    androidx.compose.runtime.CompositionLocalProvider(LocalControlScope provides "style:volume:panel") {
-        MaterialOptions(value.panel) { change(value.copy(panel = it)) }
     }
 }

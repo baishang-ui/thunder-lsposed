@@ -151,13 +151,13 @@ public final class CloudCapsuleContentDeviceCheck {
         stable.recycle();
         RectF moonBounds=new RectF();
         for(int bodyWidth:new int[]{100,200,320,160}) {
-            CloudCapsuleContent.moonBounds(rightMoon,bodyWidth,40,6,true,moonBounds);
+            CloudCapsuleContent.moonBounds(rightMoon,bodyWidth,40,6,0,true,moonBounds);
             check(moonBounds.left==bodyWidth+6&&moonBounds.centerY()==20,"right crescent follows the presented width exactly");
-            CloudCapsuleContent.moonBounds(leftMoon,bodyWidth,40,6,false,moonBounds);
+            CloudCapsuleContent.moonBounds(leftMoon,bodyWidth,40,6,0,false,moonBounds);
             check(moonBounds.right==-6&&moonBounds.centerY()==20,"left crescent stays attached to the left edge");
         }
         rightMoon.setTranslationX(-100);rightMoon.setTranslationY(15);rightMoon.setScaleX(.2f);rightMoon.setAlpha(0);
-        CloudCapsuleContent.moonBounds(rightMoon,200,40,6,true,moonBounds);pixels.eraseColor(Color.TRANSPARENT);
+        CloudCapsuleContent.moonBounds(rightMoon,200,40,6,0,true,moonBounds);pixels.eraseColor(Color.TRANSPARENT);
         CloudCapsuleContent.drawMoon(canvas,rightMoon,moonBounds,1);
         check(pixels.getPixel(228,20)==Color.YELLOW,"crescent artwork ignores the native width fragment's conflicting matrix/alpha");
         // Native zero G2 weight must preserve the circular capsule endpoint.

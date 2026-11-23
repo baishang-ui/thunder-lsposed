@@ -10,6 +10,17 @@ internal object SystemSettingsCatalog {
         val choiceValues: List<Int>? = null)
     val pages = linkedMapOf("cloud" to "流体云", "center" to "通控中心", "volume" to "音量面板",
         "status" to "状态栏", "gesture" to "手势条")
+    val areaSections = linkedMapOf(
+        "面板与声音" to listOf("center", "volume"),
+        "状态与导航" to listOf("cloud", "status", "gesture")
+    )
+    val areaDescriptions = mapOf(
+        "center" to "背景、通知条、横幅与磁贴",
+        "volume" to "尺寸、入场、展开方式与材质",
+        "cloud" to "胶囊、卡片、锁屏与通知中心",
+        "status" to "布局、时钟与图标显示",
+        "gesture" to "显示、尺寸、材质与底部占位"
+    )
     val fields = buildList {
         fun flag(key: String, title: String, page: String, dependency: String? = null) {
             add(Field(key, title, page, dependency = dependency))
@@ -41,11 +52,11 @@ internal object SystemSettingsCatalog {
         flag("notification_margins", "自定义通知左右边距", "notifications")
         number("notification_margin", "左右各留白（dp）", "notifications", 0..64, "notification_margins")
         material("banner", "横幅材质", "banner")
+        flag("volume_size", "自定义音量条尺寸", "volume")
+        number("volume_height", "音量条长度（dp）", "volume", 80..400, "volume_size")
+        number("volume_width", "音量条宽度（dp）", "volume", 32..96, "volume_size")
         flag("volume_liquid_entrance", "液态入场动画", "volume")
         flag("volume_compact", "紧凑展开", "volume")
-        flag("volume_size", "自定义音量条尺寸", "volume")
-        number("volume_width", "音量条宽度（dp）", "volume", 32..96, "volume_size")
-        number("volume_height", "音量条长度（dp）", "volume", 80..400, "volume_size")
         material("volume_bar", "音量条与按钮", "volume")
         material("volume_panel", "展开面板", "volume")
         flag("cloud_enabled", "启用流体云调整", "cloud")
@@ -103,6 +114,42 @@ internal object SystemSettingsCatalog {
     // presented as one control, just as in the standalone app.
     private val internalControls = setOf("cloud_lock_style", "cloud_app_color", "cloud_app_color_strength_enabled", "status_bar_clock", "gesture_style")
     private fun section(f: Field): String = if (f.page == "home") "" else StyleGroups.group(StyleGroups.forField(f.key)).title
+    private fun subsection(f: Field): String {
+        if (f.key.startsWith("style_")) return ""
+        return when (StyleGroups.forField(f.key)) {
+            "volume" -> when {
+                f.key.startsWith("volume_bar_") -> "音量条与按钮材质"
+                f.key.startsWith("volume_panel_") -> "展开面板材质"
+                f.key == "volume_compact" || f.key == "volume_liquid_entrance" -> "动画与展开"
+                else -> "音量条尺寸"
+            }
+            "cloud" -> when {
+                f.key.startsWith("cloud_animation_") -> "展开与收起动画"
+                f.key.startsWith("cloud_card_") -> "展开卡片"
+                f.key == "cloud_app_color_strength" -> "应用色"
+                else -> "状态栏胶囊"
+            }
+            "gesture" -> when {
+                f.key.startsWith("gesture_bar_") -> "显示与占位"
+                f.key in setOf("gesture_length", "gesture_thickness", "gesture_bottom") -> "尺寸与位置"
+                f.key in setOf("gesture_colors", "gesture_auto_color", "gesture_light_color", "gesture_dark_color") -> "亮暗颜色"
+                else -> "手势条材质"
+            }
+            "status_icons" -> when {
+                f.bit == 0 -> "图标方案"
+                f.bit and (StatusBarIcons.BLUETOOTH or StatusBarIcons.VPN or StatusBarIcons.HOTSPOT or StatusBarIcons.HEADSET or StatusBarIcons.NFC) != 0 -> "连接图标"
+                else -> "系统图标"
+            }
+            else -> ""
+        }
+    }
+    private fun heading(f: Field): String = when (f.key) {
+        "enabled" -> "效果总开关"
+        "style_panel" -> "面板背景"
+        "style_notification" -> "通知与横幅"
+        "style_qs_small" -> "磁贴样式"
+        else -> subsection(f)
+    }
     /** Conditions match HookConfig semantics, including parents of dependent options. */
     private fun conditions(f: Field): Map<String, Boolean> = linkedMapOf<String, Boolean>().apply {
         fun parent(key: String) {
@@ -148,6 +195,7 @@ internal object SystemSettingsCatalog {
             else -> f.title.substringAfter(" · ").substringBefore("（")
         })
         putString("page", f.page); putString("section", section(f))
+        putString("subsection", subsection(f)); putString("heading", heading(f))
         if (f.page != "home") putString("style_group", StyleGroups.forField(f.key))
         putString("unit", when {
             "（ms）" in f.title -> "ms"
@@ -157,7 +205,9 @@ internal object SystemSettingsCatalog {
             "（%）" in f.title -> "%"
             else -> ""
         })
-        if (f.key == "status_bar_icon_style") putString("description", "更改后需重启系统界面")
+        if (f.key == "status_bar_icon_style") putString("description", "更改后需重启系统界面，包括切回系统默认")
+        if (f.key == "volume_size") putString("description", "侧边按钮的边长跟随音量条宽度")
+        if (f.key == "volume_compact") putString("description", "沿侧边音量条展开，保留声音模式与勿扰")
         putBoolean("color", f.color); putInt("bit", f.bit)
         f.range?.let { putInt("min", it.first); putInt("max", it.last) }
         f.choices?.let { putStringArray("choices", it.toTypedArray()) }

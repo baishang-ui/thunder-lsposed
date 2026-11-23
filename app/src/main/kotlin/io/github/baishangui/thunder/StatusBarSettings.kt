@@ -1,7 +1,6 @@
 package io.github.baishangui.thunder
 
 import android.os.Bundle
-import androidx.compose.runtime.Composable
 
 internal data class StatusBarSettings(
     val margins: Boolean = false, val left: Int = 16, val right: Int = 16,
@@ -32,45 +31,5 @@ internal data class StatusBarSettings(
                 c.statusBarClock, c.statusBarClockSeconds, c.statusBarClockHourFormat,
                 c.statusBarClockDate, c.statusBarClockWeekday, c.statusBarClockSize, c.statusBarClockBold)
         }
-    }
-}
-
-@Composable internal fun StatusBarLayoutControls(value: StatusBarSettings, change: (StatusBarSettings) -> Unit) {
-    SettingsSection("两侧边距") {
-        LiquidSwitchRow("自定义左右边距", "左右两侧分别调节", value.margins) { change(value.copy(margins = it)) }
-        SettingsReveal(value.margins) {
-            LiquidValueSlider("左边距", value.left, 0..64, " dp") { change(value.copy(left = it)) }
-            LiquidValueSlider("右边距", value.right, 0..64, " dp") { change(value.copy(right = it)) }
-        }
-    }
-    SettingsSection("中间留白") {
-        LiquidSwitchRow("自定义中间间距", "在左右内容之间增加留白，保留系统挖孔避让", value.centerEnabled) { change(value.copy(centerEnabled = it)) }
-        SettingsReveal(value.centerEnabled) { LiquidValueSlider("中间额外留白", value.center, 0..80, " dp") { change(value.copy(center = it)) } }
-    }
-    SettingsSection("空间适配") {
-        LiquidSwitchRow("长时钟自动压缩", "空间不足时横向压缩完整文字，空间恢复后还原", value.compressClock) { change(value.copy(compressClock = it)) }
-    }
-    UiText("边距与中间留白作用于桌面和应用顶部状态栏；横屏、挖孔处仍保留系统安全区域。参数自动保存并实时应用。", 12, muted = true)
-}
-
-@Composable internal fun StatusBarClockControls(value: StatusBarSettings, change: (StatusBarSettings) -> Unit) {
-    SettingsSection("显示内容") {
-        SettingsChoice("时间制式", listOf(
-            SettingOption("跟随系统", "使用系统设置中的时间制式"),
-            SettingOption("24 小时", "例如 14:30"),
-            SettingOption("12 小时", "例如 2:30")
-        ), value.hourFormat) { change(value.copy(hourFormat = it)) }
-        LiquidSwitchRow("显示秒数", "跟随系统息屏暂停刷新", value.seconds) { change(value.copy(seconds = it)) }
-        SettingsDivider()
-        SettingsChoice("日期格式", listOf(
-            SettingOption("不显示", "只显示时间"),
-            SettingOption("月/日", "例如 10/19"),
-            SettingOption("年/月/日", "例如 2026/10/19")
-        ), value.date) { change(value.copy(date = it)) }
-        LiquidSwitchRow("显示星期", "", value.weekday) { change(value.copy(weekday = it)) }
-    }
-    SettingsSection("文字样式") {
-        NumberSetting("时钟字号", value.size, 8..24, " sp") { change(value.copy(size = it)) }
-        LiquidSwitchRow("时钟加粗", "", value.bold) { change(value.copy(bold = it)) }
     }
 }

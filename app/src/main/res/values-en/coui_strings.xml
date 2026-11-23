@@ -1,0 +1,10 @@
+<resources>
+    <string name="coui_interaction">Material and haptics</string>
+    <string name="coui_material_blur">Material blur</string>
+    <string name="coui_material_blur_summary">Use COUI blur on this app’s bars, dialogs, and menus</string>
+    <string name="coui_scroll_haptics">Scroll-edge haptics</string>
+    <string name="coui_scroll_haptics_summary">Vibrate at the end of a list without changing bounce or other feedback</string>
+    <string name="coui_value_history">Change history for %1$s</string>
+    <string name="coui_history_on">On</string>
+    <string name="coui_history_off">Off</string>
+</resources>

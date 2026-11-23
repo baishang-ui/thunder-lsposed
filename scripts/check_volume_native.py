@@ -50,6 +50,8 @@ required['Lcom/oplus/systemui/qs/base/res/SepQSResPool;']=({'getHighLightIconBg'
 required['Lcom/oplus/systemui/qs/base/res/model/QSDrawableBuilder;']=({'build'},set())
 required[base+'utils/material/OplusVolumeShapePathHelper;']=({'buildClipPath'},set())
 required[base+'view/OplusVolumeDialogView;'][0].add('doShowOrHideAnimate')
+required[base+'view/OplusVolumeDialogView;'][0].add('updateAppVolumeAdjust')
+required[base+'utils/VolumeLayoutUtil;']=({'prepareSideVolumeProgressOverflow','prepareSideVolumeProgressOverflow$applyLayout'},set())
 required[base+'view/OplusVolumeDialogView$startShowOrHideAnimWithOnlyRow$2$1;']=({'run'},set())
 required[base+'view/OplusVolumeDialogView$showOrHideAnimation$1$3;']=({'run'},set())
 required[base+'utils/VolumeAnimUtil;']=({'enableComplexAnim','startViewPropertyAnimation'},set())

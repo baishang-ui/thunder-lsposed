@@ -10,9 +10,11 @@ public final class ValueAnimator extends Animator {
     public interface AnimatorUpdateListener {void onAnimationUpdate(ValueAnimator animator);}
     public static final List<ValueAnimator> running=new ArrayList<>();
     public final List<AnimatorUpdateListener> listeners=new ArrayList<>();
-    public long duration;public boolean cancelled,paused;float from,to,value;PathInterpolator interpolator;
+    public long duration;long playTime;public boolean cancelled,paused;float from,to,value;PathInterpolator interpolator;
     public void pause(){paused=true;}public void resume(){paused=false;}public boolean isPaused(){return paused;}
-    public void setCurrentPlayTime(long time){if(time==0)value=from;}
+    public void setCurrentPlayTime(long time){playTime=time;if(time==0)value=from;}
+    public long getCurrentPlayTime(){return playTime;}
+    public long getDuration(){return duration;}
     public static ValueAnimator ofFloat(float... values){ValueAnimator a=new ValueAnimator();a.from=values[0];a.to=values[values.length-1];return a;}
     public ValueAnimator setDuration(long v){duration=v;return this;}
     public void setInterpolator(PathInterpolator v){interpolator=v;}
